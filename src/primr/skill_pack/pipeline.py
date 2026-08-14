@@ -54,6 +54,25 @@ from primr.skill_pack.validator import validate_pack
 logger = logging.getLogger(__name__)
 
 
+def _enforce_total_cost(
+    config: SkillPackConfig,
+    usage_start: dict[str, dict[str, int | float]],
+    *,
+    before_phase: str,
+) -> None:
+    """Stop before another paid phase once observed run spend reaches its cap."""
+    if config.max_total_cost_usd is None:
+        return
+    from primr.ai.stage_routing import stage_usage_delta
+
+    spent = float(stage_usage_delta(usage_start).get("actual_cost_usd", 0.0))
+    if spent + 1e-9 >= config.max_total_cost_usd:
+        raise RuntimeError(
+            f"Skill-pack cost ceiling reached before {before_phase}: "
+            f"${spent:.4f} spent of ${config.max_total_cost_usd:.4f}."
+        )
+
+
 _NAME_SAFE_RE = re.compile(r"[^a-z0-9]+")
 
 
@@ -173,6 +192,9 @@ def run_skill_pack_pipeline(
     """
     config.validate()
     company_url = company_url or None
+    from primr.ai.stage_routing import capture_stage_usage
+
+    usage_start = capture_stage_usage()
 
     if config.from_jd_path:
         attach_role_brief_evidence(
@@ -243,6 +265,8 @@ def run_skill_pack_pipeline(
         )
         return empty_pack, SkillPackArtifacts(output_dir=str(output_dir))
 
+    _enforce_total_cost(config, usage_start, before_phase="authoring")
+
     # When an industry classification was computed during planning, prefer
     # it over the caller-supplied industry_context so authoring grounds
     # against the same context the plan was built on.
@@ -264,6 +288,8 @@ def run_skill_pack_pipeline(
         working_dir=working_dir,
         industry_context=industry_context,
     )
+
+    _enforce_total_cost(config, usage_start, before_phase="refinement")
 
     pack = SkillPack(
         company_name=company_name,
@@ -303,6 +329,8 @@ def run_skill_pack_pipeline(
             len(pack.validation.soft_issues),
         )
 
+    _enforce_total_cost(config, usage_start, before_phase="pack coherence")
+
     # -- Phase 5b: pack-level coherence -----------------------------------
     if config.run_pack_coherence_pass and pack.roles:
         logger.info("[skill_pack] Phase 5b: pack coherence pass")
@@ -334,6 +362,8 @@ def run_skill_pack_pipeline(
                     # partially mutated agent instructions never bypass gates.
                     pack.validation = validate_pack(pack)
             pack.validation = attach_coherence_findings_as_issues(pack, coherence)
+
+    _enforce_total_cost(config, usage_start, before_phase="optional quality passes")
 
     pack_level_hard_findings = [
         issue for issue in pack.validation.hard_issues if issue.role_name is None
@@ -385,6 +415,8 @@ def run_skill_pack_pipeline(
                 "Trigger optimization produced no valid roles after security revalidation. "
                 "Inspect the validation report for HARD findings."
             )
+
+    _enforce_total_cost(config, usage_start, before_phase="behavioral evaluation")
 
     # -- Phase 5d: behavioral evaluation (opt-in, expensive) --------------
     if config.with_evals and pack.roles:

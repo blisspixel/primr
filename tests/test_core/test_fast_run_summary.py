@@ -50,6 +50,8 @@ def _call(env, **overrides):
         "display_name": "AcmeCo",
         "folder_path": str(env["tmp"]),
         "written_sections_count": 23,
+        "expected_sections_count": 23,
+        "report_complete": True,
         "total_words": 21000,
         "validated_source_count": 14,
         "pages_scraped": 48,
@@ -107,6 +109,8 @@ class TestFinalize:
         _call(env)
         state = env["run_state"]
         assert state["report_sections"] == 23
+        assert state["report_sections_expected"] == 23
+        assert state["report_complete"] is True
         assert state["report_words"] == 21000
         assert state["external_sources_validated"] == 14
         assert state["artifact_gate_passed"] is True
@@ -126,6 +130,23 @@ class TestFinalize:
     def test_artifact_gate_fails_without_report_docx(self, env):
         _call(env, docx_path=None)
         assert env["run_state"]["artifact_gate_passed"] is False
+
+    def test_artifact_gate_surfaces_materially_incomplete_markdown(self, env):
+        from datetime import datetime
+
+        date_str = datetime.now().strftime("%m-%d-%Y")
+        md = env["tmp"] / f"AcmeCo_Strategic_Overview_{date_str}.md"
+        md.write_text("# Partial report", encoding="utf-8")
+        result = _call(
+            env,
+            docx_path=None,
+            written_sections_count=8,
+            expected_sections_count=23,
+            report_complete=False,
+        )
+        assert result == str(md)
+        assert env["run_state"]["artifact_gate_passed"] is False
+        assert env["run_state"]["report_complete"] is False
 
     def test_partial_strategy_outcome_fails_artifact_gate_and_is_persisted(self, env):
         tracker = StrategyOutcomeTracker(("ai:azure", "ai:aws"))

@@ -63,6 +63,8 @@ _JOB_JOURNAL_FIELDS = frozenset(
         "error_message",
         "deep_research_job_id",
         "qa_score",
+        "actual_cost_usd",
+        "governance_audit",
     }
 )
 _MODES = frozenset({"scrape", "deep", "full", "premium"})
@@ -378,6 +380,21 @@ def validate_job_snapshot(snapshot: dict[str, Any], *, label: str = "job snapsho
         isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= 100
     ):
         raise WorkerProtocolError(f"{label} qa_score must be an integer from 0 to 100 or null")
+
+    actual_cost = snapshot.get("actual_cost_usd")
+    if actual_cost is not None and (
+        isinstance(actual_cost, bool)
+        or not isinstance(actual_cost, int | float)
+        or not math.isfinite(float(actual_cost))
+        or actual_cost < 0
+    ):
+        raise WorkerProtocolError(
+            f"{label} actual_cost_usd must be a finite non-negative number or null"
+        )
+
+    audit = snapshot.get("governance_audit")
+    if audit is not None and not isinstance(audit, dict):
+        raise WorkerProtocolError(f"{label} governance_audit must be an object or null")
 
 
 def _optional_timestamp(value: dict[str, Any], field_name: str, *, required: bool = False) -> None:

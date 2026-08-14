@@ -31,6 +31,9 @@ def write_terminal_manifest(
     if job.completion_time is not None:
         elapsed = job.completion_time - job.start_time
         actual_time_minutes = max(0, int(elapsed.total_seconds() / 60))
+    audit = job.governance_audit or {}
+    estimate_audit = audit.get("estimate") if isinstance(audit.get("estimate"), dict) else {}
+    approval_audit = audit.get("approval") if isinstance(audit.get("approval"), dict) else {}
     manifest = {
         "schema_version": "1.1",
         "job_id": job.job_id,
@@ -38,15 +41,16 @@ def write_terminal_manifest(
         "company_url": company_url,
         "mode": mode,
         "estimate": {
-            "cost_usd": None,
-            "time_minutes": None,
-            "estimated_at": None,
+            "cost_usd": estimate_audit.get("cost_usd"),
+            "time_minutes": estimate_audit.get("time_minutes"),
+            "estimated_at": estimate_audit.get("estimated_at"),
         },
         "approval": {
             "token": None,
-            "approved_at": None,
+            "approval_token_id": approval_audit.get("approval_token_id"),
+            "approved_at": approval_audit.get("approved_at"),
             "approved_by": job.owner_client_id or "stdio",
-            "bound_to_estimate": False,
+            "bound_to_estimate": bool(approval_audit.get("bound_to_estimate", False)),
         },
         "budget": {
             "approved_ceiling_usd": budget_usd,
@@ -59,7 +63,7 @@ def write_terminal_manifest(
                 job.completion_time.isoformat() if job.completion_time is not None else None
             ),
             "status": job.get_status().value,
-            "actual_cost_usd": None,
+            "actual_cost_usd": job.actual_cost_usd,
             "actual_time_minutes": actual_time_minutes,
         },
         "termination": {

@@ -9,9 +9,9 @@ primr exposes four orthogonal levers. Picking the right combination keeps cost a
 | Mode | What it does | Time | Cost | Pick when |
 |------|--------------|------|------|-----------|
 | `full` (default) | Site corpus + external research + structured report + one integrated AI Strategy | 34-53 min | ~$0.89 | Almost everything. The default for "research Acme." |
-| `scrape` | Site corpus + insights only, no external research | 5-10 min | ~$0.10 | The user only cares what the company says about itself; external context not needed; cost-sensitive scoping pass. |
-| `deep` | External research only (Gemini Deep Research), no site scrape | 10-15 min | ~$2.50 | Site is hard-blocked or actively hostile to scraping; user wants third-party / analyst / news-driven context. |
-| `premium` | Gemini Pro + Deep Research + structured report | 50-75 min | ~$5 | User explicitly asked for board-grade depth and accepted the cost. Don't pick this default. |
+| `scrape` | Site corpus + provider-synthesized insights, no external research | 2-5 min | ~$0.10 | The user only cares what the company says about itself; external context not needed; cost-sensitive scoping pass. |
+| `deep` | Hiring evidence + Deep Research dossier + sequential Flash report + one AI Strategy | 32-62 min | Current static plan ~$5.38; use dry-run | Site is hard-blocked or the user wants third-party, analyst, and news-driven context without the Premium collection stage. |
+| `premium` | Structured evidence + Deep Research dossier + sequential Flash report + one AI Strategy | 74-132 min | Current static plan ~$6.71; use dry-run | User explicitly asked for maximum provider-backed depth and accepted the live quote. Do not pick this by default. |
 
 Heuristics:
 
@@ -29,11 +29,13 @@ Heuristics:
 |------|--------------|------|
 | `fast` | Grok 4.3 (reasoning_effort=low) with the routed writing provider | Re-estimate |
 | `hybrid` (default) | Grok 4.3 for reasoning + Gemini 3.1 Flash-Lite writing when Gemini is configured | ~$0.76-$0.89 by default |
-| `max` | Grok 4.5 everywhere (latest flagship; re-estimate) | higher than hybrid |
+| `max` | Grok 4.5 everywhere (version-pinned high-cost tier; re-estimate) | ~$9.93 with the default strategy |
 
-`fast` saves tokens on reasoning (low effort). `max` uses Grok 4.5 for every
-Grok stage (latest flagship; higher cost than hybrid). Only pick it if the user
-has explicitly asked for absolute best Grok output and you've already cost-gated.
+`fast` saves tokens on reasoning (low effort). `max` uses the version-pinned
+Grok 4.5 route for every Grok stage and costs materially more than hybrid.
+Grok 4.6 is registered for evaluation but is not silently promoted into this
+product tier. Only pick `max` when the user explicitly requests it and has
+approved the exact quote.
 
 ## Platform
 
@@ -104,4 +106,8 @@ Always re-estimate when you add levers; don't assume a previous estimate covers 
 
 ## When to use `--lite`
 
-`--lite` only applies in `--premium` mode. It substitutes Gemini Pro for Deep Research in the strategy module, dropping ~$1 off premium runs at a quality cost. Pick it when the user said "premium" but the budget conversation suggests they didn't really mean $5+. Surface it as "premium, but ~20% cheaper, slightly less depth in the strategy module" and let them choose.
+`--lite` only applies in `--premium` mode. It replaces the strategy module's
+Deep Research workflow with the configured `Role.REASONING` route, so the
+provider and model can vary. It usually reduces the live quote at a quality
+cost. Pick it when the user said "premium" but wants a cheaper strategy stage.
+Surface the exact dry-run comparison and let them choose.

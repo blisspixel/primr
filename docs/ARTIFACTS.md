@@ -57,10 +57,13 @@ strict about formatting and structure in the final document pipeline.
   returning detailed QA or report body content.
 - **Job-scoped usage and cost metadata for agents** through
   `primr://output/usage_summary/by_job/{job_id}`. The resource reads attached
-  run manifests adjacent to owned job outputs and returns cost, timing,
-  approval, execution, parse, hash, timestamp, and artifact-count metadata
+  run manifests adjacent to owned job outputs and returns estimate, approval,
+  timing, execution, parse, hash, timestamp, and artifact-count metadata
   without returning company URLs, approval tokens, manifest artifact lists, or
-  full manifest content.
+  full manifest content. Completed measurable jobs report run-scoped
+  `actual_cost_usd`; cancellations and otherwise unmeasurable terminal paths
+  retain `null`. Estimates and approved ceilings are never reported as actual
+  spend.
 - **Job-scoped source appendix metadata for agents** through
   `primr://output/source_summary/by_job/{job_id}`. The resource reads owned
   markdown and text report artifacts, then returns citation counts, source

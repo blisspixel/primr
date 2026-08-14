@@ -8,6 +8,18 @@ This guide covers the maintained OpenClaw integration for Primr.
 
 Primr is exposed to OpenClaw through `primr-mcp`. Skills and workflows should treat MCP as the source of truth for current modes, defaults, status, and outputs.
 
+## Portable package and maintained deployment
+
+OpenClaw is listed in the Agent Plugins v1 compatible-client registry for
+Agent Skills and MCP transports. The experimental `agent-plugin/` directory is
+therefore a portable discovery option. Its MCP entry launches the bare `primr`
+executable, which must already be installed and discoverable by OpenClaw.
+
+The deployment below remains Primr's maintained OpenClaw integration because
+it includes the pinned sandbox build, explicit environment wiring, and Primr's
+OpenClaw workflows. Loading either package only discovers skills and MCP
+configuration. It does not launch research or authorize provider spend.
+
 
 
 ## Prerequisites
@@ -141,7 +153,10 @@ primr doctor
 - Read `primr://research/modes` before advising on mode selection.
 
 - Call `estimate_run` before starting new research work and show the user the expected cost/time.
-- If `PRIMR_ENFORCE_MCP_COST_CAPS` is enabled, the packaged research workflow now propagates the approved estimate as `max_estimated_cost_usd` into `research_company`, and the packaged strategy workflow does the same for `generate_strategy`.
+- The packaged research workflow propagates the approved estimate as
+  `max_estimated_cost_usd` into `research_company`, and the packaged strategy
+  workflow does the same for `generate_strategy`. MCP enforcement is on by
+  default for every transport.
 
 - Treat `full` as the standard end-to-end mode.
 - Expect long runtimes: standard runs are often 35-50 minutes, and premium multi-vendor runs can take 75-120 minutes.

@@ -343,37 +343,52 @@ Metadata structure:
 
 ### The Accordion Method
 
-The Accordion Method produces 30+ page reports by separating research from writing:
+The production Deep/Premium path separates research from sequential writing.
+It targets greater evidence breadth and section depth than one Deep Research
+response, without promising a fixed page count:
 
 ```
 Phase 1: Deep Research (Lead Researcher)
   - Agent: deep-research-preview-04-2026
   - Role: Gather facts, data, citations
-  - Output: ~12 page research dossier
+  - Output: Evidence dossier with citations
 
-Phase 2: Section Writing (Gemini 3.1 Pro)
-  - Model: gemini-3.1-pro-preview
+Phase 2: Sequential Section Writing (Gemini Flash)
+  - Model: PrimrModels.FLASH_MODEL
   - Role: Write each section with analytical depth
-  - Input: Dossier via previous_interaction_id + prior sections
-  - Output: 20 sections × ~1.5 pages = 30+ pages
+  - Input: Dossier plus bounded excerpts from recent sections
+  - Output: Configured YAML section plan, sized from an approximate target
+
+Phase 3: Assembly
+  - Output: Ordered sections, table of contents, and preserved citations
 ```
 
-This architecture treats Deep Research as the **researcher** and Gemini 3.1 Pro as the **writer**.
+This architecture treats Deep Research as the **researcher** and Gemini Flash
+as the **writer**. Section calls use direct generation; they do not continue the
+Deep Research interaction.
 
-### Section Writing and `previous_interaction_id`
+### Section Writing Context
 
-Section writing continues the Deep Research interaction through
-`previous_interaction_id`, so each section builds statefully on the researched
-dossier instead of re-sending the full dossier in every prompt. See
-[ARCHITECTURE](ARCHITECTURE.md) for the current end-to-end pipeline diagram.
+Each section prompt carries the dossier, bounded Stage 1 evidence, and excerpts
+from up to three recent sections. The loop is sequential and uses adaptive
+rate-limit pacing. This is continuity-aware context, not an unbounded shared
+conversation. See [ARCHITECTURE](ARCHITECTURE.md) for the current end-to-end
+pipeline diagram.
 
 ### Model Selection
 
 | Component | Model | Rationale |
 |-----------|-------|-----------|
 | Research Dossier | `deep-research-preview-04-2026` | Autonomous web research |
-| Section Writing | `gemini-3.1-pro-preview` | Analytical depth, tiered pricing |
+| Section Writing | `PrimrModels.FLASH_MODEL` | Sequential, cost-controlled synthesis |
 | Stage 1 Analysis | `gemini-3-flash-preview` | Quick section analysis |
+
+Deep Research responses are parsed from the current Interactions shape:
+`steps[*].model_output.content`. A deliberate legacy `outputs` fallback remains
+for persisted jobs created under older response shapes. Background interactions
+set `store=True` because Google requires storage for background execution. See
+Google's [Interactions overview](https://ai.google.dev/gemini-api/docs/interactions-overview)
+and [Deep Research guide](https://ai.google.dev/gemini-api/docs/deep-research).
 
 ### Adaptive Polling
 
@@ -417,21 +432,24 @@ The pending record is removed only after recovered outputs are saved. Provider-t
 
 ### File Search Store
 
-Context from Phase 0 is uploaded to Gemini's File Search Store:
+Context from Stage 1 is uploaded to a Gemini File Search store. Upload returns a
+long-running operation, so Primr waits with a bounded timeout and backoff before
+submitting the research interaction:
 
 ```python
 def upload_to_file_search_store(context_file, company_name):
     store = client.file_search_stores.create(
-        name=f"primr_{company_name}_{timestamp}"
+        config={"display_name": f"primr-{company_name}-{timestamp}"}
     )
-    client.file_search_stores.upload(
-        store_name=store.name,
-        file_path=context_file
+    operation = client.file_search_stores.upload_to_file_search_store(
+        file=context_file,
+        file_search_store_name=store.name,
     )
+    wait_for_file_search_operation(client, operation)
     return store.name
 ```
 
-All Phase 2 research nodes reference this store:
+The dossier interaction references this store:
 
 ```python
 tools = [{
@@ -439,6 +457,13 @@ tools = [{
     "file_search_store_names": [store_name]
 }]
 ```
+
+Google documents that imported File Search data and its embeddings persist
+until the store is manually deleted. The temporary raw File API object is
+deleted after 48 hours. Primr deletes its owned store after terminal work, but
+does not delete a store while an accepted background interaction may still use
+it. Storage and query-time embeddings are free; indexing embeddings are billed.
+See Google's [File Search storage and pricing notes](https://ai.google.dev/gemini-api/docs/file-search#pricing).
 
 ## Token Usage Tracking
 
@@ -460,17 +485,13 @@ def extract_usage(response):
 
 ### Cost Calculation
 
-Costs are calculated using Gemini pricing:
-
-```python
-INPUT_PRICE = 2.00   # per 1M tokens
-OUTPUT_PRICE = 12.00  # per 1M tokens
-
-def calculate_cost(input_tokens, output_tokens):
-    input_cost = (input_tokens / 1_000_000) * INPUT_PRICE
-    output_cost = (output_tokens / 1_000_000) * OUTPUT_PRICE
-    return input_cost + output_cost
-```
+Token fallback costs come from the selected entry in `ModelRegistry`, including
+published cached-input and long-context tiers. They are not calculated from one
+global Gemini price. xAI responses may additionally return
+`usage.cost_in_usd_ticks`; Primr records that exact billed amount when present
+and retains registry pricing as the conservative fallback. One US dollar is
+10,000,000,000 ticks. See xAI's
+[cost-tracking contract](https://docs.x.ai/developers/cost-tracking).
 
 ## Error Recovery
 

@@ -104,13 +104,6 @@ class PreflightValidator:
     DEEP_RESEARCH_AGENT = PrimrModels.DEEP_RESEARCH_AGENT
     SECTION_MODEL = PrimrModels.FLASH_MODEL
 
-    # Estimates by mode
-    ESTIMATES = {
-        "full": {"duration": "35-50 minutes", "cost": "~$0.50-1.00"},
-        "deep": {"duration": "10-15 minutes", "cost": "~$0.10-0.20"},
-        "scrape": {"duration": "2-5 minutes", "cost": "~$0.01"},  # Scrape-only is cheap
-    }
-
     def __init__(self):
         """Initialize validator."""
         self._settings = get_settings()
@@ -162,16 +155,13 @@ class PreflightValidator:
         # 6. Output Directory
         self._check_output_dir(errors, warnings, checks, progress)
 
-        # Build result
-        estimates = self.ESTIMATES.get(mode, self.ESTIMATES["full"])
-
         result = PreflightResult(
             success=len(errors) == 0,
             errors=errors,
             warnings=warnings,
             checks=checks,
-            estimated_duration=estimates["duration"],
-            estimated_cost=estimates["cost"],
+            estimated_duration="Use the execution dry-run for the current plan",
+            estimated_cost="Use the execution dry-run for the current plan",
         )
 
         if result.success:
@@ -279,7 +269,7 @@ class PreflightValidator:
         checks: dict,
         progress: Callable,
     ) -> None:
-        """Check model connectivity."""
+        """Check model metadata access without spending generation tokens."""
         gemini_key = self._settings.api.gemini_key
         if not gemini_key:
             return  # Already reported in API key check
@@ -295,23 +285,15 @@ class PreflightValidator:
 
         client = genai.Client(api_key=gemini_key, http_options=default_genai_http_options())
 
-        # Gemini 3 Flash - required for section writing (full, scrape modes)
         if mode in ("full", "scrape"):
             try:
-                response = client.models.generate_content(
-                    model=self.SECTION_MODEL,
-                    contents="Respond with exactly: OK",
-                )
-                if response.text:
-                    checks["gemini_flash"] = {
-                        "passed": True,
-                        "status": "accessible",
-                        "detail": self.SECTION_MODEL,
-                    }
-                    progress(f"  ✓ {self.SECTION_MODEL}")
-                else:
-                    errors.append(f"{self.SECTION_MODEL} returned empty response")
-                    checks["gemini_flash"] = {"passed": False, "status": "empty_response"}
+                client.models.get(model=self.SECTION_MODEL)
+                checks["gemini_flash"] = {
+                    "passed": True,
+                    "status": "accessible",
+                    "detail": self.SECTION_MODEL,
+                }
+                progress(f"  ✓ {self.SECTION_MODEL}")
             except Exception as e:
                 error_str = str(e).lower()
                 if "not found" in error_str or "does not exist" in error_str:

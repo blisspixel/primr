@@ -31,6 +31,8 @@ def should_include_api_keys(config: Any) -> bool:
         include_api_keys = True
     if command_value == "generate-vendor":
         include_api_keys = False
+    if command_value == "improve" and getattr(config, "improve_agentic", False):
+        include_api_keys = True
     return include_api_keys
 
 

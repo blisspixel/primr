@@ -54,18 +54,15 @@ NEW_FILE_MAX_LINES = 1000
 # When a file is split and shrinks, lower its ceiling (or drop it once under
 # NEW_FILE_MAX_LINES). Never raise a ceiling to make a growing file pass.
 FILE_LINE_CEILINGS: dict[str, int] = {
-    # research_agent.py and cli.py remain below their committed-main baselines
-    # (4338 / 2942) — so these ceilings reflect current reality without exceeding
-    # the prior committed size. cli.py's +3 over 2933 is the `render` subcommand
-    # dispatch only (an import + a 2-line check); all render logic lives in
-    # cli_render.py, keeping the entrypoint's growth minimal.
-    "core/research_agent.py": 4322,
-    "core/cli.py": 2824,
-    "ai/deep_research.py": 3885,
+    # research_agent.py and cli.py remain below their committed-main baselines.
+    # These ceilings track the current measured sizes and may only shrink.
+    "core/research_agent.py": 4302,
+    "core/cli.py": 2573,
+    "ai/deep_research.py": 3817,
     "data/scraping/browsers.py": 1835,
     "data/hiring_signals.py": 1577,
     "core/model_eval.py": 1832,
-    "data/scrape.py": 1832,
+    "data/scrape.py": 1830,
     "data/fallback_sources.py": 1084,
     # cli_batch_runtime.py received extracted batch-runtime code during the
     # cli.py decomposition; pinned here now that it exceeds the new-file cap.
@@ -99,7 +96,6 @@ INTENTIONAL_TINY_MODULES: dict[str, str] = {
     "config/sections_config.py": "section configuration compatibility surface",
     "core/cli_prep.py": "legacy prep-command import compatibility surface",
     "core/cli_help.py": "backward-compatible CLI help import surface",
-    "core/cli_labels.py": "shared Grok tier / mode display labels for CLI and estimates",
     "core/strategy_enrichment_contract.py": "strategy review and repair framing policy",
     "data/first_party_url.py": "first-party URL policy seam",
     "mcp_server/cloud_detect.py": "cloud-runtime adapter",
@@ -148,10 +144,8 @@ EXPECTED_IMPORT_CYCLES = {
         {
             "primr",
             "primr.core.cli",
-            "primr.core.cli_budget",
             "primr.core.cli_dispatch",
             "primr.core.cli_doctor",
-            "primr.core.cli_dryrun",
             "primr.core.cli_errors",
             "primr.core.cli_init",
             "primr.core.cli_plan",

@@ -17,6 +17,16 @@ NO_AUTOMATIC_RETRY_MESSAGE = (
 )
 
 
+class AcceptedInteractionError(RuntimeError):
+    """Polling failed after the provider accepted a background interaction."""
+
+    def __init__(self, interaction_id: str, cause: Exception) -> None:
+        super().__init__(
+            f"Interaction {interaction_id} was accepted but its current state is uncertain: {cause}"
+        )
+        self.interaction_id = interaction_id
+
+
 def report_no_retry_failure(
     error: Exception,
     *,

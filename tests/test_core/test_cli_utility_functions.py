@@ -189,7 +189,7 @@ class TestCheckApiQuota:
         fake_settings = MagicMock()
         fake_settings.api.gemini_key = ""
         monkeypatch.setattr("primr.config.settings.get_settings", lambda: fake_settings)
-        check_api_quota()
+        assert check_api_quota() == 1
         captured = capsys.readouterr()
         assert "GEMINI_API_KEY" in captured.out
 
@@ -199,29 +199,29 @@ class TestCheckApiQuota:
         monkeypatch.setattr("primr.config.settings.get_settings", lambda: fake_settings)
         fake = MagicMock()
         client = MagicMock()
-        response = MagicMock()
-        response.text = "OK"
-        client.models.generate_content.return_value = response
+        client.models.get.return_value = MagicMock()
         fake.Client.return_value = client
         with (
             patch.dict("sys.modules", {"google": MagicMock(genai=fake)}),
             patch("google.genai", fake, create=True),
         ):
-            check_api_quota()
+            assert check_api_quota() == 0
+        client.models.get.assert_called_once()
+        client.models.generate_content.assert_not_called()
 
     def test_quota_exhausted(self, monkeypatch, capsys):
         fake_settings = MagicMock()
         fake_settings.api.gemini_key = "AI" + "x" * 30
         monkeypatch.setattr("primr.config.settings.get_settings", lambda: fake_settings)
         fake = MagicMock()
-        fake.Client.return_value.models.generate_content.side_effect = RuntimeError(
+        fake.Client.return_value.models.get.side_effect = RuntimeError(
             "RESOURCE_EXHAUSTED: per_day quota"
         )
         with (
             patch.dict("sys.modules", {"google": MagicMock(genai=fake)}),
             patch("google.genai", fake, create=True),
         ):
-            check_api_quota()
+            assert check_api_quota() == 1
         captured = capsys.readouterr()
         assert "EXHAUSTED" in captured.out
 

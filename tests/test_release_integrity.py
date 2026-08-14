@@ -431,6 +431,11 @@ def test_built_sdist_matches_release_inventory(tmp_path: Path) -> None:
     required_paths = {
         ".agents/skills/primr-zero/SKILL.md",
         ".env.example",
+        "agent-plugin/README.md",
+        "agent-plugin/mcp.json",
+        "agent-plugin/plugin.json",
+        "agent-plugin/skills/primr/SKILL.md",
+        "agent-plugin/skills/primr-zero/SKILL.md",
         "LICENSE",
         "README.md",
         "ROADMAP.md",

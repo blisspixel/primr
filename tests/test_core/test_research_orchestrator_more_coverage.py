@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 import tempfile
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
@@ -463,6 +463,9 @@ class TestRunDeepResearchWithContext:
         deep_result.api_calls = 2
         deep_result.sections_written = 8
         deep_result.search_queries_count = 11
+        deep_result.target_pages = 30
+        deep_result.actual_pages = 22
+        deep_result.target_attained = False
 
         mock_orch = MagicMock()
 
@@ -491,6 +494,9 @@ class TestRunDeepResearchWithContext:
         assert result.sections_written == 8
         assert result.search_queries_count == 11
         assert result.citations == ["c"]
+        assert result.target_pages == 30
+        assert result.actual_pages == 22
+        assert result.target_attained is False
 
     @pytest.mark.asyncio
     async def test_failure_returns_failed_result(self):
@@ -514,6 +520,61 @@ class TestRunDeepResearchWithContext:
         assert result.success is False
         assert result.error == "boom"
         assert result.section_results == {}
+
+    @pytest.mark.asyncio
+    async def test_failure_preserves_partial_report_for_recovery(self):
+        orch = ResearchOrchestrator()
+        cfg = ResearchConfig(mode=ResearchMode.DEEP_RESEARCH)
+        deep_result = Mock(
+            success=False,
+            error="section pipeline failed",
+            content="# Partial report\n\nGrounded material.",
+            citations=[{"url": "https://example.co/source"}],
+            sections_written=3,
+            search_queries_count=4,
+            interaction_id="job-1",
+        )
+        mock_orch = MagicMock()
+        mock_orch.generate_comprehensive_report = AsyncMock(return_value=deep_result)
+
+        with patch(f"{PREMIUM_DR_MODULE}.get_deep_research_orchestrator", return_value=mock_orch):
+            result = await orch._run_deep_research_with_context("Acme Corp", None, cfg, None, None)
+
+        assert result.success is False
+        assert result.raw_content == deep_result.content
+        assert result.section_results == {"strategic_overview_partial": deep_result.content}
+        assert result.citations == deep_result.citations
+        assert result.pending_interaction_id == "job-1"
+
+    @pytest.mark.asyncio
+    async def test_formatter_failure_preserves_completed_raw_report(self):
+        orch = ResearchOrchestrator()
+        cfg = ResearchConfig(mode=ResearchMode.DEEP_RESEARCH)
+        deep_result = Mock(
+            success=True,
+            content="# Complete raw report\n\nGrounded material.",
+            citations=[{"url": "https://example.co/source"}],
+            api_calls=4,
+            sections_written=3,
+            search_queries_count=2,
+            interaction_id="job-1",
+        )
+        mock_orch = MagicMock()
+        mock_orch.generate_comprehensive_report = AsyncMock(return_value=deep_result)
+
+        with (
+            patch(f"{PREMIUM_DR_MODULE}.get_deep_research_orchestrator", return_value=mock_orch),
+            patch(
+                f"{PREMIUM_DR_MODULE}.ReportFormatter",
+                side_effect=RuntimeError("formatter defect"),
+            ),
+        ):
+            result = await orch._run_deep_research_with_context("Acme Corp", None, cfg, None, None)
+
+        assert result.success is True
+        assert result.raw_content == deep_result.content
+        assert result.section_results == {"strategic_overview": deep_result.content}
+        assert result.citations == deep_result.citations
 
 
 # ---------------------------------------------------------------------------
@@ -730,7 +791,7 @@ class TestRunCompleteResearch:
         assert result.section_results["strategic_overview"] == "# Report"
 
     @pytest.mark.asyncio
-    async def test_deep_research_failure_returns_partial_with_quota_tip(self):
+    async def test_deep_research_failure_returns_partial_with_quota_tip(self, tmp_path):
         orch = ResearchOrchestrator()
         cfg = ResearchConfig(mode=ResearchMode.COMPLETE)
 
@@ -748,6 +809,11 @@ class TestRunCompleteResearch:
         deep_result = Mock()
         deep_result.success = False
         deep_result.error = "429 quota exceeded"
+        deep_result.content = "# Paid partial\n\nResearch completed before quota failure."
+        deep_result.citations = [{"url": "https://example.com/source"}]
+        deep_result.interaction_id = "interaction-partial"
+        deep_result.sections_written = 3
+        deep_result.search_queries_count = 7
 
         mock_dr_orch = MagicMock()
 
@@ -755,11 +821,14 @@ class TestRunCompleteResearch:
             return deep_result
 
         mock_dr_orch.generate_comprehensive_report = gen
+        step1_context = tmp_path / "step1-context.txt"
+        step1_context.write_text("temporary structured context", encoding="utf-8")
 
         console_mock = MagicMock()
         with (
             patch("primr.utils.console.console", new=console_mock),
             patch.object(orch, "_run_structured_research", side_effect=fake_struct),
+            patch.object(orch, "_prepare_step1_context", return_value=str(step1_context)),
             patch(f"{MODULE}.get_deep_research_orchestrator", return_value=mock_dr_orch),
         ):
             result = await orch._run_complete_research(
@@ -770,8 +839,13 @@ class TestRunCompleteResearch:
         assert result.error == "429 quota exceeded"
         # Partial structured results preserved.
         assert result.section_results == {"company_overview": "scraped"}
+        assert result.raw_content.startswith("# Paid partial")
+        assert result.pending_interaction_id == "interaction-partial"
+        assert result.sections_written == 3
+        assert result.search_queries_count == 7
         # Quota tip surfaced.
         assert console_mock.warn.called
+        assert not step1_context.exists()
 
     @pytest.mark.asyncio
     async def test_exception_during_deep_phase_preserves_partial(self):
@@ -857,9 +931,12 @@ class TestSupplementalContext:
             patch(f"{PREMIUM_DR_MODULE}.ReportFormatter") as MockFmt,
         ):
             MockFmt.return_value.format_report.return_value = self._formatted()
-            await orch._run_deep_research_with_context("Acme Corp", None, cfg, None, None)
+            await orch._run_deep_research_with_context(
+                "Acme Corp", None, cfg, None, ["context.pdf"]
+            )
 
         assert captured["stage1_context"] == "FENCED HIRING BLOCK"
+        assert captured["context_files"] == ["context.pdf"]
 
     @pytest.mark.asyncio
     async def test_complete_mode_appends_supplemental_to_stage1(self):
@@ -892,13 +969,16 @@ class TestSupplementalContext:
             patch(f"{MODULE}.ReportFormatter") as MockFmt,
         ):
             MockFmt.return_value.format_report.return_value = self._formatted()
-            await orch._run_complete_research("Acme Corp", "https://acme.example", cfg, None, None)
+            await orch._run_complete_research(
+                "Acme Corp", "https://acme.example", cfg, None, ["context.pdf"]
+            )
 
         stage1 = captured["stage1_context"]
         assert stage1 is not None
         assert stage1.endswith("FENCED HIRING BLOCK")
         # The structured phase's content precedes the supplemental block.
         assert "scraped overview" in stage1
+        assert captured["context_files"] == ["context.pdf"]
 
     @pytest.mark.asyncio
     async def test_complete_mode_supplemental_survives_structured_failure(self):

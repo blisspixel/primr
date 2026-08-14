@@ -9,7 +9,15 @@ from __future__ import annotations
 
 import pytest
 
-from primr.core.cli import Command, parse_args
+from primr.core.cli import CLIConfig, Command, parse_args
+from primr.core.cli_contract import CLIConfig as ContractCLIConfig
+from primr.core.cli_contract import Command as ContractCommand
+
+
+def test_cli_reexports_the_shared_contract() -> None:
+    """Existing imports remain identical after the contract ownership move."""
+    assert CLIConfig is ContractCLIConfig
+    assert Command is ContractCommand
 
 
 class TestPositionalArgs:
@@ -210,9 +218,12 @@ class TestInferenceProfile:
 
 
 class TestSkipConfirm:
-    def test_non_batch_skips_confirm_by_default(self):
+    def test_non_batch_requires_confirm_by_default(self):
         config = parse_args(["Acme", "https://acme.example"])
-        # Non-batch commands skip confirmation by default
+        assert config.skip_confirm is False
+
+    def test_non_batch_skip_confirm_flag_is_explicit_approval(self):
+        config = parse_args(["Acme", "https://acme.example", "--skip-confirm"])
         assert config.skip_confirm is True
 
     def test_batch_requires_confirm_by_default(self, tmp_path):

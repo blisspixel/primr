@@ -9,11 +9,21 @@ Use `primr improve` (or `--improve`) to run a post-generation quality pass on ex
 primr improve "output/Company_Strategic_Overview_03-06-2026.md"
 
 # Add an agentic review pass first (find weak sections, then tighten)
-primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic
+primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic --dry-run
+
+# Quote the bounded QA refinement loop
+primr refine "Company" --dry-run
 
 # Overwrite the original file instead of writing *_improved
 primr improve "output/Company_Strategic_Overview_03-06-2026.md" --in-place
 ```
+
+Plain `primr improve` is deterministic, local, and model-free. The
+`--improve-agentic` and `refine` paths can call models. Their dry runs quote the
+maximum task shape without changing files. Execution repeats the quote,
+requires explicit approval, and honors `--budget`; automation uses
+`--skip-confirm` only after approval. With `--json`, dry runs, approval-required
+refusals, and approved results each emit one versioned JSON object.
 
 ## What This Does
 

@@ -34,8 +34,6 @@ async def run_deep_research_with_context(
     ``premium.deep_research``. Agent/local profiles without a deep-research
     backend fail closed without launching the Gemini agent.
     """
-    del context_files  # reserved for future File Search Store handoff
-
     start_time = time.time()
     route = None
     try:
@@ -68,6 +66,15 @@ async def run_deep_research_with_context(
             )
     except Exception as route_err:
         logger.warning("Premium deep research route resolution failed: %s", route_err)
+        return OrchestratorResult(
+            company_name=company_name,
+            website=website,
+            mode=ResearchMode.DEEP_RESEARCH,
+            section_results={},
+            success=False,
+            error=f"Deep research routing failed: {type(route_err).__name__}",
+            duration_seconds=time.time() - start_time,
+        )
 
     if on_progress:
         on_progress("Using Accordion Method for comprehensive report...")
@@ -86,6 +93,7 @@ async def run_deep_research_with_context(
         company_name=company_name,
         website_url=website,
         stage1_context=config.supplemental_context or None,
+        context_files=[str(path) for path in context_files] if context_files else None,
         on_progress=progress_wrapper,
         target_pages=30,
     )
@@ -104,26 +112,59 @@ async def run_deep_research_with_context(
                 duration_seconds=total_duration,
                 failure_class="deep_research_failed",
             )
+        raw_partial_content = getattr(deep_result, "content", "")
+        partial_content = raw_partial_content if isinstance(raw_partial_content, str) else ""
+        partial_sections = (
+            {"strategic_overview_partial": partial_content} if partial_content else {}
+        )
         return OrchestratorResult(
             company_name=company_name,
             website=website,
             mode=ResearchMode.DEEP_RESEARCH,
-            section_results={},
+            section_results=partial_sections,
+            raw_content=partial_content,
+            citations=getattr(deep_result, "citations", []),
             success=False,
             error=deep_result.error,
             duration_seconds=total_duration,
+            sections_written=getattr(deep_result, "sections_written", 0),
+            search_queries_count=getattr(deep_result, "search_queries_count", 0),
+            pending_interaction_id=getattr(deep_result, "interaction_id", ""),
+            target_pages=getattr(deep_result, "target_pages", 0),
+            actual_pages=getattr(deep_result, "actual_pages", 0),
+            target_attained=getattr(deep_result, "target_attained", False),
         )
 
-    formatter = ReportFormatter()
-    formatted = formatter.format_report(
-        raw_content=deep_result.content, company_name=company_name, citation_style="numbered"
-    )
+    target_pages = getattr(deep_result, "target_pages", 0)
+    actual_pages = getattr(deep_result, "actual_pages", 0)
+    target_attained = getattr(deep_result, "target_attained", False)
+    if target_pages and not target_attained:
+        message = (
+            f"Accordion report produced approximately {actual_pages}/{target_pages} target pages; "
+            "preserving the evidence-limited report"
+        )
+        logger.warning(message)
+        if on_progress:
+            on_progress(message)
+
+    try:
+        formatted = ReportFormatter().format_report(
+            raw_content=deep_result.content, company_name=company_name, citation_style="numbered"
+        )
+        formatted_markdown = formatted.markdown
+        formatted_word_count = formatted.word_count
+        formatted_citations = formatted.citations
+    except Exception as format_err:
+        logger.warning("Deep research formatting failed; preserving raw report: %s", format_err)
+        formatted_markdown = deep_result.content
+        formatted_word_count = len(deep_result.content.split())
+        formatted_citations = deep_result.citations
     section_results = {
-        "strategic_overview": formatted.markdown,
+        "strategic_overview": formatted_markdown,
     }
 
     logger.info(
-        f"Deep research (Accordion) completed: ~{formatted.word_count} words, "
+        f"Deep research (Accordion) completed: ~{formatted_word_count} words, "
         f"{deep_result.api_calls} API calls, {total_duration:.0f}s"
     )
     if route is not None:
@@ -141,11 +182,14 @@ async def run_deep_research_with_context(
         website=website,
         mode=ResearchMode.DEEP_RESEARCH,
         section_results=section_results,
-        raw_content=formatted.markdown,
-        citations=formatted.citations,
+        raw_content=formatted_markdown,
+        citations=formatted_citations,
         success=True,
         duration_seconds=total_duration,
         sections_written=deep_result.sections_written,
         search_queries_count=deep_result.search_queries_count,
         pending_interaction_id=deep_result.interaction_id,
+        target_pages=target_pages,
+        actual_pages=actual_pages,
+        target_attained=target_attained,
     )

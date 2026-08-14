@@ -3,6 +3,7 @@ _upload_context_files, _start_research, _start_research_stream."""
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -16,6 +17,9 @@ def client(monkeypatch):
 
     mock_genai = MagicMock()
     mock_genai.Client.return_value = MagicMock()
+    mock_genai.Client.return_value.file_search_stores.upload_to_file_search_store.return_value = (
+        SimpleNamespace(done=True, error=None)
+    )
     monkeypatch.setattr(dr, "genai", mock_genai)
     monkeypatch.setattr(dr, "_require_genai_dependency", lambda: None)
     monkeypatch.setattr(dr, "_orchestrator", None)

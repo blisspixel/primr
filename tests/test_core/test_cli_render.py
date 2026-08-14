@@ -31,7 +31,8 @@ def test_render_produces_docx_and_txt(tmp_path: Path):
     assert rc == 0
     docx = md.with_suffix(".docx")
     txt = md.with_suffix(".txt")
-    assert docx.exists() and docx.stat().st_size > 0
+    assert docx.exists()
+    assert docx.stat().st_size > 0
     assert txt.exists()
     assert txt.read_text(encoding="utf-8") == _SAMPLE
 

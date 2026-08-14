@@ -21,8 +21,9 @@ Conventions:
 |-----|------------|--------------|
 | [research-tradecraft.md](research-tradecraft.md) | Collection-first → hypothesis-first: framing, Day-1 hypothesis tree, plan checkpoint; content within a curated structure (deepens #4) | 1.x → 2.0 |
 | [eval-plan.md](eval-plan.md) | Pre-registered, cheapest-first plan for the pending paid evals (calibration baseline, framed-vs-unframed, content-depth): exact commands, instruments, acceptance criteria, cost | 1.x |
+| [premium-quality-eval.md](premium-quality-eval.md) | Blinded five-company Standard/Premium evaluation for epistemic quality, argument coherence, and current writing-topology differentiation | 1.x quality validation |
 | [agentic-balance.md](agentic-balance.md) | Rule vs judgment: when a primr component stays a deterministic workflow vs becomes a Level-2 model decision; the keep-list and budget couplings under the tradecraft work | cross-cutting |
-| [open-knowledge-format.md](open-knowledge-format.md) | Adopt OKF (markdown + YAML frontmatter + linked tree) as the one shape for the structured-findings layer (memory export, claim store, handoff manifest); the polished report stays unchanged | cross-cutting (2.0 / 3.0) |
+| [open-knowledge-format.md](open-knowledge-format.md) | Adopt OKF v0.2 (markdown + YAML frontmatter + linked tree) as the findings-interchange shape, with permissive consumers, a stricter Primr producer contract, and confidence distinct from verification; the polished report stays unchanged | cross-cutting (2.0 / 3.0) |
 | [1x-completion.md](1x-completion.md) | Finishing the excellent single-shot brief; immediate slice is evidence-grounded validation, with label calibration as the first measurable slice | 1.x |
 | [engineering-excellence.md](engineering-excellence.md) | Anti-slop enforcement layer: dev-facing CLAUDE.md contract, architectural fitness functions, file-size ratchet, CLI verb convention, toolchain currency | cross-cutting |
 | [runtime-language-boundaries.md](runtime-language-boundaries.md) | Evidence-gated runtime policy: Python product layer, supervised workers, optional Rust acceleration, and explicit Go/Mojo trigger conditions | cross-cutting |

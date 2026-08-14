@@ -449,9 +449,26 @@ async def test_cost_cap_blocks_when_enforced(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_cost_cap_ignored_when_not_enforced(monkeypatch, patched_pipeline):
-    # Cap is tiny but enforcement env is off -> pipeline runs.
+async def test_cost_cap_required_by_default(monkeypatch, patched_pipeline):
     monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
+
+    payload = await _call(
+        "generate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "company_url": "https://acme.example",
+        },
+    )
+
+    assert payload["error"] is True
+    assert "max_estimated_cost_usd is required" in payload["message"]
+    patched_pipeline["run"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_supplied_cost_cap_is_honored_during_unsafe_opt_out(monkeypatch, patched_pipeline):
+    # The compatibility override permits missing approval, not exceeding a cap.
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "0")
     payload = await _call(
         "generate_skill_pack",
         {
@@ -460,8 +477,19 @@ async def test_cost_cap_ignored_when_not_enforced(monkeypatch, patched_pipeline)
             "max_estimated_cost_usd": 0.001,
         },
     )
+    assert payload["error"] is True
+    assert "exceeds cap" in payload["message"]
+    patched_pipeline["run"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_explicit_unsafe_opt_out_allows_missing_cap(monkeypatch, patched_pipeline):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "0")
+    payload = await _call(
+        "generate_skill_pack",
+        {"company_name": "Acme Corp", "company_url": "https://acme.example"},
+    )
     assert payload.get("error") is not True
-    assert payload["company_name"] == "Acme Corp"
     patched_pipeline["run"].assert_called_once()
 
 
@@ -519,9 +547,9 @@ def test_cost_cap_enforced_truthy_values(monkeypatch, value):
     assert spt._is_cost_cap_enforced() is True
 
 
-def test_cost_cap_not_enforced_by_default(monkeypatch):
+def test_cost_cap_enforced_by_default(monkeypatch):
     monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
-    assert spt._is_cost_cap_enforced() is False
+    assert spt._is_cost_cap_enforced() is True
 
 
 # ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-"""The July 2026 Gemini models are registered as available, not defaulted.
+"""Current Gemini evaluation candidates are registered but not defaulted.
 
 Model-selection policy: register flagship / newer models so they can be
 selected explicitly or eval-gated in, but never silently promote one to a
@@ -13,7 +13,11 @@ import pytest
 
 from primr.config.models import PrimrModels
 
-NEW_GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite"]
+NEW_GEMINI_MODELS = [
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+]
 
 
 @pytest.mark.parametrize("model", NEW_GEMINI_MODELS)

@@ -56,6 +56,7 @@ genai = _google_genai
 warnings.filterwarnings("ignore", message=".*experimental.*", module="google.genai")
 
 from primr.ai.deep_research_execution import (
+    AcceptedInteractionError,
     poll_interaction_until_terminal,
     run_resilient_without_duplicate,
 )
@@ -219,18 +220,13 @@ from primr.ai.citation_resolution import (
 from primr.ai.file_search_resources import (
     _DEFAULT_STALE_AGE_SECONDS as _DEFAULT_STALE_AGE_SECONDS,
 )
-from primr.ai.file_search_resources import (
-    _PRIMR_RESOURCE_PREFIX as _PRIMR_RESOURCE_PREFIX,
-)
-from primr.ai.file_search_resources import (
-    _is_primr_owned as _is_primr_owned,
-)
-from primr.ai.file_search_resources import (
-    _resource_age_seconds as _resource_age_seconds,
-)
+from primr.ai.file_search_resources import _PRIMR_RESOURCE_PREFIX as _PRIMR_RESOURCE_PREFIX
+from primr.ai.file_search_resources import _is_primr_owned as _is_primr_owned
+from primr.ai.file_search_resources import _resource_age_seconds as _resource_age_seconds
 from primr.ai.file_search_resources import (
     cleanup_orphaned_resources as cleanup_orphaned_resources,
 )
+from primr.ai.file_search_resources import wait_for_file_search_operation
 from primr.ai.job_persistence import (
     _get_jobs_file_path as _get_jobs_file_path,
 )
@@ -597,7 +593,7 @@ class DeepResearchClient:
             raise AIError(f"Deep research failed: {e}", model=self.AGENT_ID, cause=e) from e
         finally:
             # CRITICAL: Always cleanup File Search Store to prevent billing leaks
-            # Per Gemini docs: "There is no TTL for embeddings and files; they persist until manually deleted"
+            # Raw uploads expire after 48h; imported store data persists until deleted.
             if file_store_name:
                 self._cleanup_file_store(file_store_name)
 
@@ -772,18 +768,16 @@ Provide strategic analysis including:
 
 Frame everything as hypotheses to explore, not conclusions."""
 
-    def _cleanup_file_store(self, store_name: str) -> None:
-        """
-        Clean up a File Search Store by deleting documents then the store.
+    def _cleanup_file_store(self, store_name: str) -> bool:
+        """Clean up a File Search Store by deleting documents then the store.
 
-        CRITICAL: Per Gemini docs, "There is no TTL for embeddings and files;
-        they persist until manually deleted." We MUST delete documents first,
-        then the store, or we leak money.
+        File Search raw uploads expire after 48 hours. Imported embeddings and
+        store data persist until manually deleted, so delete documents first
+        and then the store.
 
         Args:
             store_name: Name of the store to delete
         """
-        # Step 1: Delete all documents inside the store first
         try:
             docs = list(self._client.file_search_stores.documents.list(parent=store_name))
             for doc in docs:
@@ -800,10 +794,10 @@ Frame everything as hypotheses to explore, not conclusions."""
         except Exception as e:
             logger.warning(f"Could not delete documents from {store_name}: {e}")
 
-        # Step 2: Now delete the empty store
         try:
             self._client.file_search_stores.delete(name=store_name)
             logger.debug(f"Cleaned up File Search Store: {store_name}")
+            return True
         except Exception as e:
             error_str = str(e).lower()
             if "failed_precondition" in error_str or "non-empty" in error_str:
@@ -812,6 +806,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                 )
             else:
                 logger.warning(f"Could not delete File Search Store {store_name}: {e}")
+            return False
 
     def _upload_context_files(self, file_paths: list[str]) -> str:
         """
@@ -876,11 +871,12 @@ Frame everything as hypotheses to explore, not conclusions."""
                     # Build config with mime_type if we have one
                     config = {"mime_type": mime_type} if mime_type else None
 
-                    self._client.file_search_stores.upload_to_file_search_store(
+                    operation = self._client.file_search_stores.upload_to_file_search_store(
                         file=file_path,
                         file_search_store_name=store_name or "",
                         config=config,  # type: ignore[arg-type]
                     )
+                    wait_for_file_search_operation(self._client, operation)
                     logger.info("Uploaded context file %d of %d", file_number, len(valid_files))
                 except Exception as upload_err:
                     # FAIL HARD - don't continue with broken uploads
@@ -989,7 +985,7 @@ Frame everything as hypotheses to explore, not conclusions."""
         """Extract the text content from a completed interaction.
 
         The Deep Research API may return multiple output parts.
-        We concatenate all text outputs to ensure we capture the full response.
+        Current responses use model-output steps; persisted legacy outputs are supported.
         """
         return extract_interaction_content(interaction)
 
@@ -1158,7 +1154,6 @@ Frame everything as hypotheses to explore, not conclusions."""
                 )
             )
 
-        # Start background job (NO streaming - job runs async on Google's servers)
         interaction_id = None
         job_still_running = False
         try:
@@ -1166,8 +1161,6 @@ Frame everything as hypotheses to explore, not conclusions."""
             interaction_id = interaction.id
             logger.info(f"Research started: {interaction_id}")
 
-            # Note: Progress callback will show "Research started" message
-            # Save job for recovery
             save_pending_job(
                 interaction_id=interaction_id,
                 job_type="deep_research",
@@ -1176,15 +1169,12 @@ Frame everything as hypotheses to explore, not conclusions."""
             )
 
             if on_progress:
-                # Skip - parent callback already showed "Research started"
                 pass
         except Exception as e:
-            # Clean up store if we created one but failed to start research
             if file_store_name:
                 self._cleanup_file_store(file_store_name)
             raise AIError(f"Failed to start research: {e}", model=self.AGENT_ID, cause=e) from e
 
-        # Poll for completion with shared execution engine
         max_poll_errors = 5
         last_progress_update = 0.0
         try:
@@ -1248,6 +1238,9 @@ Frame everything as hypotheses to explore, not conclusions."""
                         cause=e,
                     ),
                 )
+            except asyncio.CancelledError:
+                job_still_running = interaction_id is not None
+                raise
             except TimeoutError:
                 elapsed = time.time() - start_time
                 logger.warning(f"Research polling timed out after {elapsed:.0f}s")
@@ -1295,7 +1288,7 @@ Frame everything as hypotheses to explore, not conclusions."""
             )
         finally:
             # CRITICAL: Always cleanup File Search Store to prevent billing leaks
-            # Per Gemini docs: "There is no TTL for embeddings and files; they persist until manually deleted"
+            # Raw uploads expire after 48h; imported store data persists until deleted.
             # But skip cleanup if job is still running — it may still need the file store
             if file_store_name and not job_still_running:
                 self._cleanup_file_store(file_store_name)
@@ -1737,6 +1730,9 @@ class DeepResearchOrchestratorResult:
     api_calls: int = 1  # Always 1 for single-call architecture
     sections_written: int = 0  # Number of sections successfully written
     search_queries_count: int = 0  # Actual search count from groundingMetadata
+    target_pages: int = 0
+    actual_pages: int = 0
+    target_attained: bool = False
 
     @property
     def word_count(self) -> int:
@@ -1745,38 +1741,12 @@ class DeepResearchOrchestratorResult:
 
 
 class DeepResearchOrchestrator:
-    """
-    Orchestrates a single Deep Research API call for complete report generation.
+    """Own Gemini Deep Research execution and Premium Accordion expansion.
 
-    This is the core component of the cohesive report architecture. Instead of
-    making 10 parallel API calls (which fail with 429 quota errors), this
-    orchestrator makes a single comprehensive call that generates the entire
-    report in one invocation.
-
-    Key features:
-    - Pre-flight validation before expensive operations
-    - Single API call per report (not parallel chapters)
-    - Exponential backoff retry (60s base, 5 attempts max)
-    - Adaptive polling (5s → 10s → 20s → 30s)
-    - 60-minute timeout
-    - Automatic File Search Store cleanup
-    - Fallback to Stage 1 context if Deep Research fails
-
-    Usage:
-        orchestrator = DeepResearchOrchestrator()
-
-        # Validate before starting (recommended)
-        validation = await orchestrator.validate_prerequisites()
-        if not validation["success"]:
-            print(f"Pre-flight failed: {validation['errors']}")
-            return
-
-        result = await orchestrator.generate_report(
-            company_name="Acme Corp",
-            website_url="https://acme.com",
-            stage1_context="... structured research from Stage 1 ...",
-            on_progress=lambda msg: print(msg)
-        )
+    The compatibility single-call method uses one background interaction. The
+    active Premium method gathers a dossier, writes sections serially with
+    continuity, and assembles the report. Both paths provide preflight checks,
+    bounded retry and polling, Stage-1 fallback, and safe store cleanup.
     """
 
     # Import centralized model config
@@ -1857,25 +1827,14 @@ class DeepResearchOrchestrator:
         """
         Generate a complete strategic report using Deep Research.
 
-        Makes a single Deep Research API call with comprehensive prompt
-        and optional Stage 1 context. Handles retries with exponential
-        backoff and ensures cleanup of temporary resources.
-
-        Args:
-            company_name: Target company name
-            website_url: Optional company website URL
-            stage1_context: Optional structured research from Stage 1
-            on_progress: Optional progress callback
-
-        Returns:
-            DeepResearchOrchestratorResult with complete report or error
+        Uses one Deep Research interaction plus optional Stage 1 context.
         """
         start_time = time.time()
         store_name: str | None = None
+        store_may_be_in_use = False
         self._api_call_count = 0
 
         try:
-            # Build the comprehensive prompt using PromptComposer
             from primr.prompts.composer import PromptComposer
             from primr.prompts.schema import PromptContext
 
@@ -1891,7 +1850,6 @@ class DeepResearchOrchestrator:
             if on_progress:
                 on_progress("Building comprehensive research prompt...")
 
-            # Upload Stage 1 context if provided
             if stage1_context:
                 if on_progress:
                     on_progress("Uploading Stage 1 context to File Search Store...")
@@ -1903,7 +1861,6 @@ class DeepResearchOrchestrator:
                     mime_type="text/plain",
                 )
 
-            # Execute with retry
             if on_progress:
                 on_progress("Starting Deep Research (single comprehensive call)...")
 
@@ -1912,6 +1869,7 @@ class DeepResearchOrchestrator:
                 store_name=store_name,
                 on_progress=on_progress,
             )
+            store_may_be_in_use = result.status == ResearchStatus.IN_PROGRESS
 
             return DeepResearchOrchestratorResult(
                 company_name=company_name,
@@ -1925,6 +1883,9 @@ class DeepResearchOrchestrator:
                 search_queries_count=result.search_queries_count,
             )
 
+        except asyncio.CancelledError as error:
+            store_may_be_in_use = bool(getattr(error, "interaction_id", None))
+            raise
         except Exception as e:
             logger.error(f"DeepResearchOrchestrator error: {e}")
             return DeepResearchOrchestratorResult(
@@ -1938,7 +1899,7 @@ class DeepResearchOrchestrator:
             )
         finally:
             # Always cleanup the File Search Store
-            if store_name:
+            if store_name and not store_may_be_in_use:
                 if on_progress:
                     on_progress("Cleaning up File Search Store...")
                 self._store_manager.delete_store(store_name)
@@ -1949,23 +1910,7 @@ class DeepResearchOrchestrator:
         store_name: str | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> ResearchResult:
-        """
-        Execute Deep Research with exponential backoff retry.
-
-        Handles retryable errors:
-        - 429: Quota/rate limit errors
-        - 500: Internal server errors (transient)
-        - 503: Service unavailable
-        - Connection errors
-
-        Args:
-            prompt: The research prompt
-            store_name: Optional File Search Store name
-            on_progress: Optional progress callback
-
-        Returns:
-            ResearchResult from the API
-        """
+        """Retry only failures that occur before a background job is accepted."""
         last_error: Exception | None = None
 
         for attempt in range(self.MAX_RETRIES):
@@ -1976,6 +1921,18 @@ class DeepResearchOrchestrator:
                     store_name=store_name,
                     on_progress=on_progress,
                 )
+            except AcceptedInteractionError as e:
+                logger.error("%s Refusing to start a duplicate interaction.", e)
+                if on_progress:
+                    on_progress(
+                        "Research is still recoverable. Check pending jobs before retrying."
+                    )
+                return ResearchResult(
+                    content="",
+                    interaction_id=e.interaction_id,
+                    status=ResearchStatus.IN_PROGRESS,
+                    error=str(e),
+                )
             except AIError as e:
                 last_error = e
                 error_str = str(e).lower()
@@ -1984,7 +1941,7 @@ class DeepResearchOrchestrator:
                 is_retryable = (
                     "429" in error_str
                     or "quota" in error_str
-                    or "rate" in error_str
+                    or "rate limit" in error_str
                     or "500" in error_str
                     or "internal server error" in error_str
                     or "503" in error_str
@@ -1997,7 +1954,7 @@ class DeepResearchOrchestrator:
                     delay = self._calculate_backoff_delay(attempt)
 
                     # Categorize the error for logging
-                    if "429" in error_str or "quota" in error_str or "rate" in error_str:
+                    if any(x in error_str for x in ("429", "quota", "rate limit")):
                         error_type = "Rate limit"
                     elif "500" in error_str or "internal server error" in error_str:
                         error_type = "Server error (500)"
@@ -2081,28 +2038,15 @@ class DeepResearchOrchestrator:
         store_name: str | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> ResearchResult:
-        """
-        Execute a single Deep Research API call.
-
-        Args:
-            prompt: The research prompt
-            store_name: Optional File Search Store name
-            on_progress: Optional progress callback
-
-        Returns:
-            ResearchResult from the API
-        """
-        # Build tools list
+        """Create and poll one recoverable Deep Research interaction."""
         tools: list[dict[str, Any]] = []
         if store_name:
             tools.append({"type": "file_search", "file_search_store_names": [store_name]})
 
-        # Start the research
         create_kwargs: dict[str, Any] = {
             "input": prompt,
             "agent": self.AGENT_ID,
             "background": True,
-            # Background interactions must be stored for reliable resume/poll.
             "store": True,
         }
         if tools:
@@ -2113,43 +2057,35 @@ class DeepResearchOrchestrator:
             interaction = self._client.interactions.create(**create_kwargs)
         interaction_id = interaction.id
         logger.info(f"Deep Research started: {interaction_id}")
-        save_pending_job(
-            interaction_id=interaction_id,
-            job_type="deep_research",
-            description=prompt[:200],
-        )
-
-        # Show single "Research started" message
-        if on_progress:
-            on_progress("Research started")
-
-        # Poll for completion with adaptive intervals
-        return await self._poll_for_completion(
-            interaction_id=interaction_id,
-            on_progress=on_progress,
-        )
+        try:
+            pending_job: dict[str, Any] = {
+                "interaction_id": interaction_id,
+                "job_type": "deep_research",
+                "description": prompt[:200],
+            }
+            if store_name:
+                pending_job["metadata"] = {"file_search_store": store_name}
+            save_pending_job(
+                **pending_job,
+            )
+            if on_progress:
+                on_progress("Research started")
+            return await self._poll_for_completion(
+                interaction_id=interaction_id,
+                on_progress=on_progress,
+            )
+        except asyncio.CancelledError as error:
+            error.interaction_id = interaction_id  # type: ignore[attr-defined]
+            raise
+        except Exception as error:
+            raise AcceptedInteractionError(interaction_id, error) from error
 
     async def _poll_for_completion(
         self,
         interaction_id: str,
         on_progress: Callable[[str], None] | None = None,
     ) -> ResearchResult:
-        """
-        Poll for research completion with adaptive intervals and timeout.
-
-        Polling intervals: 5s → 10s → 20s → 30s based on elapsed time.
-        Handles transient 500/503 errors during polling with retry.
-
-        Args:
-            interaction_id: The interaction ID to poll
-            on_progress: Optional progress callback
-
-        Returns:
-            ResearchResult when complete
-
-        Raises:
-            AIError: If research fails or times out
-        """
+        """Poll an accepted interaction without launching another one."""
         last_phase = ""
         last_progress_time = 0.0
         poll_count = 0
@@ -2247,7 +2183,13 @@ class DeepResearchOrchestrator:
             )
 
         error_msg = getattr(interaction, "error", "Unknown error")
-        raise AIError(f"Deep Research failed: {error_msg}", model=self.AGENT_ID)
+        return ResearchResult(
+            content="",
+            interaction_id=interaction_id,
+            duration_seconds=elapsed,
+            status=ResearchStatus.FAILED,
+            error=f"Deep Research failed: {error_msg}",
+        )
 
     def _get_phase_name(self, elapsed_seconds: float) -> str:
         """Get the current phase name based on elapsed time."""
@@ -2274,16 +2216,14 @@ class DeepResearchOrchestrator:
         return extract_interaction_content(interaction)
 
     def _extract_citations(self, interaction: Any) -> list[dict[str, str]]:
-        """Extract citations from completed interaction outputs."""
+        """Extract citations from a completed interaction response."""
         return extract_interaction_citations(interaction)
 
     def _extract_search_queries_count(self, interaction: Any) -> int:
         """Extract search query count from grounding metadata."""
         return extract_search_queries_count(interaction)
 
-    # =========================================================================
-    # ACCORDION METHOD - Generate 30+ page reports
-    # =========================================================================
+    # ACCORDION METHOD - Generate reports against an approximate page target
     #
     # Architecture (from docs/more deep research guidance.txt):
     # 1. Deep Research = Lead Researcher (gather facts, NOT write final report)
@@ -2334,48 +2274,16 @@ class DeepResearchOrchestrator:
 
     @classmethod
     def _get_default_accordion_prompts(cls) -> dict:
-        """Fallback default accordion prompts if YAML loading fails."""
+        """Minimal emergency prompts used only when canonical YAML loading fails."""
         return {
-            "research_dossier_prompt": """You are a Lead Researcher compiling a research dossier on {company_name}{website_context}.
+            "research_dossier_prompt": """You are a Lead Researcher compiling a research dossier on {company_name}{website_context} for an approximately {target_pages}-page report.
 Compile comprehensive facts about the company including basics, products, customers, competitors, financials, leadership, and industry context.
 Do NOT write polished prose - this is raw research material.""",
             "section_writing_prompt": """Write the content for the **{section_title}** section with depth and analytical rigor.
-
-## CRITICAL FORMATTING INSTRUCTION
-
-The section title **{section_title}** will be added as a heading automatically by the framework.
-
-DO NOT write:
-- "## {section_title}"
-- "### {section_title}"
-- Any heading that repeats or closely matches "{section_title}"
-
-INSTEAD, start immediately with:
-- The first paragraph of analysis
-- OR a descriptive subtitle that adds context
-
-Example of WRONG approach:
-```
-### Executive Summary
-
-MRI Software stands at a critical juncture...
-```
-
-Example of CORRECT approach:
-```
-MRI Software stands at a critical juncture...
-```
-
-OR with descriptive subtitle:
-```
-### Strategic Position and Value Creation
-
-MRI Software stands at a critical juncture...
-```
-
 Instructions: {section_instructions}
-
-Write the content now, following the formatting rules above.""",
+Length guidance: {target_length_guidance}
+Start directly with content. Do not repeat the section title as a heading.
+Preserve confidence labels, citations, and epistemic discipline.""",
             "position_guidance": {
                 "opening": "This is the OPENING section. Set the analytical tone for the entire report.",
                 "middle": "Build naturally on the previous sections.",
@@ -2489,7 +2397,6 @@ Write the content now, following the formatting rules above.""",
         """Get report sections (loaded from YAML)."""
         return self._load_sections_from_yaml()
 
-    # Delay between section writes (seconds)
     SECTION_WRITE_DELAY = 10
     SECTION_WRITE_DELAY_AFTER_ERROR = 30
 
@@ -2500,70 +2407,53 @@ Write the content now, following the formatting rules above.""",
         stage1_context: str | None = None,
         on_progress: Callable[[str], None] | None = None,
         target_pages: int = 30,
+        context_files: list[str] | None = None,
     ) -> DeepResearchOrchestratorResult:
-        """
-        Generate a comprehensive 30+ page report using the Accordion Method.
+        """Generate a dossier, serial sections, and an assembled long report.
 
-        Architecture (from docs/more deep research guidance.txt):
+        Section prompts share the dossier and recent-section context. The page
+        target sizes section requests and is reported as attained only when the
+        assembled word count reaches its documented tolerance.
 
-        Phase 1: Research Dossier
-            - Use Deep Research as Lead Researcher to gather facts
-            - NOT to write the final report
-            - Output: Raw research with citations
-
-        Phase 2: Section-by-Section Writing
-            - Write each section using previous_interaction_id
-            - Pass context from previous sections for consistency
-            - One API call per section (not parallel)
-
-        This avoids:
-        - "Middle Muddle" (pages 10-40 becoming vague)
-        - Hallucination spirals (errors compounding)
-        - 429 quota errors (sequential, not parallel)
-
-        Args:
-            company_name: Target company name
-            website_url: Optional company website URL
-            stage1_context: Optional structured research from Stage 1
-            on_progress: Optional progress callback
-            target_pages: Target page count (default 30)
-
-        Returns:
-            DeepResearchOrchestratorResult with comprehensive report
+        ``target_pages`` sizes section requests; optional context augments the dossier.
         """
         start_time = time.time()
         store_name: str | None = None
+        store_may_be_in_use = False
         self._api_call_count = 0
         current_delay = self.SECTION_WRITE_DELAY
+        target_pages = max(1, target_pages)
 
-        # Track written sections for context continuity
         written_sections: list[dict[str, str]] = []
         all_citations: list[dict[str, str]] = []
-        total_search_queries = 0  # Accumulate search queries from all phases
+        total_search_queries = 0
         base_interaction_id = ""
+        required_sections: int | None = None
 
         try:
-            # ================================================================
-            # PHASE 1: Research Dossier (Deep Research as Lead Researcher)
-            # ================================================================
             if on_progress:
                 on_progress("Phase 1: Gathering research dossier...")
                 on_progress("  Deep Research will compile facts, NOT write the final report")
 
             # Build research dossier prompt - asking for RAW FACTS, not polished prose
-            dossier_prompt = self._build_research_dossier_prompt(company_name, website_url)
+            dossier_prompt = self._build_research_dossier_prompt(
+                company_name, website_url, target_pages=target_pages
+            )
 
-            # Upload Stage 1 context if provided
-            if stage1_context:
+            # perform_deep_research validates context paths before provider spend.
+            if stage1_context or context_files:
                 if on_progress:
-                    on_progress("  Uploading Stage 1 context to File Search Store...")
+                    on_progress("  Uploading context to File Search Store...")
                 store_name = self._store_manager.create_store(f"research_{company_name}")
-                self._store_manager.upload_context(
-                    store_name=store_name,
-                    content=stage1_context,
-                    filename="stage1_research.txt",
-                    mime_type="text/plain",
-                )
+                if stage1_context:
+                    self._store_manager.upload_context(
+                        store_name=store_name,
+                        content=stage1_context,
+                        filename="stage1_research.txt",
+                        mime_type="text/plain",
+                    )
+                for context_file in context_files or []:
+                    self._store_manager.upload_file(store_name, str(context_file))
 
             # Execute Deep Research for dossier
             dossier_result = await self._execute_with_retry(
@@ -2571,6 +2461,21 @@ Write the content now, following the formatting rules above.""",
                 store_name=store_name,
                 on_progress=on_progress,
             )
+            base_interaction_id = dossier_result.interaction_id
+
+            if dossier_result.status == ResearchStatus.IN_PROGRESS:
+                store_may_be_in_use = True
+                return DeepResearchOrchestratorResult(
+                    company_name=company_name,
+                    content="",
+                    citations=[],
+                    duration_seconds=time.time() - start_time,
+                    success=False,
+                    error=dossier_result.error,
+                    interaction_id=dossier_result.interaction_id,
+                    api_calls=self._api_call_count,
+                    target_pages=target_pages,
+                )
 
             # FALLBACK: If Deep Research fails but we have Stage 1 context, use that
             if not dossier_result.success:
@@ -2579,8 +2484,6 @@ Write the content now, following the formatting rules above.""",
                         on_progress(f"  Deep Research failed: {dossier_result.error}")
                         on_progress("  FALLBACK: Using Stage 1 context as research dossier")
                     research_dossier = stage1_context
-                    base_interaction_id = ""  # No interaction ID for fallback
-                    # Continue to Phase 2 with Stage 1 data as the dossier
                 else:
                     # No fallback available
                     return DeepResearchOrchestratorResult(
@@ -2590,11 +2493,12 @@ Write the content now, following the formatting rules above.""",
                         duration_seconds=time.time() - start_time,
                         success=False,
                         error=f"Research dossier failed and no Stage 1 context available: {dossier_result.error}",
+                        interaction_id=base_interaction_id,
                         api_calls=self._api_call_count,
+                        target_pages=target_pages,
                     )
             else:
                 research_dossier = dossier_result.content
-                base_interaction_id = dossier_result.interaction_id
                 all_citations.extend(dossier_result.citations)
                 total_search_queries += dossier_result.search_queries_count
 
@@ -2604,18 +2508,23 @@ Write the content now, following the formatting rules above.""",
                     f"Phase 1 complete: Research dossier gathered ({dossier_words:,} words)"
                 )
 
-            # ================================================================
-            # PHASE 2: Section-by-Section Writing
-            # ================================================================
+            # Phase 2: Section-by-Section Writing
+            report_sections = self.REPORT_SECTIONS
+            total_sections = len(report_sections)
+            if total_sections == 0:
+                raise ValueError("Accordion report structure contains no sections")
+            required_sections = (total_sections + 1) // 2
+            target_words = target_pages * 500
+            section_word_target = max(100, (target_words + total_sections - 1) // total_sections)
             if on_progress:
-                on_progress(f"Phase 2: Writing {len(self.REPORT_SECTIONS)} sections...")
+                on_progress(f"Phase 2: Writing {total_sections} sections...")
                 on_progress("  Each section maintains context from previous sections")
 
             successful_sections = 0
             failed_sections = 0
             consecutive_failures = 0
 
-            for i, section in enumerate(self.REPORT_SECTIONS):
+            for i, section in enumerate(report_sections):
                 # Stop if too many consecutive failures
                 if consecutive_failures >= 3:
                     if on_progress:
@@ -2624,8 +2533,6 @@ Write the content now, following the formatting rules above.""",
                     break
 
                 section_num = i + 1
-                total_sections = len(self.REPORT_SECTIONS)
-
                 if on_progress:
                     on_progress(f"Writing: {section['title']} ({section_num}/{total_sections})...")
 
@@ -2643,9 +2550,10 @@ Write the content now, following the formatting rules above.""",
                     stage1_context=stage1_context,
                     section_index=i,
                     total_sections=total_sections,
+                    section_word_target=section_word_target,
                 )
 
-                # Write section using direct Gemini Pro generation
+                # Write section using direct Gemini Flash generation
                 # This is the proven approach from AccordionTestRunner:
                 # - Pass dossier + previous sections in the prompt
                 # - Use generate_content() directly (not interactions API)
@@ -2661,36 +2569,38 @@ Write the content now, following the formatting rules above.""",
 
                         if result.success and result.content:
                             words = len(result.content.split())
-                            # Accept any substantive content (at least 100 words)
-                            min_words = 100
+                            # The page target is an approximate output contract,
+                            # not permission to pad weak evidence. Retry only when
+                            # the response misses at least half its section share.
+                            min_words = max(100, section_word_target // 2)
 
-                            if words >= min_words:
-                                written_sections.append(
-                                    {
-                                        "id": section["id"],
-                                        "title": section["title"],
-                                        "content": result.content,
-                                        "words": words,
-                                    }
-                                )
-                                all_citations.extend(result.citations)
-                                successful_sections += 1
-                                consecutive_failures = 0
-                                section_success = True
-
-                                # Reduce delay on success
-                                current_delay = max(8, current_delay - 2)
-
-                                if on_progress:
-                                    on_progress(f"  {section['title']}: {words:,} words")
-                                break
-                            else:
+                            if words < min_words:
                                 logger.warning(
                                     f"Section too short: {words} words (min {min_words})"
                                 )
                                 if retry < max_retries - 1:
                                     await asyncio.sleep(5)
                                     continue
+                                logger.warning(
+                                    "Preserving evidence-limited section after length retries"
+                                )
+
+                            written_sections.append(
+                                {
+                                    "id": section["id"],
+                                    "title": section["title"],
+                                    "content": result.content,
+                                    "words": words,
+                                }
+                            )
+                            all_citations.extend(result.citations)
+                            successful_sections += 1
+                            consecutive_failures = 0
+                            section_success = True
+                            current_delay = max(8, current_delay - 2)
+                            if on_progress:
+                                on_progress(f"  {section['title']}: {words:,} words")
+                            break
                         else:
                             error_msg = result.error or "No content"
                             logger.warning(f"Section failed: {error_msg}")
@@ -2726,9 +2636,7 @@ Write the content now, following the formatting rules above.""",
                     f"Phase 2 complete: {successful_sections} sections written, {failed_sections} skipped"
                 )
 
-            # ================================================================
-            # PHASE 3: Assemble Final Report
-            # ================================================================
+            # Phase 3: Assemble Final Report
             if on_progress:
                 on_progress("Phase 3: Assembling final report...")
 
@@ -2745,16 +2653,33 @@ Write the content now, following the formatting rules above.""",
             )
 
             final_words = len(final_content.split())
-            final_pages = final_words // 500
+            final_pages = max(1, round(final_words / 500)) if final_words else 0
 
             if on_progress:
-                on_progress(f"Report complete: ~{final_pages} pages ({final_words:,} words)")
+                on_progress(
+                    f"Report complete: ~{final_pages} pages "
+                    f"({final_words:,} words; target ~{target_pages} pages)"
+                )
                 on_progress(
                     f"API calls: {self._api_call_count} (1 research + {successful_sections} sections)"
                 )
 
-            # Success if we got at least half the sections
-            success = successful_sections >= len(self.REPORT_SECTIONS) // 2
+            target_floor_words = max(1, round(target_words * 0.8))
+            target_attained = final_words >= target_floor_words
+            success = successful_sections >= required_sections
+            incomplete_reasons: list[str] = []
+            if successful_sections < required_sections:
+                incomplete_reasons.append(
+                    f"only {successful_sections}/{total_sections} sections completed"
+                )
+            if not target_attained:
+                length_message = (
+                    f"Length target not attained: approximately {final_pages}/{target_pages} "
+                    "target pages produced"
+                )
+                logger.warning(length_message)
+                if on_progress:
+                    on_progress(length_message)
 
             return DeepResearchOrchestratorResult(
                 company_name=company_name,
@@ -2762,15 +2687,19 @@ Write the content now, following the formatting rules above.""",
                 citations=all_citations,
                 duration_seconds=time.time() - start_time,
                 success=success,
-                error=None
-                if success
-                else f"Only {successful_sections}/{len(self.REPORT_SECTIONS)} sections completed",
+                error=None if success else "; ".join(incomplete_reasons),
                 interaction_id=base_interaction_id,
                 api_calls=self._api_call_count,
                 sections_written=successful_sections,
                 search_queries_count=total_search_queries,
+                target_pages=target_pages,
+                actual_pages=final_pages,
+                target_attained=target_attained,
             )
 
+        except asyncio.CancelledError as error:
+            store_may_be_in_use = bool(getattr(error, "interaction_id", None))
+            raise
         except Exception as e:
             logger.error(f"Report generation error: {e}")
             # Return partial report if we have sections
@@ -2785,25 +2714,36 @@ Write the content now, following the formatting rules above.""",
                 if written_sections
                 else ""
             )
+            partial_words = len(partial.split())
+            partial_pages = max(1, round(partial_words / 500)) if partial_words else 0
+            partial_target_attained = partial_words >= max(1, round(target_pages * 500 * 0.8))
             return DeepResearchOrchestratorResult(
                 company_name=company_name,
                 content=partial,
                 citations=all_citations,
                 duration_seconds=time.time() - start_time,
-                success=bool(written_sections),
+                success=False,
                 error=str(e),
                 interaction_id=base_interaction_id,
                 api_calls=self._api_call_count,
                 sections_written=len(written_sections),
                 search_queries_count=total_search_queries,
+                target_pages=target_pages,
+                actual_pages=partial_pages,
+                target_attained=partial_target_attained,
             )
         finally:
-            if store_name:
+            if store_name and not store_may_be_in_use:
                 if on_progress:
                     on_progress("Cleaning up...")
                 self._store_manager.delete_store(store_name)
 
-    def _build_research_dossier_prompt(self, company_name: str, website_url: str | None) -> str:
+    def _build_research_dossier_prompt(
+        self,
+        company_name: str,
+        website_url: str | None,
+        target_pages: int = 30,
+    ) -> str:
         """
         Build prompt for Phase 1: Research Dossier.
 
@@ -2825,6 +2765,7 @@ Write the content now, following the formatting rules above.""",
         return prompt_template.format(
             company_name=company_name,
             website_context=website_context,
+            target_pages=max(1, target_pages),
         )
 
     def _build_section_prompt(
@@ -2836,6 +2777,7 @@ Write the content now, following the formatting rules above.""",
         stage1_context: str | None = None,
         section_index: int = 0,
         total_sections: int = 1,
+        section_word_target: int | None = None,
     ) -> str:
         """
         Build prompt for writing a single section with full context continuity.
@@ -2891,6 +2833,12 @@ Write the content now, following the formatting rules above.""",
         # sections are primr's OWN prior output (continuity context), not an
         # external injection vector, so they are not untrusted-fenced.
         dossier_fenced = fence_untrusted("RESEARCH_DOSSIER", research_dossier[:8000])
+        target_length_guidance = (
+            f"Aim for at least {section_word_target:,} words when the evidence supports it. "
+            "Do not pad, repeat, or invent claims to reach the target."
+            if section_word_target
+            else ""
+        )
 
         # Get section writing prompt template from YAML
         prompt_template = accordion_prompts.get("section_writing_prompt", "")
@@ -2905,6 +2853,7 @@ Write the content now, following the formatting rules above.""",
                 section_title=section["title"],
                 section_instructions=section["instructions"],
                 position_guidance=position_guidance,
+                target_length_guidance=target_length_guidance,
             )
         else:
             # Fallback to inline prompt if YAML loading fails
@@ -2921,6 +2870,8 @@ Write the **{section["title"]}** section with depth and analytical rigor.
 
 Instructions:
 {section["instructions"]}
+
+Length guidance: {target_length_guidance}
 
 ## NARRATIVE GUIDANCE
 {position_guidance}
@@ -3080,15 +3031,7 @@ use a descriptive subtitle if needed."""
                 previous_interaction_id=previous_interaction_id,
             )
 
-            # Extract content - handle multiple output formats
-            content = ""
-            if hasattr(interaction, "outputs") and interaction.outputs:
-                # Concatenate all text outputs
-                text_parts = []
-                for output in interaction.outputs:
-                    if hasattr(output, "text") and output.text:
-                        text_parts.append(str(output.text))
-                content = "\n".join(text_parts)
+            content = extract_interaction_content(interaction)
 
             duration = time.time() - start_time
             word_count = len(content.split()) if content else 0
@@ -3150,20 +3093,7 @@ use a descriptive subtitle if needed."""
         prompt: str,
         on_progress: Callable[[str], None] | None = None,
     ) -> ResearchResult:
-        """
-        Execute direct Gemini Pro generation (no interaction context).
-
-        This is used as a fallback when Deep Research fails and we don't have
-        a previous_interaction_id. Uses the same approach as the validated
-        AccordionTestRunner: direct generate_content() calls.
-
-        Args:
-            prompt: The generation prompt
-            on_progress: Optional progress callback
-
-        Returns:
-            ResearchResult with generated content
-        """
+        """Execute a direct Gemini Flash section call and return its content."""
         self._api_call_count += 1
         start_time = time.time()
 
@@ -3177,8 +3107,9 @@ use a descriptive subtitle if needed."""
                 model=PrimrModels.FLASH_MODEL,
                 contents=prompt,
             )
+            from primr.ai.llm import record_gemini_response_usage
 
-            # Extract content
+            record_gemini_response_usage(PrimrModels.FLASH_MODEL, response)
             content = ""
             if hasattr(response, "text") and response.text:
                 content = response.text.strip()
@@ -3678,11 +3609,12 @@ class FileSearchStoreManager:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(content)
 
-            self._client.file_search_stores.upload_to_file_search_store(
+            operation = self._client.file_search_stores.upload_to_file_search_store(
                 file=temp_path,
                 file_search_store_name=store_name,
                 config={"mime_type": mime_type},  # type: ignore[arg-type]
             )
+            wait_for_file_search_operation(self._client, operation)
             logger.info(f"Uploaded {filename} to store {store_name}")
         except Exception as e:
             raise AIError(
@@ -3722,11 +3654,12 @@ class FileSearchStoreManager:
         config = {"mime_type": mime_type} if mime_type else None
 
         try:
-            self._client.file_search_stores.upload_to_file_search_store(
+            operation = self._client.file_search_stores.upload_to_file_search_store(
                 file=file_path,
                 file_search_store_name=store_name,
                 config=config,  # type: ignore[arg-type]
             )
+            wait_for_file_search_operation(self._client, operation)
             logger.info(f"Uploaded {file_path} to store {store_name}")
         except Exception as e:
             raise AIError(
@@ -3734,15 +3667,14 @@ class FileSearchStoreManager:
             ) from e
 
     def delete_store(self, store_name: str) -> None:
-        """
-        Delete a File Search Store and all its contents.
+        """Delete a File Search Store and all its contents.
 
         Should be called after Deep Research completes (success or failure)
         to clean up temporary context and ensure data governance.
 
-        IMPORTANT: Per Gemini docs, "There is no TTL for embeddings and files;
-        they persist until manually deleted." We MUST delete documents first,
-        then the store.
+        Raw uploads expire after 48 hours. Imported embeddings and File Search
+        Store data persist until manually deleted, so delete documents first
+        and then the store.
 
         Args:
             store_name: Store name to delete

@@ -34,6 +34,7 @@ else:
 
 genai = _google_genai
 
+from primr.ai.deep_research_parsing import extract_interaction_content
 from primr.ai.report_architect import ChapterPlan
 from primr.config.settings import get_settings
 from primr.utils.logging_config import get_logger
@@ -459,10 +460,7 @@ class ResearchNodeExecutor:
 
     def _extract_content(self, interaction: Any) -> str:
         """Extract the text content from a completed interaction."""
-        if hasattr(interaction, "outputs") and interaction.outputs:
-            parts = [output.text for output in interaction.outputs if getattr(output, "text", None)]
-            return "\n\n".join(parts) if parts else ""
-        return ""
+        return extract_interaction_content(interaction)
 
     def _extract_citations(self, interaction: Any) -> list[dict[str, str]]:
         """Extract citations from a completed interaction."""

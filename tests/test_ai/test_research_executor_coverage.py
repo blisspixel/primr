@@ -69,7 +69,7 @@ def test_extract_content_joins_outputs(executor):
             SimpleNamespace(text="second"),
         ]
     )
-    assert executor._extract_content(interaction) == "first\n\nsecond"
+    assert executor._extract_content(interaction) == "first\nsecond"
 
 
 def test_extract_content_empty_when_no_outputs(executor):

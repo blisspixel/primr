@@ -120,8 +120,8 @@ def enforce_cost_cap(
                 "error_type": "cost_cap_required",
                 "error_code": MCPErrorCode.COST_CAP_REQUIRED,
                 "message": (
-                    f"{operation_name} requires max_estimated_cost_usd when "
-                    "PRIMR_ENFORCE_MCP_COST_CAPS is enabled"
+                    f"{operation_name} requires max_estimated_cost_usd; call the "
+                    "matching estimate tool and obtain explicit approval first"
                 ),
             }
         return None

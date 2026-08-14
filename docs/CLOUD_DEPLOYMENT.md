@@ -49,7 +49,7 @@ cd deploy/aws
 # Deploy infrastructure
 ./deploy.sh -d prod deploy
 
-# Set LLM API keys (runner only)
+# Set the key exposed by the current AWS reference task definition
 echo "sk-..." | ./deploy.sh secrets set OPENAI_API_KEY -
 
 # Validate deployment
@@ -64,8 +64,9 @@ cd deploy/azure
 # Deploy infrastructure
 ./deploy.sh -d prod deploy
 
-# Set LLM API keys
-echo "sk-..." | ./deploy.sh secrets set OPENAI-API-KEY -
+# Set the measured full-mode provider pair
+echo "xai-..." | ./deploy.sh secrets set XAI-API-KEY -
+echo "gemini-..." | ./deploy.sh secrets set GEMINI-API-KEY -
 
 # Validate deployment
 ./deploy.sh validate
@@ -79,7 +80,7 @@ cd deploy/gcp
 # Deploy infrastructure
 ./deploy.sh -d prod -p my-project deploy
 
-# Set LLM API keys
+# Set the key exposed by the current GCP reference job manifest
 echo "sk-..." | ./deploy.sh secrets set OPENAI_API_KEY -
 
 # Validate deployment
@@ -91,7 +92,7 @@ echo "sk-..." | ./deploy.sh secrets set OPENAI_API_KEY -
 ### Rebuilding Container Dependency Locks
 
 The production Dockerfiles install dependency exports generated from `uv.lock`
-with uv 0.11.17. Regenerate both files whenever the lock changes, then run the
+with uv 0.11.33. Regenerate both files whenever the lock changes, then run the
 supply-chain tests before committing them:
 
 ```bash
@@ -103,6 +104,22 @@ uv run --no-sync pytest tests/test_supply_chain_pins.py
 CI builds and smoke-tests both `deploy/Dockerfile` and
 `openclaw/Dockerfile.primr`. The exported files intentionally omit generated
 headers so the byte-for-byte lock check is stable under the pinned uv release.
+
+### Provider Secret Wiring
+
+The Azure Bicep deployment maps xAI, Gemini, and OpenAI secrets into job
+runners. The current AWS task definition and GCP job manifest map only
+`OPENAI_API_KEY`. OpenAI-only full-mode estimates are planning-only in the
+current runtime and report `execution_ready: false`; a provider-backed full run
+still requires xAI or Gemini. Treat AWS and GCP as reference scaffolding for
+full mode until their runner manifests map `XAI_API_KEY` and `GEMINI_API_KEY`.
+Do not assume that creating a secret makes it available inside a container.
+
+Regardless of deployment target, run the exact job shape through dry-run and
+approval before submission. Direct OpenAI and xAI text calls use Responses
+with provider storage disabled. Gemini Premium uses stored background
+Interactions and may create File Search stores; those resources follow the
+cleanup and retention behavior documented in [Internals](INTERNALS.md#file-search-store).
 
 ### Environment Variables
 

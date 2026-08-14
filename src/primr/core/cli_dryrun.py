@@ -9,36 +9,36 @@ human table/recovery preview is skipped.
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from primr.core.cli import CLIConfig
-
-
-def _full_mode_label(grok_tier: str) -> str:
-    """Human label for the default full research path (CLI --mode full).
-
-    Full execution still requires XAI or Gemini (see ``cli_preflight``). Other
-    keys may price dry-runs and eval routes but must not look launch-ready.
-    """
-    from primr.core.cli_labels import full_mode_label, grok_tier_label
-
-    if os.environ.get("XAI_API_KEY"):
-        return full_mode_label(grok_tier, has_xai=True)
-    if os.environ.get("GEMINI_API_KEY"):
-        return "full (Gemini routed)"
-    if os.environ.get("OPENAI_API_KEY"):
-        return "full (OpenAI estimate only; execution needs XAI or Gemini)"
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return "full (Anthropic estimate only; execution needs XAI or Gemini)"
-    # Still name the intended tier so dry-run is honest before keys are set.
-    return f"full ({grok_tier_label(grok_tier)}; provider keys required)"
-
+from primr.core.cli_contract import CLIConfig
+from primr.core.cli_labels import resolved_full_mode_label as _full_mode_label
 
 _NON_EXECUTABLE_FULL_NOTE = (
     "Dollars are the XAI/Gemini full-recipe planning floor, not OpenAI/Anthropic "
     "live rates. Full execution still needs XAI_API_KEY or GEMINI_API_KEY."
 )
+
+_UNSUPPORTED_DRY_RUN_MESSAGES = {
+    "TEST_ACCORDION": (
+        "Dry run is not supported for the experimental Accordion test",
+        "No provider calls were started. Use a governed premium run instead.",
+    ),
+}
+
+
+def reject_unsupported_dry_run(config: object) -> int | None:
+    """Fail closed when a secondary command cannot produce a safe preview."""
+    if not getattr(config, "dry_run_requested", False):
+        return None
+    command = getattr(config, "command", None)
+    messages = _UNSUPPORTED_DRY_RUN_MESSAGES.get(getattr(command, "name", ""))
+    if messages is None:
+        return None
+    from primr.utils.console import console
+
+    console.error(messages[0])
+    console.info(messages[1])
+    return 1
 
 
 def _is_full_execution_ready(*, mode: str) -> bool:

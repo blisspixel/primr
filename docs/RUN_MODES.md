@@ -17,20 +17,34 @@ provider-backed behavior.
 
 ## Mode Matrix
 
-| Mode | Command shape | Output | Typical time | Typical cost |
-|------|---------------|--------|--------------|--------------|
-| Primr Zero in an agent host | Ask the host: `primr "Company" url` | Keyless evidence bundle plus host-written dossier | 5-15 min collection, then host-dependent | $0.00 incremental model API spend when the host is plan-backed |
-| Provider-backed default | `primr "Company" url` in a terminal | Strategic Overview plus one integrated AI Strategy | 34-53 min | ~$0.89 |
-| Base report only | `primr "Company" url --no-ai-strategy` | Strategic Overview | 31-47 min | ~$0.76-$0.79 |
-| XAI-only default | `primr "Company" url` with no Gemini key | Strategic Overview plus one integrated AI Strategy | 34-53 min | ~$5.06 |
-| XAI-only base | `primr "Company" url --no-ai-strategy` with no Gemini key | Strategic Overview | 31-47 min | ~$4.36 |
-| Scrape | `primr "Company" url --mode scrape` | Site corpus plus insights | 5-10 min | ~$0.10 |
-| Deep | `primr "Company" url --mode deep` | Deep Research plus hiring signals | 11-17 min | ~$2.50 |
-| Premium | `primr "Company" url --premium` | Deep Research plus hiring signals plus strategy | 50-75 min | ~$5 |
-| Premium lite | `primr "Company" url --premium --lite` | Premium strategy with lighter model path | 50-80 min | ~$4 |
-| Recon | `primr recon company.com` | DNS intelligence | 2-3 sec | $0.00 |
-| Render | `primr render <file>.md` | DOCX + TXT from existing Markdown | <5 sec | $0.00 |
-| Skill pack | `primr skills "Company" url` | Agent Skills tree plus Cowork zip | ~3 min | ~$0.30 |
+The outcome column is the product distinction. It is not a page guarantee.
+Generated length varies with available evidence, model output limits, and the
+selected strategy modules.
+
+| Profile | Command shape | Outcome and writing topology | Assurance | Typical time | Typical cost |
+|---------|---------------|------------------------------|-----------|--------------|--------------|
+| Primr Zero in an agent host | Ask the host: `primr "Company" url` | Keyless Primr evidence bundle; the host writes the dossier | Host-dependent synthesis; Primr collection remains model-free | 5-15 min collection, then host-dependent | $0.00 incremental model API spend when the host is plan-backed |
+| Provider-backed Standard | `primr "Company" url` in a terminal | Strategic Overview plus one integrated AI Strategy; planned section batches followed by cross-validation and a guarded whole-document coherence pass | Primr owns synthesis, artifact validation, usage, and recovery | 34-53 min | ~$0.89 |
+| Standard base report | `primr "Company" url --no-ai-strategy` | Strategic Overview through the same Standard report pipeline | Same report assurance, without strategy generation | 31-47 min | ~$0.76-$0.79 |
+| XAI-only Standard fallback | `primr "Company" url` with only XAI configured | Standard topology using the xAI writing and utility path | Primr-owned, but materially more expensive than the measured two-provider recipe | 34-53 min | ~$5.84 |
+| XAI-only base fallback | `primr "Company" url --no-ai-strategy` with only XAI configured | Standard base report using the xAI path | Same fallback assurance, without strategy generation | 31-47 min | ~$5.09 |
+| Standard MAX opt-in | `primr "Company" url --grok-tier max` | Standard topology with Grok 4.5 used for all model stages | Explicit high-cost option; the base report is about $8.53 | 34-53 min | ~$9.93 with the default strategy |
+| Scrape | `primr "Company" url --mode scrape` | Site corpus plus provider-synthesized insights | Provider-backed and billable; this is not Primr Zero | 2-5 min | ~$0.10 |
+| Deep | `primr "Company" url --mode deep` | Hiring evidence plus Deep Research dossier, sequential section expansion, and one AI Strategy | Primr-owned Deep Research lifecycle and partial-result recovery | 32-62 min | ~$5.38 with the current static plan |
+| Deep base report | `primr "Company" url --mode deep --no-ai-strategy` | Deep Research dossier and sequential section expansion without strategy generation | Same Deep report path without the optional strategy task | 24-47 min | ~$2.88 with the current static plan |
+| Premium | `primr "Company" url --premium` | Structured evidence plus Deep Research dossier, sequential Flash section writing, assembly, and one AI Strategy | Maximum-depth provider-backed path; quality is evaluated separately from length | 74-132 min | ~$6.71 with the current static plan |
+| Premium lite | `primr "Company" url --premium --lite` | Premium company report with a lighter strategy-generation path | The report path remains Premium; the strategy stage uses the lite recipe | 68-120 min | ~$4.64 with the current static plan |
+| Recon | `primr recon company.com` | DNS intelligence | Deterministic, keyless | 2-3 sec | $0.00 |
+| Render | `primr render <file>.md` | DOCX + TXT from existing Markdown | Deterministic rendering and structural validation | <5 sec | $0.00 |
+| Skill pack | `primr skills "Company" url` | Agent Skills tree plus Cowork zip | Separate role-and-skill workflow, not a report-length tier | ~3 min | ~$0.30 |
+
+There is no separate `--long` profile. Long-form sequential expansion is the
+current Deep/Premium behavior. Do not infer that `--mode scrape` is free: only
+`primr prep` and `primr recon` are the keyless collection paths in this table.
+Deep and Premium both include one AI Strategy by default, just like Standard.
+Add `--no-ai-strategy` when comparing base-report prices. The live dry-run can
+be higher than the static plan when sufficient historical usage establishes a
+higher authorization floor.
 
 ## First useful output (while a long run is still going)
 
@@ -197,7 +211,8 @@ Cost behavior:
 - Fast full-report runs also consult runtime budget checkpoints before optional stages.
 - Premium, deep, and non-fast complete or hybrid runs checkpoint before and between optional strategy documents after the required Deep Research task completes.
 - Required Deep Research tasks cannot be stopped mid-flight by `--budget`; scrape remains estimate-gated only.
-- MCP HTTP tools can enforce server-side cost caps and approval tokens.
+- MCP tools require server-side cost caps and estimate-bound approval tokens
+  by default on every transport.
 - Vendor-research generation (AI news) is freshness-aware and explicit: cached
   research is reused, but missing or stale cache files do not trigger a fresh
   refresh in estimate-bound runs unless you pass `--refresh-vendor-research`.
@@ -241,8 +256,8 @@ Cost behavior:
   It rejects custom strategy types and multiple explicit platforms before any
   provider preflight; use complete mode or XAI fast mode for those shapes.
 - Gemini PDF extraction is off by default and local PyMuPDF parsing is used
-  instead. Set `PRIMR_PDF_LLM_MAX_CALLS=N` only when provider-backed PDF chart
-  and table extraction is worth the extra spend.
+  instead. Governed research runs reject the environment-only
+  `PRIMR_PDF_LLM_MAX_CALLS` switch until those calls are estimate-bound.
 - `primr skills` emits local Cowork icons by default. Remote image generation
   requires `--remote-icons` or MCP `remote_icons=true`, and the estimate
   includes a conservative image allowance only when that opt-in is set.
@@ -289,6 +304,24 @@ object. Approved `--json --skip-confirm` execution emits one
 `primr.strategy-result.v1` object with expected targets, successful artifacts,
 and failures. JSON execution without `--skip-confirm` returns a structured
 approval-required refusal and never prompts.
+
+### Governed improvement commands
+
+Plain `primr improve <path>` performs deterministic local cleanup with zero
+model calls. It remains free and does not require approval. Its dry run reports
+the zero-call shape without changing the file.
+
+`primr improve <path> --improve-agentic` and `primr refine "Company"` are
+model-backed. Run the exact command with `--dry-run` to see its bounded quote.
+Execution repeats the quote, requires explicit approval, and honors `--budget`.
+For automation, `--dry-run --json` emits one
+`primr.improvement-estimate.v1` object; execution without `--skip-confirm`
+returns one structured `approval_required` refusal; approved execution emits
+one `primr.improvement-result.v1` object. Refine quotes its maximum shape of
+nine section regenerations plus three bounded acceptance audits, then stops
+early when its existing quality conditions are met. Runtime reservations occur
+before each quoted model-backed stage so the accepted ceiling cannot be
+silently expanded.
 
 ## Output Locations
 

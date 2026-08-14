@@ -11,6 +11,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from primr.utils.model_policy import unpriced_model_opt_ins
+
 
 @dataclass(frozen=True)
 class ResearchRuntimePlan:
@@ -104,9 +106,22 @@ def prepare_research_runtime(
     )
     if plan.error_message:
         return ResearchRuntimePreparation(plan=plan, status="invalid")
+    unpriced = unpriced_model_opt_ins()
+    if unpriced:
+        invalid_plan = ResearchRuntimePlan(
+            use_fast=plan.use_fast,
+            runtime_platform_count=plan.runtime_platform_count,
+            vendor_refresh_tasks=plan.vendor_refresh_tasks,
+            error_message=(
+                "Unpriced model-call environment options are not allowed in a governed run: "
+                + ", ".join(unpriced)
+                + ". Disable them until they are explicit estimate-bound options."
+            ),
+        )
+        return ResearchRuntimePreparation(plan=invalid_plan, status="invalid")
 
-    # Always surface the priced shape so single-company runs (which skip the
-    # interactive Proceed prompt by design) never start billable work silently.
+    # An explicit --skip-confirm is non-interactive approval, but execution
+    # still repeats the priced shape before provider work starts.
     if skip_confirm:
         from primr.utils.cost_display import print_cost_estimate
 

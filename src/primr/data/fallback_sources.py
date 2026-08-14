@@ -1,14 +1,13 @@
 """
 First-party and public-data fallback sources for blocked hosts.
 
-When a primary host is bot-protected and the orchestrator can't reach real
-content (Kasada, Akamai, etc.), these fail-open sources harvest same-company
-information from first-party subdomains, feeds, PDFs, JSON-LD, EDGAR,
-Wikipedia, Wayback, and optional Grok surrogates.
+When a bot-protected primary host cannot be reached, these sources harvest
+same-company information from subdomains, feeds, PDFs, EDGAR, Wikipedia, Wayback, and
+optional Grok surrogates.
 
 All fallback sources are fail-open: missing data from one source does not
 prevent the others from contributing. The caller fans them out in parallel
-and merges whatever comes back.
+and merges whatever returns.
 """
 
 from __future__ import annotations
@@ -32,7 +31,6 @@ from primr.data.first_party_structured_data import fetch_structured_data_content
 from primr.data.first_party_url import same_site as _same_site
 
 logger = logging.getLogger(__name__)
-
 # =============================================================================
 # Shared HTTP helper
 # =============================================================================
@@ -824,8 +822,6 @@ def fetch_wikipedia_content(company_name: str, timeout: float = 20.0) -> list[Fa
 # =============================================================================
 # Wayback bridge (reuses the scrape tier function, returns FallbackPage)
 # =============================================================================
-
-
 def fetch_grok_surrogates(
     urls: list[str],
     company_name: str,
@@ -868,6 +864,10 @@ def fetch_grok_surrogates(
                 url, context=context_hint, timeout=min(90.0, remaining_budget)
             )
         except Exception as e:
+            from primr.ai.providers.base import QuotaExhaustedError
+
+            if isinstance(e, QuotaExhaustedError):
+                raise
             logger.warning("grok surrogate failed for %s: %s", url, e)
             continue
 

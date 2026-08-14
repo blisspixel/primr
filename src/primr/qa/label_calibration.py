@@ -561,7 +561,10 @@ def _default_judge(claim_sentence: str, source_text: str) -> bool:
 
     try:
         response = llm(
-            build_judge_prompt(claim_sentence, source_text), model_type="fast", temperature=0.0
+            build_judge_prompt(claim_sentence, source_text),
+            model_type="fast",
+            temperature=0.0,
+            max_tokens=64,
         )
         return parse_judge_answer(str(response))
     except Exception as e:

@@ -10,6 +10,7 @@ from primr.utils.model_policy import (
     model_calls_disabled,
     require_model_calls_allowed,
     submit_with_model_policy,
+    unpriced_model_opt_ins,
 )
 
 
@@ -52,6 +53,24 @@ def test_overlapping_contexts_remain_isolated() -> None:
 def test_environment_can_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PRIMR_DISABLE_MODEL_CALLS", "YES")
     assert model_calls_disabled() is True
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("PRIMR_LABEL_HONESTY", "yes"),
+        ("PRIMR_PDF_LLM_MAX_CALLS", "2"),
+        ("PRIMR_PDF_LLM_MAX_CALLS", "invalid"),
+        ("PRIMR_ENABLE_GROK_SURROGATE", "on"),
+    ],
+)
+def test_unpriced_model_opt_ins_reports_ambient_paid_features(
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    value: str,
+) -> None:
+    monkeypatch.setenv(name, value)
+    assert name in unpriced_model_opt_ins()
 
 
 def test_nested_context_restores_outer_policy() -> None:

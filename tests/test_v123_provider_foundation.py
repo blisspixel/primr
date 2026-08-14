@@ -9,6 +9,9 @@ Covers optional test tasks: 1.6, 3.6, 4.3, 5.3, 8.5, 8.6, 12.2, 12.3, 13.4.
 
 from __future__ import annotations
 
+from datetime import date
+
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
@@ -36,7 +39,7 @@ class TestRetirementMigration:
         assert writing == "grok-4.20-non-reasoning"
 
     def test_get_grok_models_max_tier(self) -> None:
-        """MAX tier returns (grok-4.5, grok-4.5) — latest flagship, opt-in."""
+        """MAX tier returns the version-pinned opt-in Grok 4.5 pair."""
         reasoning, writing = PrimrModels.get_grok_models(GrokTier.MAX)
         assert reasoning == "grok-4.5"
         assert writing == "grok-4.5"
@@ -56,6 +59,19 @@ class TestRetirementMigration:
         assert config.has_tiered_pricing is True
         assert config.tier_threshold_tokens == 200_000
         assert config.cost_per_1m_input_tokens_cached == 0.30
+
+    def test_grok_46_registered_without_changing_max_pin(self) -> None:
+        """Current flagship is registered while MAX remains an explicit evaluated pin."""
+        config = PrimrModels.get_model_config("grok-4.6")
+        assert config is not None
+        assert config.display_name == "Grok 4.6"
+        assert config.cost_per_1m_input_tokens == 2.00
+        assert config.cost_per_1m_output_tokens == 6.00
+        assert config.cost_per_1m_input_tokens_cached == 0.50
+        assert config.cost_per_1m_input_tokens_cached_high == 1.00
+        assert config.max_input_tokens == 500_000
+        assert PrimrModels.GROK_MODEL_46 == "grok-4.6"
+        assert PrimrModels.get_grok_models(GrokTier.MAX) == ("grok-4.5", "grok-4.5")
 
     def test_grok_model_writing_resolves_to_420_nr(self) -> None:
         """PrimrModels.GROK_MODEL_WRITING resolves to grok-4.20-non-reasoning."""
@@ -221,10 +237,68 @@ class TestRegistryExpansion:
 # =============================================================================
 
 
+class TestCurrentGeminiCandidates:
+    """Current GA candidates are priced and registered without route promotion."""
+
+    def test_gemini_37_introductory_pricing_and_limits(self) -> None:
+        config = PrimrModels.get_model_config("gemini-3.7-flash")
+        assert config is not None
+        assert config.provider == "google"
+        assert config.cost_per_1m_input_tokens == 0.75
+        assert config.cost_per_1m_input_tokens_cached == 0.075
+        assert config.cost_per_1m_output_tokens == 3.75
+        assert config.max_input_tokens == 1_048_576
+        assert config.max_output_tokens == 65_536
+
+    def test_gemini_36_uses_current_introductory_pricing(self) -> None:
+        config = PrimrModels.get_model_config("gemini-3.6-flash")
+        assert config is not None
+        assert config.cost_per_1m_input_tokens == 0.75
+        assert config.cost_per_1m_input_tokens_cached == 0.075
+        assert config.cost_per_1m_output_tokens == 3.75
+
+    def test_gemini_35_flash_lite_cached_pricing(self) -> None:
+        config = PrimrModels.get_model_config("gemini-3.5-flash-lite")
+        assert config is not None
+        assert config.cost_per_1m_input_tokens_cached == 0.03
+
+    def test_gemini_37_is_current_but_not_production_default(self) -> None:
+        assert PrimrModels.is_latest_model("gemini-3.7-flash")
+        assert PrimrModels.PRO_MODEL == "gemini-3.1-pro-preview"
+
+    @pytest.mark.parametrize("model", ["gemini-3.6-flash", "gemini-3.7-flash"])
+    def test_scheduled_2027_price_change(self, model: str) -> None:
+        before = PrimrModels.calculate_cost(
+            model,
+            1_000_000,
+            1_000_000,
+            cached_input_tokens=500_000,
+            pricing_date=date(2026, 12, 31),
+        )
+        after = PrimrModels.calculate_cost(
+            model,
+            1_000_000,
+            1_000_000,
+            cached_input_tokens=500_000,
+            pricing_date=date(2027, 1, 1),
+        )
+        assert before == pytest.approx(4.1625)
+        assert after == pytest.approx(8.325)
+
+
 class TestOpenAIIntegration:
     """Task 4.3 — Verify OpenAI ModelConfig entries and routing."""
 
-    OPENAI_MODELS = ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"]
+    OPENAI_MODELS = [
+        "gpt-5.6",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+        "gpt-5.5",
+        "gpt-5.4",
+        "gpt-5.4-mini",
+        "gpt-5.4-nano",
+    ]
 
     def test_openai_model_configs_exist(self) -> None:
         """ModelConfig entries exist for all OpenAI models."""
@@ -520,11 +594,18 @@ class TestCostEstimatorEdgeCases:
         assert config.cost_per_1m_output_tokens == 2.50
 
     def test_grok_420_non_reasoning_pricing(self) -> None:
-        """grok-4.20-non-reasoning priced at $2.00/$6.00 per 1M tokens."""
+        """grok-4.20-non-reasoning uses current short and long-context rates."""
         config = PrimrModels.get_model_config("grok-4.20-non-reasoning")
         assert config is not None
-        assert config.cost_per_1m_input_tokens == 2.00
-        assert config.cost_per_1m_output_tokens == 6.00
+        assert config.cost_per_1m_input_tokens == 1.25
+        assert config.cost_per_1m_output_tokens == 2.50
+        assert config.cost_per_1m_input_tokens_cached == 0.20
+        assert config.cost_per_1m_input_tokens_high == 2.50
+        assert config.cost_per_1m_output_tokens_high == 5.00
+        assert config.cost_per_1m_input_tokens_cached_high == 0.40
+        assert config.tier_threshold_tokens == 200_000
+        assert config.tier_threshold_inclusive is True
+        assert config.max_input_tokens == 1_000_000
 
     def test_negative_token_clamping(self) -> None:
         """Negative input/output tokens are clamped to 0, cost >= 0."""

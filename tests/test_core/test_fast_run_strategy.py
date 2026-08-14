@@ -146,6 +146,21 @@ class TestSkipPaths:
         seams["failover"].assert_not_called()
         budget.sync_spend.assert_called_once_with(0.50)
 
+    def test_incomplete_base_report_skips_all_optional_spend(self, seams):
+        result = _call(
+            seams,
+            base_report_complete=False,
+            refresh_vendor_research=True,
+        )
+
+        assert result.strategy_paths == {}
+        assert result.vendor_refresh_tasks_started == 0
+        assert result.strategy_outcome.skipped_targets == ("ai:azure",)
+        assert result.vendor_refresh_outcome.skipped_vendors == ("azure",)
+        seams["session_cost"].assert_not_called()
+        seams["vendor_research"].assert_not_called()
+        seams["failover"].assert_not_called()
+
     def test_budget_under_cap_proceeds(self, seams, monkeypatch):
         budget = MagicMock()
         budget.exceeded.return_value = False

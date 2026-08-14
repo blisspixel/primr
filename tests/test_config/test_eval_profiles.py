@@ -16,6 +16,8 @@ class TestProTierEvalSlots:
         names = list_eval_profile_names()
         assert "protier-gemini31pro" in names
         assert "protier-gemini35flash" in names
+        assert "protier-gemini36flash" in names
+        assert "protier-gemini37flash" in names
 
     def test_reference_uses_31_pro(self):
         slot = get_eval_profile("protier-gemini31pro")
@@ -41,19 +43,42 @@ class TestProTierEvalSlots:
         assert cfg is not None
         assert cfg.provider == "google"
 
+    def test_current_flash_candidates_are_registered_without_routing_change(self):
+        from primr.config.models import PrimrModels
 
-class TestGrok45PromotionCandidate:
-    def test_grok45_flashlite_slot_registered(self):
-        """Optional 4.5-reasoning candidate exists but is not the hybrid default."""
+        candidate_36 = get_eval_profile("protier-gemini36flash")
+        candidate_37 = get_eval_profile("protier-gemini37flash")
+        assert candidate_36.recipe.writing == "gemini-3.6-flash"
+        assert candidate_37.recipe.writing == "gemini-3.7-flash"
+        assert PrimrModels.get_model_config(candidate_37.recipe.writing) is not None
+        assert PrimrModels.PRO_MODEL == "gemini-3.1-pro-preview"
+
+
+class TestGrokPromotionCandidates:
+    def test_grok_candidates_registered(self):
+        """Versioned flagship candidates exist without changing the hybrid default."""
         names = list_eval_profile_names()
         assert "grok43-flashlite" in names
         assert "grok45-flashlite" in names
+        assert "grok46-flashlite" in names
         baseline = get_eval_profile("grok43-flashlite")
-        candidate = get_eval_profile("grok45-flashlite")
+        candidate_45 = get_eval_profile("grok45-flashlite")
+        candidate_46 = get_eval_profile("grok46-flashlite")
         assert baseline.recipe.reasoning == "grok-4.3"
-        assert candidate.recipe.reasoning == "grok-4.5"
-        assert candidate.recipe.writing == "gemini-3.1-flash-lite"
-        assert candidate.estimated_cost_usd > baseline.estimated_cost_usd
+        assert candidate_45.recipe.reasoning == "grok-4.5"
+        assert candidate_46.recipe.reasoning == "grok-4.6"
+        assert candidate_46.recipe.writing == "gemini-3.1-flash-lite"
+        assert candidate_46.estimated_cost_usd > baseline.estimated_cost_usd
+
+
+class TestOpenAICurrentCandidate:
+    def test_gpt56_luna_candidate_is_registered_without_routing_change(self):
+        from primr.config.models import PrimrModels
+
+        slot = get_eval_profile("grok43-luna")
+        assert slot.recipe.writing == "gpt-5.6-luna"
+        assert PrimrModels.get_model_config(slot.recipe.writing) is not None
+        assert PrimrModels.GROK_MODEL == "grok-4.3"
 
 
 class TestPremiumAnthropicSlots:

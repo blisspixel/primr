@@ -429,25 +429,42 @@ class TestClaimExtraction:
             assert len(claims) == 1
             assert claims[0].claim_text == "Valid"
 
-    def test_non_list_response_returns_empty(self):
-        """LLM returning a dict instead of list should return empty claims."""
+    def test_non_list_response_is_extraction_failure(self):
+        """A malformed extraction response must not look like zero claims."""
         verifier, _ = _make_verifier()
 
         import primr.ai.llm as llm_mod
 
-        with patch.object(llm_mod, "llm", return_value='{"not": "a list"}'):
-            claims = asyncio.run(verifier._extract_claims("text"))
-            assert claims == []
+        with (
+            patch.object(llm_mod, "llm", return_value='{"not": "a list"}'),
+            pytest.raises(RuntimeError, match="non-list"),
+        ):
+            asyncio.run(verifier._extract_claims("text"))
 
-    def test_llm_exception_returns_empty(self):
-        """LLM failure during extraction should return empty list, not raise."""
+    def test_llm_exception_is_extraction_failure(self):
+        """LLM failure must not be reclassified as a claim-free report."""
         verifier, _ = _make_verifier()
 
         import primr.ai.llm as llm_mod
 
-        with patch.object(llm_mod, "llm", side_effect=RuntimeError("API down")):
-            claims = asyncio.run(verifier._extract_claims("text"))
-            assert claims == []
+        with (
+            patch.object(llm_mod, "llm", side_effect=RuntimeError("API down")),
+            pytest.raises(RuntimeError, match="API down"),
+        ):
+            asyncio.run(verifier._extract_claims("text"))
+
+    def test_long_report_sampling_covers_late_sections(self):
+        verifier, _ = _make_verifier()
+        report = "\n".join(
+            f"## Section {index}\n" + (f"fact-{index} " * 500) for index in range(12)
+        )
+
+        sampled = verifier._sample_report_sections(report, max_chars=6_000)
+
+        assert len(sampled) <= 6_000
+        assert "## Section 0" in sampled
+        assert "## Section 11" in sampled
+        assert "fact-11" in sampled
 
     def test_missing_fields_use_defaults(self):
         """Claims with missing fields should use sensible defaults."""
@@ -844,20 +861,37 @@ class TestEndToEnd:
         assert result.metrics["verified"] == 1
         assert result.metrics["contradicted"] == 1
 
-    def test_pipeline_extraction_failure_returns_zero_trust(self):
-        """If claim extraction fails, should return zero trust (not crash)."""
+    def test_pipeline_extraction_failure_returns_failed_result(self):
+        """Extraction failure stays non-throwing but is not reported as success."""
         report_path = _write_report(SAMPLE_REPORT)
         context = _make_context(report_path)
         verifier = VerifierSubagent(context)
 
         import primr.ai.llm as llm_mod
 
-        with patch.object(llm_mod, "llm", side_effect=RuntimeError("LLM offline")):
+        with (
+            patch.object(llm_mod, "llm", side_effect=RuntimeError("LLM offline")),
+            patch.object(verifier, "_save_result") as save_result,
+        ):
             result = asyncio.run(verifier.execute())
 
-        assert result.is_success  # non-blocking
-        assert result.data.trust_score == 0.0
+        assert not result.is_success
+        assert result.status.value == "failed"
+        assert "LLM offline" in result.error
+        save_result.assert_not_called()
+
+    def test_genuine_zero_claims_save_a_completed_result(self):
+        report_path = _write_report(SAMPLE_REPORT)
+        verifier = VerifierSubagent(_make_context(report_path))
+
+        import primr.ai.llm as llm_mod
+
+        with patch.object(llm_mod, "llm", return_value="[]"):
+            result = asyncio.run(verifier.execute())
+
+        assert result.is_success
         assert result.data.total_claims == 0
+        assert (report_path.parent / "verification.json").exists()
 
     def test_pipeline_saves_verification_json(self):
         """Pipeline should write verification.json alongside the report."""

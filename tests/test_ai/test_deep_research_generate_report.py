@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -133,3 +134,41 @@ async def test_store_deleted_on_exception(orchestrator):
     )
     # Store cleanup happens in finally regardless of exception
     orchestrator._store_manager.delete_store.assert_called_once_with("stores/abc")
+
+
+@pytest.mark.asyncio
+async def test_pending_interaction_preserves_store_for_recovery(orchestrator):
+    orchestrator._store_manager.create_store.return_value = "stores/abc"
+    orchestrator._execute_with_retry = AsyncMock(
+        return_value=ResearchResult(
+            content="",
+            interaction_id="interaction-123",
+            status=ResearchStatus.IN_PROGRESS,
+            error="polling state uncertain",
+        )
+    )
+
+    result = await orchestrator.generate_report(
+        company_name="Acme",
+        stage1_context="context",
+    )
+
+    assert result.success is False
+    assert result.interaction_id == "interaction-123"
+    orchestrator._store_manager.delete_store.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cancellation_after_acceptance_preserves_store(orchestrator):
+    orchestrator._store_manager.create_store.return_value = "stores/abc"
+    cancelled = asyncio.CancelledError()
+    cancelled.interaction_id = "interaction-123"  # type: ignore[attr-defined]
+    orchestrator._execute_with_retry = AsyncMock(side_effect=cancelled)
+
+    with pytest.raises(asyncio.CancelledError):
+        await orchestrator.generate_report(
+            company_name="Acme",
+            stage1_context="context",
+        )
+
+    orchestrator._store_manager.delete_store.assert_not_called()

@@ -686,6 +686,58 @@ class TestResumePendingJobs:
         assert interaction_id == "j1"
         assert list(paths) == ["a.md", "a.docx", "a.txt"]
 
+    def test_completed_job_cleans_store_before_acknowledgement(self, monkeypatch):
+        client = Mock()
+        client.check_job.return_value = {"status": "completed", "content": "Final content"}
+        client._cleanup_file_store.return_value = True
+        import primr.ai.deep_research as dr
+
+        job = {
+            "description": "x",
+            "type": "deep_research",
+            "metadata": {"file_search_store": "stores/context"},
+        }
+        monkeypatch.setattr(dr, "get_pending_jobs", lambda: {"j1": job})
+        monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
+        with (
+            patch(
+                "primr.core.cli_recovery._save_recovered_outputs",
+                return_value={"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
+            ),
+            patch(
+                "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+                return_value=True,
+            ) as acknowledge,
+        ):
+            assert resume_pending_jobs() == 0
+
+        client._cleanup_file_store.assert_called_once_with("stores/context")
+        acknowledge.assert_called_once()
+
+    def test_completed_job_retains_record_when_store_cleanup_fails(self, monkeypatch):
+        client = Mock()
+        client.check_job.return_value = {"status": "completed", "content": "Final content"}
+        client._cleanup_file_store.return_value = False
+        import primr.ai.deep_research as dr
+
+        job = {
+            "description": "x",
+            "type": "deep_research",
+            "metadata": {"file_search_store": "stores/context"},
+        }
+        monkeypatch.setattr(dr, "get_pending_jobs", lambda: {"j1": job})
+        monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
+        with (
+            patch(
+                "primr.core.cli_recovery._save_recovered_outputs",
+                return_value={"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
+            ),
+            patch("primr.ai.job_persistence.acknowledge_pending_job_after_outputs") as acknowledge,
+        ):
+            assert resume_pending_jobs() == 1
+
+        acknowledge.assert_not_called()
+
     def test_keeps_completed_job_when_finalization_fails(self, tmp_path, monkeypatch):
         client = Mock()
         client.check_job.return_value = {"status": "completed", "content": "Final content"}

@@ -4,13 +4,13 @@ Grok client for primr.
 Uses xAI's OpenAI-compatible API at https://api.x.ai/v1. Requires the
 ``XAI_API_KEY`` environment variable and the ``openai`` package.
 
-As of v1.22.0 the chat path delegates to ``OpenAICompatibleProvider`` from
+The text path delegates to ``OpenAICompatibleProvider`` from
 ``primr.ai.providers`` so adding new OpenAI-compatible providers (OpenAI
 itself, Ollama, vLLM) is a one-line registry entry rather than a parallel
 client file. This module remains the public entry point for xAI-specific
-features: ``grok_llm`` (chat completions), ``ContinuousReasoningSession``
+features: ``grok_llm`` (xAI Responses API), ``ContinuousReasoningSession``
 (multi-turn shared-history sessions used by the standard pipeline), and
-``grok_browse_and_summarize`` (xAI Responses API with the ``web_search``
+    ``grok_browse_and_summarize`` (Responses API with the ``web_search``
 agent tool, which is xAI-specific and not OpenAI-shape-compatible).
 
 Usage::
@@ -23,6 +23,7 @@ Usage::
 
 import random
 import threading
+import uuid
 from typing import Any
 
 from primr.ai.error_policy import extract_retry_after_seconds
@@ -49,7 +50,10 @@ _session_lock = threading.Lock()
 _session_input_tokens: int = 0
 _session_output_tokens: int = 0
 _session_cached_input_tokens: int = 0
-_session_tokens_by_model: dict[str, dict[str, int]] = {}
+_session_actual_cost_usd: float = 0.0
+_session_actual_cost_calls: int = 0
+_session_call_count: int = 0
+_session_tokens_by_model: dict[str, dict[str, int | float]] = {}
 
 
 def get_grok_session_usage() -> dict[str, int]:
@@ -67,7 +71,17 @@ def get_grok_session_usage() -> dict[str, int]:
         }
 
 
-def get_grok_session_usage_by_model() -> dict[str, dict[str, int]]:
+def get_grok_session_exact_cost() -> dict[str, int | float]:
+    """Return exact xAI billed cost coverage without changing legacy usage shape."""
+    with _session_lock:
+        return {
+            "actual_cost_usd": _session_actual_cost_usd,
+            "actual_cost_calls": _session_actual_cost_calls,
+            "call_count": _session_call_count,
+        }
+
+
+def get_grok_session_usage_by_model() -> dict[str, dict[str, int | float]]:
     """Return per-model token usage for accurate cost calculation.
 
     Returns:
@@ -82,10 +96,14 @@ def reset_grok_session() -> None:
     """Reset session token counters (useful for testing)."""
     global _session_input_tokens, _session_output_tokens
     global _session_cached_input_tokens, _session_tokens_by_model
+    global _session_actual_cost_usd, _session_actual_cost_calls, _session_call_count
     with _session_lock:
         _session_input_tokens = 0
         _session_output_tokens = 0
         _session_cached_input_tokens = 0
+        _session_actual_cost_usd = 0.0
+        _session_actual_cost_calls = 0
+        _session_call_count = 0
         _session_tokens_by_model = {}
 
 
@@ -94,6 +112,7 @@ def _mirror_session_usage(
     input_tokens: int,
     output_tokens: int,
     cached_input_tokens: int = 0,
+    actual_cost_usd: float | None = None,
 ) -> None:
     """Mirror per-call usage into the module-level session counters.
 
@@ -102,17 +121,34 @@ def _mirror_session_usage(
     grok_browse_and_summarize) so cost reporting stays uniform.
     """
     global _session_input_tokens, _session_output_tokens, _session_cached_input_tokens
+    global _session_actual_cost_usd, _session_actual_cost_calls, _session_call_count
     with _session_lock:
         _session_input_tokens += input_tokens
         _session_output_tokens += output_tokens
         _session_cached_input_tokens += cached_input_tokens
+        _session_call_count += 1
+        if actual_cost_usd is not None:
+            _session_actual_cost_usd += actual_cost_usd
+            _session_actual_cost_calls += 1
         bucket = _session_tokens_by_model.setdefault(
-            model, {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0}
+            model,
+            {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cached_input_tokens": 0,
+                "actual_cost_usd": 0.0,
+                "actual_cost_calls": 0,
+                "call_count": 0,
+            },
         )
         bucket["input_tokens"] += input_tokens
         bucket["output_tokens"] += output_tokens
         # Older buckets predate the cached counter; setdefault keeps them safe.
         bucket["cached_input_tokens"] = bucket.get("cached_input_tokens", 0) + cached_input_tokens
+        bucket["call_count"] = bucket.get("call_count", 0) + 1
+        if actual_cost_usd is not None:
+            bucket["actual_cost_usd"] = bucket.get("actual_cost_usd", 0.0) + actual_cost_usd
+            bucket["actual_cost_calls"] = bucket.get("actual_cost_calls", 0) + 1
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +342,7 @@ def grok_llm(
             cross_response.input_tokens,
             cross_response.output_tokens,
             cached_input_tokens=cross_response.cached_input_tokens,
+            actual_cost_usd=getattr(cross_response, "actual_cost_usd", None),
         )
         return cross_response.text
 
@@ -338,6 +375,7 @@ def grok_llm(
         response.input_tokens,
         response.output_tokens,
         cached_input_tokens=response.cached_input_tokens,
+        actual_cost_usd=getattr(response, "actual_cost_usd", None),
     )
 
     return response.text
@@ -383,6 +421,7 @@ class ContinuousReasoningSession:
         if system_prompt:
             self.history.append({"role": "system", "content": system_prompt})
         self._turn_count = 0
+        self._prompt_cache_key = str(uuid.uuid4())
 
     @property
     def turns(self) -> int:
@@ -416,6 +455,7 @@ class ContinuousReasoningSession:
             provider_kwargs: dict[str, Any] = {}
             if self.reasoning_effort is not None:
                 provider_kwargs["reasoning_effort"] = self.reasoning_effort
+            provider_kwargs["prompt_cache_key"] = self._prompt_cache_key
 
             response = provider.chat(
                 list(self.history),
@@ -436,6 +476,7 @@ class ContinuousReasoningSession:
             response.input_tokens,
             response.output_tokens,
             cached_input_tokens=response.cached_input_tokens,
+            actual_cost_usd=getattr(response, "actual_cost_usd", None),
         )
 
         self.history.append({"role": "assistant", "content": response.text})
@@ -510,11 +551,12 @@ def grok_browse_and_summarize(
     )
     if summary is None:
         return None
-    if summary.input_tokens or summary.output_tokens:
+    if summary.input_tokens or summary.output_tokens or summary.actual_cost_usd is not None:
         _mirror_session_usage(
             model,
             summary.input_tokens,
             summary.output_tokens,
             cached_input_tokens=summary.cached_input_tokens,
+            actual_cost_usd=summary.actual_cost_usd,
         )
     return summary.to_public_dict()

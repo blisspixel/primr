@@ -1,27 +1,4 @@
-"""
-Automated Company Research Agent - Orchestration Hub
-
-This module serves as the main entry point and orchestration hub for company research.
-It delegates to specialized modules for specific functionality:
-
-- workspace: Working folder management, file consolidation
-- structured_research: Website scraping and section generation
-- vendor_research: Cloud vendor AI capabilities research
-- ai_strategy: AI strategy generation
-- deep_research_runner: Deep Research execution
-- cli: Command-line interface
-
-For backward compatibility, this module re-exports key functions from the specialized modules.
-
-Usage:
-    from primr.core.research_agent import perform_research, main
-
-    # Run research programmatically
-    result = perform_research("Acme Corp", "https://acme.example")
-
-    # Run CLI
-    main()
-"""
+"""Company-research orchestration and backward-compatible public facade."""
 
 # Suppress RuntimeWarning FIRST - before any other imports
 import warnings
@@ -273,6 +250,7 @@ from primr.config.config import (
 from primr.config.env import load_primr_env
 from primr.config.models import PrimrModels
 from primr.config.sections_config import SECTION_KEY_MAP
+from primr.core import deep_run_summary
 
 
 def _default_writing_model() -> str:
@@ -2124,8 +2102,9 @@ def _enrich_strategy_content(
 def _compute_session_llm_cost() -> float:
     """Current actual LLM spend for this run, in USD.
 
-    Per-model Grok session cost (cache-aware: cached input tokens are billed
-    at the model's cached rate) plus the Gemini client's accumulated cost.
+    Per-model xAI/cross-provider session cost plus the Gemini client's
+    accumulated cost. Prefer exact provider-billed xAI cost when every call in
+    the model bucket reported it; otherwise retain conservative token pricing.
     Used by the end-of-run summary and the ``--budget`` checkpoint, so both
     report the same number.
     """
@@ -2137,12 +2116,7 @@ def _compute_session_llm_cost() -> float:
         cost_model = (
             model_name if PrimrModels.get_model_config(model_name) else PrimrModels.GROK_MODEL
         )
-        grok_cost += PrimrModels.calculate_cost(
-            cost_model,
-            tokens["input_tokens"],
-            tokens["output_tokens"],
-            cached_input_tokens=tokens.get("cached_input_tokens", 0),
-        )
+        grok_cost += PrimrModels.calculate_recorded_cost(cost_model, tokens)[0]
 
     from primr.ai.client import get_client
 
@@ -2390,6 +2364,10 @@ def perform_fast_research(
         # but do NOT block DOCX shipping - the contradictions are already
         # noted inline and the user gets the full report.
         report_gate_issues = []
+        if not _sections_result.report_complete:
+            report_gate_issues.append(
+                "report completeness contract not met; saved partial Markdown/TXT only"
+            )
         if qa_metrics["citations_used"] == 0 or qa_metrics["citations_defined"] == 0:
             console.warn(
                 "Report validation warning: "
@@ -2410,9 +2388,7 @@ def perform_fast_research(
         with open(raw_md_path, "w", encoding="utf-8") as f:
             f.write(report_content)
 
-        # =================================================================
-        # Phase 6: Strategy Generation (extracted: core/fast_run_strategy.py)
-        # =================================================================
+        # Phase 6: Strategy Generation (core/fast_run_strategy.py)
         _strategy_result = run_strategy_phase(
             has_strategies=has_strategies,
             ai_strategy=ai_strategy,
@@ -2433,6 +2409,7 @@ def perform_fast_research(
             write_txt=write_txt,
             recovery_executor=_recovery_executor,
             total_phases=total_phases,
+            base_report_complete=_sections_result.report_complete,
         )
         strategy_paths = _strategy_result.strategy_paths
         strategy_trust_stats = _strategy_result.strategy_trust_stats
@@ -2451,6 +2428,8 @@ def perform_fast_research(
             display_name=display_name,
             folder_path=folder_path,
             written_sections_count=len(written_sections),
+            expected_sections_count=_sections_result.expected_sections,
+            report_complete=_sections_result.report_complete,
             total_words=total_words,
             validated_source_count=validated_source_count,
             pages_scraped=pages_scraped,
@@ -2922,6 +2901,7 @@ def perform_research(
                 discovery_notes_content=discovery_notes_content,
                 lite_strategy=lite_strategy,
                 fail_on_low_scrape=not skip_scrape_validation,
+                verify=verify,
                 folder_path=folder_path,
                 output_dir=run_output_dir,
                 diagnostics_dir=diagnostics_dir,
@@ -3249,6 +3229,7 @@ def perform_deep_research(
     output_dir: str | Path | None = None,
     diagnostics_dir: str | Path | None = None,
     write_txt: bool = True,
+    verify: bool = False,
 ) -> str | None:
     """
     Perform research using Deep Research Agent, Complete, or Hybrid mode.
@@ -3424,8 +3405,6 @@ def perform_deep_research(
                     "Deep research failed",
                     error=result.error,
                 )
-
-                # Save partial results if the structured phase produced anything
                 if result.section_results:
                     partial_folder = folder_path
                     partial_count = 0
@@ -3439,11 +3418,12 @@ def perform_deep_research(
                         "  Tip: Re-run with --mode scrape to generate a report from scraped data"
                     )
                 else:
-                    console.muted("  Tip: Check logs for details, or re-run with --mode scrape")
+                    console.muted("  Tip: Check logs or re-run with --mode scrape")
 
-                return None
+                return deep_run_summary.publish_partial_deep_report(
+                    result, display_name, run_output_dir, diagnostics_dir, write_txt
+                )
 
-            # Use sections_written for accurate count (accordion method tracks this)
             section_count = (
                 result.sections_written
                 if result.sections_written > 0
@@ -3451,9 +3431,7 @@ def perform_deep_research(
             )
             log_structured("info", "Deep research complete", sections=section_count)
 
-            # Calculate word and page count from raw content. Round to nearest
-            # page and floor at 1 for any non-empty report - plain floor
-            # division shows "~0 pages" for 1-499-word reports.
+            # Round page estimates and floor non-empty reports at one page.
             word_count = len(result.raw_content.split()) if result.raw_content else 0
             page_count = max(1, round(word_count / 500)) if word_count else 0  # ~500 words/page
 
@@ -3492,7 +3470,6 @@ def perform_deep_research(
             with console.timed_operation("Generating documents"):
                 durable_report_paths: list[Path] = []
                 if result.raw_content and mode in ("deep-research", "complete", "hybrid"):
-                    # Deep Research: convert markdown directly to DOCX (preserves structure)
                     docx_path = _convert_deep_research_to_docx(
                         result.raw_content,
                         company_name or display_name,
@@ -3503,7 +3480,6 @@ def perform_deep_research(
                         written_paths=durable_report_paths,
                     )
                 else:
-                    # Structured pipeline: use DocumentBuilder to assemble sections
                     docx_path = generate_final_report(
                         company_name or display_name,
                         citation_style=citation_style,
@@ -3512,16 +3488,23 @@ def perform_deep_research(
                         write_txt=write_txt,
                     )
 
+            report_path, acknowledgment_paths, verification_path = (
+                deep_run_summary.resolve_deep_report_artifacts(docx_path, durable_report_paths)
+            )
+
             pending_interaction_id = getattr(result, "pending_interaction_id", "")
             if isinstance(pending_interaction_id, str) and pending_interaction_id:
                 from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
 
-                if not docx_path or not acknowledge_pending_job_after_outputs(
-                    pending_interaction_id, durable_report_paths
+                if not report_path or not acknowledge_pending_job_after_outputs(
+                    pending_interaction_id, acknowledgment_paths
                 ):
                     console.warn(
                         "Deep Research output is incomplete; its pending job remains recoverable."
                     )
+
+            if verify and verification_path:
+                _run_claim_verification_non_blocking(display_name, website or "", verification_path)
 
             if is_simple_deep_research:
                 console.phase_complete("Processing Results")
@@ -3669,8 +3652,8 @@ def perform_deep_research(
             )
             _append_run_event(folder_path, "complete", "completed", f"Run completed in {time_str}")
 
-            if docx_path:
-                console.success_box("Report ready", str(Path(docx_path).resolve()))
+            if report_path:
+                console.success_box("Report ready", str(Path(report_path).resolve()))
 
             for strat_key, strategy_path in strategy_paths.items():
                 from primr.prompts.registry import get_registry
@@ -3692,10 +3675,7 @@ def perform_deep_research(
                     f"{strat_display_name}{vendor_suffix}", str(Path(strategy_path).resolve())
                 )
 
-            # Cost reconciliation, summary display, usage record, job summary.
-            from primr.core.deep_run_summary import finalize_deep_run
-
-            finalize_deep_run(
+            deep_run_summary.finalize_deep_run(
                 mode=mode,
                 mode_label=mode_label,
                 result=result,
@@ -3711,10 +3691,10 @@ def perform_deep_research(
                 time_str=time_str,
                 elapsed=elapsed,
                 display_name=display_name,
-                docx_path=docx_path,
+                docx_path=report_path,
             )
 
-            return docx_path
+            return report_path
 
         except Exception as e:
             console.error(f"Deep research failed: {e}")
@@ -4196,14 +4176,18 @@ def _run_verification(
 
 
 def improve_output_file(
-    file_path: str, *, in_place: bool = False, use_agentic: bool = False
+    file_path: str,
+    *,
+    in_place: bool = False,
+    use_agentic: bool = False,
+    before_model_stage: Callable[[str], None] | None = None,
 ) -> str | None:
     """Improve an existing markdown/text output artifact with deterministic + optional agentic QA cleanup."""
+    reserve = before_model_stage or (lambda _stage: None)
     path = Path(file_path)
     if not path.exists() or not path.is_file():
         console.error(f"Improve failed: file not found: {file_path}")
         return None
-
     if path.suffix.lower() not in {".md", ".txt"}:
         console.error(
             "Improve supports .md or .txt files. Convert DOCX/PDF to markdown/text first."
@@ -4215,29 +4199,30 @@ def improve_output_file(
     except Exception as e:
         console.error(f"Improve failed: could not read file: {e}")
         return None
-
     is_strategy = "# AI Strategy:" in content or "_AI_Strategy_" in path.name
-
     if is_strategy:
         improved = content
         if use_agentic:
+            reserve("review")
             cv = _strategy_cross_validate("Company", improved, "agnostic", [])
             if cv.get("weak_sections") or cv.get("issues"):
+                reserve("polish")
                 improved = _strategy_polish("Company", "agnostic", improved)
         improved = _clean_strategy_output(improved)
         qa = _compute_strategy_qa_metrics(improved)
         console.info(
             "Improve QA (strategy): "
-            f"placeholders={qa['placeholder_refs']}, "
-            f"sources={qa['source_urls']}, "
+            f"placeholders={qa['placeholder_refs']}, sources={qa['source_urls']}, "
             f"budget={'OK' if not qa['budget_inconsistent'] else 'WARN'}, "
             f"gate={'PASS' if qa['qa_gate_passed'] else 'WARN'}"
         )
     else:
         improved = content
         if use_agentic:
+            reserve("review")
             cv = _fast_cross_validate("Company", None, improved, [])
             if cv.get("weak_sections") or cv.get("contradictions"):
+                reserve("polish")
                 improved = _polish_fast_report_for_trust("Company", None, improved, [])
         improved = _clean_fast_report_output(improved)
         improved = _normalize_fast_citations(improved)
@@ -4246,16 +4231,11 @@ def improve_output_file(
         qa = _compute_fast_report_qa_metrics(improved)
         console.info(
             "Improve QA (report): "
-            f"labels={qa['confidence_labels']}, "
-            f"cites={qa['citations_used']}/{qa['citations_defined']}, "
+            f"labels={qa['confidence_labels']}, cites={qa['citations_used']}/"
+            f"{qa['citations_defined']}, "
             f"validate={qa['sections_with_validate']}/{qa['section_count']}, "
             f"gate={'PASS' if qa['qa_gate_passed'] else 'WARN'}"
         )
-
-    # Enforced write allowlist (roadmap #11): the agentic improve stage may
-    # only write the target artifact (or its _improved sibling) - never run
-    # state, raw scrapes, or anything else. Architectural constraint, not a
-    # trust-based policy.
     from primr.utils.write_guard import ArtifactWriteGuard, WriteGuardError
 
     guard = ArtifactWriteGuard(path)

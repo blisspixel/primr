@@ -14,6 +14,7 @@ from primr.config.models import (
 )
 from primr.utils.cost_display import get_cost_summary
 from primr.utils.cost_estimator import (
+    ACCORDION_WRITING_OVERHEAD,
     GEMINI_3_FLASH_INPUT_PRICE,
     GEMINI_3_FLASH_OUTPUT_PRICE,
     GEMINI_3_PRO_INPUT_PRICE_SMALL,
@@ -115,9 +116,12 @@ class TestEstimateCost:
         estimate = estimate_cost("deep-research", use_historical=False)
 
         assert estimate.mode == "deep-research"
-        # Deep research uses flat per-task cost, no tokens
+        accordion = ACCORDION_WRITING_OVERHEAD["deep-research"]
         assert estimate.deep_research_cost == DEEP_RESEARCH_COST.standard_task_cost
+        assert estimate.estimated_input_tokens == accordion["flash_input_tokens"]
+        assert estimate.estimated_output_tokens == accordion["flash_output_tokens"]
         assert estimate.total_cost >= DEEP_RESEARCH_COST.standard_task_cost
+        assert any("23 sequential Gemini Flash section calls" in note for note in estimate.notes)
 
     def test_estimate_complete_mode(self):
         """Estimate cost for complete mode."""
@@ -125,13 +129,42 @@ class TestEstimateCost:
 
         assert estimate.mode == "complete"
         complete = MODE_ESTIMATES["complete"]
-        expected_input = complete["flash_input_tokens"] + complete["pro_input_tokens"]
-        expected_output = complete["flash_output_tokens"] + complete["pro_output_tokens"]
+        accordion = ACCORDION_WRITING_OVERHEAD["complete"]
+        expected_input = (
+            complete["flash_input_tokens"]
+            + complete["pro_input_tokens"]
+            + accordion["flash_input_tokens"]
+        )
+        expected_output = (
+            complete["flash_output_tokens"]
+            + complete["pro_output_tokens"]
+            + accordion["flash_output_tokens"]
+        )
         assert estimate.estimated_input_tokens == expected_input
         assert estimate.estimated_output_tokens == expected_output
         # Complete mode should cost more than deep-research alone
         deep_estimate = estimate_cost("deep-research", use_historical=False)
         assert estimate.total_cost > deep_estimate.total_cost
+
+    def test_historical_deep_quote_keeps_accordion_floor(self, monkeypatch):
+        class FakeTracker:
+            def get_average_by_mode(self, mode):
+                assert mode == "deep-research"
+                return {
+                    "sample_size": 3,
+                    "avg_input_tokens": 1_000,
+                    "avg_output_tokens": 100,
+                    "avg_cached_input_tokens": 0,
+                    "avg_duration_seconds": 60,
+                }
+
+        monkeypatch.setattr("primr.utils.usage_tracker.get_usage_tracker", lambda: FakeTracker())
+
+        estimate = estimate_cost("deep-research", use_historical=True)
+        accordion = ACCORDION_WRITING_OVERHEAD["deep-research"]
+
+        assert estimate.estimated_input_tokens >= accordion["flash_input_tokens"]
+        assert estimate.estimated_output_tokens >= accordion["flash_output_tokens"]
 
     def test_nonfast_vendor_refresh_is_a_separate_deep_research_task(self):
         base = estimate_cost("complete", use_historical=False)
@@ -455,17 +488,23 @@ class TestTieredPricing:
     def test_openai_gpt5_family_has_long_context_tiers(self):
         """OpenAI GPT-5.x models should carry long-context surcharge metadata."""
         expected = (
+            (ModelRegistry.OPENAI_GPT_5_6_SOL, 10.00, 45.00),
+            (ModelRegistry.OPENAI_GPT_5_6_TERRA, 4.00, 18.00),
+            (ModelRegistry.OPENAI_GPT_5_6_LUNA, 0.40, 1.80),
             (ModelRegistry.OPENAI_GPT_5_5, 10.00, 45.00),
             (ModelRegistry.OPENAI_GPT_5_4, 5.00, 22.50),
-            (ModelRegistry.OPENAI_GPT_5_4_MINI, 1.50, 6.75),
-            (ModelRegistry.OPENAI_GPT_5_4_NANO, 0.40, 1.875),
         )
 
         for model, input_high, output_high in expected:
             assert model.has_tiered_pricing is True
-            assert model.tier_threshold_tokens == 270_000
+            assert model.tier_threshold_tokens == 272_000
             assert model.cost_per_1m_input_tokens_high == input_high
             assert model.cost_per_1m_output_tokens_high == output_high
+
+    def test_openai_small_models_have_no_long_context_surcharge(self):
+        """OpenAI documents the >272K tier for 1.05M-context models only."""
+        assert ModelRegistry.OPENAI_GPT_5_4_MINI.has_tiered_pricing is False
+        assert ModelRegistry.OPENAI_GPT_5_4_NANO.has_tiered_pricing is False
 
     def test_no_tiered_pricing_on_3_0_pro(self):
         """Gemini 3.0 Pro should NOT have tiered pricing."""
@@ -502,7 +541,7 @@ class TestTieredPricing:
     def test_calculate_cost_breakdown_reports_cache_and_surcharge(self):
         """Detailed cost breakdown exposes cache cost and long-context surcharge."""
         breakdown = PrimrModels.calculate_cost_breakdown(
-            ModelRegistry.OPENAI_GPT_5_4_MINI.name,
+            ModelRegistry.OPENAI_GPT_5_4.name,
             input_tokens=300_000,
             output_tokens=20_000,
             prompt_tokens=300_000,
@@ -510,10 +549,10 @@ class TestTieredPricing:
         )
 
         assert breakdown.tier_applied is True
-        assert breakdown.tier_threshold_tokens == 270_000
+        assert breakdown.tier_threshold_tokens == 272_000
         assert breakdown.live_input_tokens == 200_000
         assert breakdown.cached_input_tokens == 100_000
-        assert breakdown.cached_input_cost == pytest.approx(0.0075)
+        assert breakdown.cached_input_cost == pytest.approx(0.05)
         assert breakdown.long_context_surcharge_cost > 0
         assert breakdown.total_cost == pytest.approx(breakdown.input_cost + breakdown.output_cost)
 
@@ -723,7 +762,7 @@ class TestGrokTier:
         assert writing == "grok-4.20-non-reasoning"
 
     def test_get_grok_models_max(self):
-        """Max tier returns Grok 4.5 for both stages (latest flagship, opt-in)."""
+        """Max tier returns the version-pinned opt-in Grok 4.5 pair."""
         from primr.config.models import GrokTier
 
         reasoning, writing = PrimrModels.get_grok_models(GrokTier.MAX)
@@ -751,8 +790,81 @@ class TestGrokTier:
         assert ModelRegistry.GROK_4_5.has_tiered_pricing
         assert ModelRegistry.GROK_4_5.tier_threshold_tokens == 200_000
 
-    def test_grok_43_always_on_reasoning(self):
-        """Grok 4.3 is reasoning-only — there is no non-reasoning variant."""
+    def test_grok_46_pricing_and_registration(self):
+        """Grok 4.6 is available with exact short and long-context rates."""
+        config = ModelRegistry.GROK_4_6
+        assert config.cost_per_1m_input_tokens == 2.00
+        assert config.cost_per_1m_output_tokens == 6.00
+        assert config.cost_per_1m_input_tokens_cached == 0.50
+        assert config.cost_per_1m_input_tokens_cached_high == 1.00
+        assert config.max_input_tokens == 500_000
+        assert config.tier_threshold_inclusive is True
+        assert "grok-4.6" in PrimrModels.ALL_MODELS
+
+    def test_grok_long_context_boundary_uses_high_cached_rate(self):
+        """xAI long-context pricing starts at exactly 200k prompt tokens."""
+        breakdown = PrimrModels.calculate_cost_breakdown(
+            "grok-4.6",
+            input_tokens=200_000,
+            output_tokens=10_000,
+            prompt_tokens=200_000,
+            cached_input_tokens=100_000,
+        )
+        assert breakdown.tier_applied is True
+        assert breakdown.cached_input_rate_per_million == 1.00
+        assert breakdown.cached_input_cost == pytest.approx(0.10)
+
+    def test_recorded_cost_uses_exact_value_only_for_complete_bucket(self):
+        """Partial provider cost coverage must fall back to registry pricing."""
+        usage = {
+            "input_tokens": 1_000_000,
+            "output_tokens": 1_000_000,
+            "cached_input_tokens": 0,
+            "call_count": 2,
+            "actual_cost_calls": 2,
+            "actual_cost_usd": 7.25,
+        }
+        exact_cost, exact = PrimrModels.calculate_recorded_cost("grok-4.6", usage)
+        assert exact is True
+        assert exact_cost == 7.25
+
+        usage["actual_cost_calls"] = 1
+        estimated_cost, exact = PrimrModels.calculate_recorded_cost("grok-4.6", usage)
+        assert exact is False
+        assert estimated_cost == 16.0
+
+    def test_partial_exact_cost_uses_conservative_high_cache_rate(self):
+        usage = {
+            "input_tokens": 1_000_000,
+            "output_tokens": 1_000_000,
+            "cached_input_tokens": 500_000,
+            "call_count": 2,
+            "actual_cost_calls": 1,
+            "actual_cost_usd": 7.25,
+        }
+
+        estimated_cost, exact = PrimrModels.calculate_recorded_cost("grok-4.6", usage)
+
+        assert exact is False
+        assert estimated_cost == 14.5
+
+    def test_single_call_fallback_preserves_its_request_tier(self):
+        usage = {
+            "input_tokens": 100_000,
+            "output_tokens": 10_000,
+            "cached_input_tokens": 40_000,
+            "call_count": 1,
+            "actual_cost_calls": 0,
+            "actual_cost_usd": 0.0,
+        }
+
+        estimated_cost, exact = PrimrModels.calculate_recorded_cost("grok-4.6", usage)
+
+        assert exact is False
+        assert estimated_cost == pytest.approx(0.20)
+
+    def test_grok_43_supports_reasoning(self):
+        """Grok 4.3 exposes reasoning effort and multimodal input."""
         assert ModelRegistry.GROK_4_3.supports_thinking is True
         assert ModelRegistry.GROK_4_3.supports_multimodal is True
 
@@ -769,17 +881,44 @@ class TestGrokTier:
         assert with_cache < live_only
 
     def test_grok_420_pricing(self):
-        """Legacy Grok 4.20 still registered with $2.00/$6.00 pricing."""
-        assert ModelRegistry.GROK_4_20_REASONING.cost_per_1m_input_tokens == 2.00
-        assert ModelRegistry.GROK_4_20_REASONING.cost_per_1m_output_tokens == 6.00
-        assert ModelRegistry.GROK_4_20_NR.cost_per_1m_input_tokens == 2.00
-        assert ModelRegistry.GROK_4_20_NR.cost_per_1m_output_tokens == 6.00
+        """Grok 4.20 entries share the published short and long rates."""
+        configs = (
+            ModelRegistry.GROK_4_20,
+            ModelRegistry.GROK_4_20_REASONING,
+            ModelRegistry.GROK_4_20_NR,
+            ModelRegistry.GROK_4_20_NR_NEW,
+            ModelRegistry.GROK_4_20_MULTI_AGENT,
+        )
+        for config in configs:
+            assert config.cost_per_1m_input_tokens == 1.25
+            assert config.cost_per_1m_output_tokens == 2.50
+            assert config.cost_per_1m_input_tokens_cached == 0.20
+            assert config.cost_per_1m_input_tokens_high == 2.50
+            assert config.cost_per_1m_output_tokens_high == 5.00
+            assert config.cost_per_1m_input_tokens_cached_high == 0.40
+            assert config.tier_threshold_tokens == 200_000
+            assert config.tier_threshold_inclusive is True
+            assert config.max_input_tokens == 1_000_000
 
     def test_grok_420_in_all_models(self):
         """Legacy Grok 4.20 models should remain registered for back-compat."""
         assert "grok-4.20-0309-reasoning" in PrimrModels.ALL_MODELS
         assert "grok-4.20-0309-non-reasoning" in PrimrModels.ALL_MODELS
+        assert "grok-4.20" in PrimrModels.ALL_MODELS
+        assert "grok-4.20-non-reasoning" in PrimrModels.ALL_MODELS
         assert "grok-4.20-multi-agent-0309" in PrimrModels.ALL_MODELS
+
+    def test_grok_420_long_context_boundary_is_inclusive(self):
+        breakdown = PrimrModels.calculate_cost_breakdown(
+            "grok-4.20-non-reasoning",
+            input_tokens=200_000,
+            output_tokens=10_000,
+            prompt_tokens=200_000,
+            cached_input_tokens=100_000,
+        )
+
+        assert breakdown.tier_applied is True
+        assert breakdown.cached_input_rate_per_million == 0.40
 
     def test_grok_420_supports_thinking(self):
         """Legacy 4.20 reasoning variant supports thinking, NR does not."""
@@ -797,7 +936,7 @@ class TestGrokTier:
     def test_max_tier_dearer_than_hybrid_when_xai_only(self, monkeypatch):
         """MAX uses Grok 4.5 everywhere; hybrid keeps 4.3 + 4.20-nr writing.
 
-        4.5 is the latest flagship and is priced higher, so MAX should cost
+        4.5 is the version-pinned premium route and is priced higher, so MAX should cost
         more than hybrid on an xAI-only key set.
         """
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -853,22 +992,22 @@ class TestGrokTier:
 
     def test_fast_tier_cost_range_xai_only(self, monkeypatch):
         """Fast tier in legacy XAI-only mode: grok-4.3 reasoning + grok-4.20-nr writing,
-        roughly $1.50-$5.00 range."""
+        currently $5.0925 on the static token plan."""
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="fast")
-        assert 1.50 < est.total_cost < 5.00
+        assert est.total_cost == pytest.approx(5.0925)
 
     def test_hybrid_tier_cost_range_xai_only(self, monkeypatch):
-        """Hybrid tier in legacy XAI-only mode: same model pair as fast, same band."""
+        """Hybrid xAI-only uses the same model pair and static cost as fast."""
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="hybrid")
-        assert 1.50 < est.total_cost < 5.00
+        assert est.total_cost == pytest.approx(5.0925)
 
     def test_hybrid_tier_cost_range_with_gemini(self, monkeypatch):
         """Hybrid tier with GEMINI_API_KEY set: writing routed to gemini-3.1-flash-lite,
@@ -944,8 +1083,9 @@ class TestDeepPathHiringOverhead:
             estimate = estimate_cost(mode, use_historical=False)
             assert any("Hiring signals" in n for n in estimate.notes), mode
             low, high = estimate.duration_minutes.split(" min")[0].split("-")
-            assert int(low) == base["duration_min"] + 1, mode
-            assert int(high) == base["duration_max"] + 2, mode
+            accordion = ACCORDION_WRITING_OVERHEAD[mode]
+            assert int(low) == base["duration_min"] + accordion["duration_min"] + 1, mode
+            assert int(high) == base["duration_max"] + accordion["duration_max"] + 2, mode
 
     def test_hybrid_and_scrape_only_have_no_hiring_note(self):
         """Hybrid's legacy parallel path neither gathers nor consumes the
@@ -985,7 +1125,7 @@ class TestDisplayCostEstimateStrategyTypes:
                 notes=[],
             )
 
-        monkeypatch.setattr(cd, "estimate_cost", fake_estimate)
+        monkeypatch.setattr("primr.utils.cost_estimator.estimate_cost", fake_estimate)
         # Decline at the prompt so the function returns without side effects.
         monkeypatch.setattr("builtins.input", MagicMock(return_value="n"))
 
@@ -999,6 +1139,31 @@ class TestDisplayCostEstimateStrategyTypes:
         assert result is False
         assert captured["strategy_types"] == ["customer_experience"]
         assert captured["vendor_research_refreshes"] == 2
+
+    def test_launch_quote_never_drops_below_planning_floor(self, monkeypatch, capsys):
+        import primr.utils.cost_display as cd
+        from primr.utils.cost_estimator import CostEstimate
+
+        def fake_estimate(mode, include_ai_strategy=False, **kwargs):
+            total = 2.4 if not kwargs["use_historical"] else 0.3
+            return CostEstimate(
+                mode=mode,
+                estimated_input_tokens=0,
+                estimated_output_tokens=0,
+                estimated_search_queries=0,
+                input_cost=0.0,
+                output_cost=0.0,
+                search_cost=0.0,
+                total_cost=total,
+                duration_minutes="5-10 min",
+                notes=[],
+            )
+
+        monkeypatch.setattr("primr.utils.cost_estimator.estimate_cost", fake_estimate)
+        estimate = cd.print_cost_estimate("complete", "AcmeCo")
+
+        assert estimate.total_cost == 2.4
+        assert "~$2.40" in capsys.readouterr().out
 
 
 class TestStrategyTypePrecedenceWithExplicitAi:

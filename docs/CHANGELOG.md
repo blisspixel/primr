@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Portable Agent Plugins v1 package.** `agent-plugin/` now provides an
+  experimental, schema-validated Agent Plugins v1.0.0 Working Draft artifact
+  with the canonical Primr and Primr Zero skills plus the `primr mcp` stdio
+  server. A deterministic sync command and drift tests keep it derived from the
+  existing skill sources without changing the Claude-specific plugin.
+- **Blinded Standard/Premium quality evaluation contract.** A pre-registered
+  five-company, ten-artifact design now measures evidence support, confidence
+  honesty, citation integrity, and full-document coherence with judge agreement
+  and human adjudication. Billable runs remain estimate-gated.
 - **Progressive working brief (Layer 1).** After fast-path scrape (+ recon),
   Primr writes a free, deterministic `working_brief.md` (and a dated public
   `*_Working_Brief_*.md` under `output/`) with incomplete banner, recon
@@ -23,6 +32,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Current Gemini request and pricing contracts.** Gemini 3.7 Flash is an
+  eval-only candidate, production defaults remain unchanged, direct Gemini
+  paths omit unsupported sampling controls for current model families, and
+  Gemini 3.6/3.7 dry-run prices apply Google's published January 1, 2027 rate
+  change by pricing date.
+- **Accepted Deep Research jobs retain durable recovery state.** Pending File
+  Search Stores are protected from orphan cleanup, accepted cancellation keeps
+  its store and recovery record, terminal resume cleans the store only after
+  durable output, and a minimal fsynced receipt survives primary registry write
+  failure without copying prompts or arbitrary metadata.
+- **Gemini access checks are model-free.** `primr --check-quota` and the legacy
+  preflight validator now use model metadata access instead of generating
+  tokens, report truthful failure status, and defer all price claims to the
+  canonical dry-run estimator.
+- **Model-backed improvement cost gates.** `primr improve --improve-agentic`
+  and `primr refine` now provide bounded dry-run quotes, require explicit
+  approval, enforce `--budget` through pre-stage reservations, and expose
+  one-object JSON estimate, refusal, and result contracts. Deterministic
+  `primr improve` remains local, model-free, and ungated.
+- **Paid Premium partial jobs close only after durable output.** Failed
+  Deep/Premium runs with usable paid content publish an explicitly incomplete
+  Markdown artifact and acknowledge the accepted provider interaction only
+  after that file is non-empty and durable.
+- **Single-call fallback pricing keeps its request tier.** A recorded one-call
+  xAI bucket below the long-context threshold now uses the published short
+  tier when exact provider cost is unavailable. Ambiguous multi-call buckets
+  remain conservatively high-tier.
+- **Reproducible uv toolchain.** CI, deployment-lock documentation, export
+  tests, and regenerated container requirements now agree on uv 0.11.33, the
+  latest patch retained on the verified 0.11 toolchain line.
+- **Current Gemini Deep Research and File Search contracts.** Interaction
+  response parsing now reads the current `steps` / `model_output` / content
+  shape while retaining a deliberate fallback for persisted legacy `outputs`
+  responses. File Search uploads wait for the provider operation to finish
+  before a paid research interaction can use the store, and the declared
+  `google-genai` floor now matches the current Interactions SDK requirement.
+- **Grok 4.20 registry and estimates.** Official dated IDs and rolling aliases
+  now share the published 1M context, $1.25/$0.20 cached/$2.50 short-context
+  rates, and inclusive 200k $2.50/$0.40 cached/$5.00 long-context rates. Static
+  xAI-only cost guidance and boundary tests reflect the corrected registry.
+- **Skill-pack spend approval and runtime ceiling.** `primr skills` now repeats
+  its dry-run quote before execution, requires explicit approval or a covering
+  `--budget`, and checks observed run spend between paid phases. The legacy
+  per-role setting is no longer described as an enforceable parallel-call cap.
+- **MCP governance facts survive execution.** Research jobs now journal a
+  non-secret estimate and approval envelope before worker launch. Successful
+  and terminal manifests report the estimate, approval-token id, approval
+  time, and binding status without persisting the raw token.
+- **MCP and A2A actual-cost audit persistence.** Completed research jobs now
+  persist run-scoped model cost after optional verification, plus accepted
+  Deep Research tasks. Paid Premium partials reconcile once after durable
+  publication; unmeasurable failures and cancellations remain explicitly null.
+- **Environment-only model spend is rejected on governed runs.** Label-honesty
+  judges, Gemini PDF extraction, and the xAI scrape surrogate cannot silently
+  extend a CLI/MCP/A2A research run until their calls are explicit inputs to
+  the estimate and approval shape.
+- **Research JSON approval is fail-closed.** Provider-backed research with
+  `--json` now returns one structured `approval_required` object unless
+  `--skip-confirm` explicitly authorizes execution. Approved JSON runs suppress
+  nested human estimates and update notices so stdout remains one JSON object.
+- **Unpriced xAI scrape surrogates now fail closed.** Blocked-site fallback
+  remains deterministic by default. The metered xAI `web_search` surrogate
+  requires `PRIMR_ENABLE_GROK_SURROGATE=1`; the existing disable switch still
+  takes precedence. Billing exhaustion stops the fan-out instead of being
+  treated as an ordinary missing page.
+- **Dependency security floor.** `h2>=4.4.1` prevents the resolver from
+  selecting the version affected by PYSEC-2026-3628.
+- **Premium context files are no longer dropped.** Deep and Complete report
+  paths upload supplied files into the dossier File Search Store alongside
+  Stage 1 evidence and retain the existing cleanup guarantees.
+- **Deep/Premium verification now matches its quote.** `--verify` is forwarded
+  through deep dispatch and runs after a durable report is produced.
+- **Premium page targets now affect generation.** The target sizes dossier and
+  section prompts as an approximate evidence-dependent writing contract, while
+  explicitly prohibiting padding and invented claims.
 - **Working brief honors `--output-dir` / MCP job dirs.** Public
   `*_Working_Brief_*.md` is written under the run’s `output_dir` from run
   state, not always the global `OUTPUT_DIR`.
@@ -48,23 +132,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unknown cost modes fail closed.** `estimate_cost` maps product aliases
   (`full`/`deep`/`scrape`) and raises on typos instead of silently pricing as
   scrape-only (under-approval hazard).
+- **Cross-provider utility calls retain exact billed cost.** The shared `llm()`
+  dispatch now mirrors a provider's `actual_cost_usd` into the run counters,
+  matching the existing `grok_llm()` accounting path.
+- **Skill-pack time quotes round up.** Fractional minute estimates no longer
+  truncate to a shorter displayed runtime.
+- **xAI long-context cache estimates match the provider boundary.** The cost
+  model now applies xAI's long-context tier at exactly 200k prompt tokens and
+  uses the published high-tier cached-input rate instead of the base cache rate.
 - **Orchestrated full runs need a report to succeed.** Empty intermediate stage
   data no longer yields a green COMPLETED with no report path.
 - **OpenAI/Anthropic-only dry-run honesty.** Full-mode quotes disclose that
   dollars are the XAI/Gemini planning floor, set `execution_ready=false` in
   JSON, and point next steps at configuring XAI/Gemini rather than launch.
+- **MCP/A2A research estimates under-approving.** Estimates now forward
+  `grok_tier` / `lite_strategy` and authorize at `max(planning, historical)`
+  so cheap history cannot understate the approval floor.
+- **Corrupt `_run_state.json` silent wipe.** Unreadable state is quarantined to
+  `*.corrupt` with a recovery marker instead of empty-dict overwrite.
+- **Partial fast-run success styling.** "Complete with warnings" uses warn
+  styling, not a green success check.
+- **Billable confirm defaults.** Interactive Proceed is `[y/N]` (explicit yes
+  only), matching batch approval.
+- **Usage tracking gaps.** Standalone AI Strategy tracker failures warn instead
+  of debug-only silence.
+- **Vendor freshness listing.** Permission/path errors no longer look like an
+  empty cache.
+- **Windows cooperative-cancel test flake.** Marker wait accepts expected
+  content so it does not race `Path.write_text` creating an empty file before
+  the body is flushed.
 
 ### Changed
 
+- **CLI contract ownership.** `Command` and `CLIConfig` now live in a shared
+  202-line contract module consumed directly by CLI workflows. The operational
+  CLI continues to re-export both names for compatibility, while the largest
+  import-cycle component falls from 24 modules to 22 and the `cli.py` line
+  ceiling falls from 2,774 to 2,573.
+- **Report topology and execution queue are explicit.** Documentation now
+  distinguishes active Standard, active sequential Premium, compatibility, and
+  experimental paths. `NEXT_STEPS.md` is the concise next-PR queue while the
+  roadmap remains the long-range backlog and release ledger.
+- **Deep and Premium operator estimates match the priced Accordion plan.** Run
+  guidance now includes the 23 sequential section calls, distinguishes the
+  default strategy-inclusive quote from `--no-ai-strategy`, and treats live
+  dry-run output as authoritative over static guideposts.
+- **Model-backed improvement topology is explicit.** Operator and roadmap docs
+  distinguish deterministic `primr improve` from governed model-backed
+  `--improve-agentic` and `primr refine` execution.
+- **OKF direction is pinned to v0.2.** The deferred findings-interchange design
+  now uses current `generated`, `sources`, `verified`, and lifecycle semantics,
+  reserves root `index.md` for navigation, and keeps Primr confidence separate
+  from OKF verification.
+- **Grok 4.6 registered without silent promotion.** The August 12 xAI flagship
+  is available to explicit evaluation with its 500k context window, reasoning
+  levels, and exact short/long-context token and cache prices. Hybrid remains
+  on the measured Grok 4.3 recipe and MAX remains version-pinned to Grok 4.5
+  until a bounded comparison supports a routing change.
+- **OpenAI GPT-5.6 family registered without silent promotion.** Sol, Terra,
+  Luna, and the Sol alias now carry current context, output, cache-read, and
+  >272K pricing metadata. OpenAI generation uses Responses with `store=false`;
+  production role routing remains pinned pending representative evaluation.
+- **Provider-billed xAI costs take precedence when complete.** Responses usage
+  now records exact dollar cost when available, while mixed or partial buckets
+  fall back to centralized token pricing so spend cannot be understated.
+- **Paid quality evaluation has a hard aggregate ceiling.** The five-pair
+  Standard/Premium design now starts with a zero-spend provider/API audit, then
+  uses $5 and $15 checkpoints under an absolute $25 ceiling that includes
+  research, cloud judges, tools, and approved retries. Early stopping cannot
+  produce a positive Premium quality claim.
 - **`primr orchestrate` cost gate.** Experimental orchestrated research now
   always prints a priced estimate, supports `--dry-run`, and refuses launch
   unless the estimate is under `--max-cost` or the user confirms interactively
   (`[y/N]`). A `CostGuardHook` is always registered (explicit ceiling, or
   estimate + 25% after interactive yes). Handler lives in
   `cli_orchestrate.py` so `cli.py` stays under its line ceiling.
-- **Launch always shows the priced estimate.** Single-company research still
-  skips the interactive Proceed prompt, but prints the same one-line
-  `Company | mode | ~$cost | duration` estimate before work starts.
+- **Single-company launch requires approval.** Human CLI runs show the priced
+  estimate and ask before provider work starts. `--skip-confirm` is the
+  explicit noninteractive approval override.
+- **MCP cost approval is transport-independent.** Cost-incurring MCP tools now
+  require the estimate-bound cap and approval token by default on stdio and
+  HTTP transports. An explicit false `PRIMR_ENFORCE_MCP_COST_CAPS` value is an
+  unsafe compatibility opt-out.
 - **Honest dual-provider surfaces.** OpenAI-/Anthropic-only dry-run labels and
   doctor copy say estimate/eval only; full execution still needs XAI or Gemini.
 - **Calibration inspect names undecidable Confirmed floors.**
@@ -76,7 +225,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `JOB_STATUS`, and progressive-artifacts design track orchestrate cost gate,
   CLI authorization floor, dual-provider dry-run honesty, and Layer 1 brief
   inventory behavior.
-- **Grok 4.5 registered; MAX tier uses latest flagship.** `grok-4.5` is in the
+- **Grok 4.5 registered; MAX tier uses a versioned model pin.** `grok-4.5` is in the
   model registry with published xAI pricing (including ≥200k long-context
   surcharge). Default hybrid/fast reasoning stays on `grok-4.3` for the
   measured sub-$1 recipe; `--grok-tier max` now routes to 4.5. Grok 4.3 also
@@ -96,25 +245,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Roadmap version ladder.** Clear 1.39 → 1.40… → 2.0 → 3.0 order of
   operations with exit criteria and no time estimates
   (`ROADMAP.md`, `docs/NEXT_STEPS.md`).
-
-### Fixed
-
-- **MCP/A2A research estimates under-approving.** Estimates now forward
-  `grok_tier` / `lite_strategy` and authorize at `max(planning, historical)`
-  so cheap history cannot understate the approval floor.
-- **Corrupt `_run_state.json` silent wipe.** Unreadable state is quarantined to
-  `*.corrupt` with a recovery marker instead of empty-dict overwrite.
-- **Partial fast-run success styling.** "Complete with warnings" uses warn
-  styling, not a green success check.
-- **Billable confirm defaults.** Interactive Proceed is `[y/N]` (explicit yes
-  only), matching batch approval.
-- **Usage tracking gaps.** Standalone AI Strategy tracker failures warn instead
-  of debug-only silence.
-- **Vendor freshness listing.** Permission/path errors no longer look like an
-  empty cache.
-- **Windows cooperative-cancel test flake.** Marker wait accepts expected
-  content so it does not race `Path.write_text` creating an empty file before
-  the body is flushed.
 
 ## [1.39.2] - 2026-08-02
 
@@ -3420,7 +3550,7 @@ Full decision audit in `docs/EVAL_V1_24_0.md`.
 
 ### Grok 4.3 onboarded as flagship reasoning model
 
-- **`grok-4.3` registered** in `ModelRegistry` ($1.25/$2.50 per 1M with $0.20 cached input, 1M context, always-on reasoning, no non-reasoning variant). HYBRID and MAX tiers now route reasoning stages to 4.3; FAST stays on 4.1; legacy `grok-4.20-*` IDs remain registered for resume of in-flight runs.
+- **`grok-4.3` registered** in `ModelRegistry` ($1.25/$2.50 per 1M with $0.20 cached input, 1M context, configurable reasoning effort). HYBRID and MAX tiers now route reasoning stages to 4.3; FAST stays on 4.1; legacy `grok-4.20-*` IDs remain registered for resume of in-flight runs.
 - **`ModelConfig` extended** with `cost_per_1m_input_tokens_cached`. `calculate_cost` now accepts `cached_input_tokens` and bills the cached portion at the discount rate when the model exposes one.
 - **Analysis fallback chain reordered** to `(4.3 → 4.20 → 4.1 → Flash)`.
 - **`docs/MODEL_ONBOARDING.md`** added - five-step playbook (verify → register → wire → test → eval-gate) for future model additions, with Grok 4.3 as the worked example. Referenced from `README.md`.

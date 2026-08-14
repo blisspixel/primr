@@ -1,4 +1,4 @@
-"""Tests for the tri-state MCP cost-cap enforcement policy (safe-by-default HTTP)."""
+"""Tests for safe-by-default MCP cost-cap enforcement on every transport."""
 
 import pytest
 
@@ -33,14 +33,14 @@ class TestTransportDefault:
         monkeypatch.setenv("PRIMR_MCP_TRANSPORT", "streamable-http")
         assert is_cost_cap_enforced() is True
 
-    def test_unset_on_stdio_defaults_to_unenforced(self, monkeypatch):
+    def test_unset_on_stdio_defaults_to_enforced(self, monkeypatch):
         monkeypatch.setenv("PRIMR_MCP_TRANSPORT", "stdio")
-        assert is_cost_cap_enforced() is False
+        assert is_cost_cap_enforced() is True
 
-    def test_unset_with_no_transport_signal_is_unenforced(self):
-        assert is_cost_cap_enforced() is False
+    def test_unset_with_no_transport_signal_is_enforced(self):
+        assert is_cost_cap_enforced() is True
 
-    def test_unrecognized_override_value_falls_back_to_transport(self, monkeypatch):
+    def test_unrecognized_override_value_falls_back_to_safe_default(self, monkeypatch):
         monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "maybe")
         monkeypatch.setenv("PRIMR_MCP_TRANSPORT", "streamable-http")
         assert is_cost_cap_enforced() is True
@@ -51,9 +51,9 @@ class TestTransportPublication:
         set_active_transport("streamable-http")
         assert is_cost_cap_enforced() is True
 
-    def test_active_transport_stdio_does_not_enforce(self):
+    def test_active_transport_stdio_still_enforces(self):
         set_active_transport("stdio")
-        assert is_cost_cap_enforced() is False
+        assert is_cost_cap_enforced() is True
 
     def test_env_transport_fallback_when_no_server(self, monkeypatch):
         # Deploy manifests can still signal transport via env when policy is
@@ -71,7 +71,7 @@ class TestTransportPublication:
             transport="streamable-http",
             journal_path=str(tmp_path / "journal.json"),
         )
-        assert is_cost_cap_enforced() is False
+        assert is_cost_cap_enforced() is True
 
     @pytest.mark.asyncio
     async def test_run_publishes_transport(self, tmp_path, monkeypatch):

@@ -70,6 +70,19 @@ def _is_retryable_error(error: Exception) -> bool:
     if _is_billing_exhausted(error):
         return False
 
+    status_code = getattr(error, "status_code", None)
+    if status_code is None:
+        status_code = getattr(getattr(error, "response", None), "status_code", None)
+    if status_code == 429 or (isinstance(status_code, int) and 500 <= status_code <= 599):
+        return True
+
+    error_type = type(error)
+    if error_type.__module__.startswith("openai") and error_type.__name__ in {
+        "APIConnectionError",
+        "APITimeoutError",
+    }:
+        return True
+
     error_text = str(error).lower()
     retryable_markers = (
         "429",
@@ -88,6 +101,7 @@ def _is_retryable_error(error: Exception) -> bool:
         "connection reset",
         "connection aborted",
         "connection refused",
+        "connection error",
     )
     return any(marker in error_text for marker in retryable_markers)
 
@@ -119,7 +133,7 @@ def _compute_backoff_delay(attempt: int, *, base: float = 5.0, cap: float = 90.0
 
 
 class OpenAICompatibleProvider(Provider):
-    """Provider for any OpenAI-shaped chat-completions endpoint.
+    """Provider for OpenAI-shaped Responses or Chat Completions endpoints.
 
     Construct one instance per (base_url, key) pair. Examples::
 
@@ -152,6 +166,7 @@ class OpenAICompatibleProvider(Provider):
         api_key_default: str | None = None,
         billing_help_url: str | None = None,
         local_capacity: bool | None = None,
+        api_style: str = "chat_completions",
     ) -> None:
         super().__init__(name)
         self._base_url = base_url
@@ -159,6 +174,9 @@ class OpenAICompatibleProvider(Provider):
         self._api_key_default = api_key_default
         self._billing_help_url = billing_help_url
         self._local_capacity = name == "ollama" if local_capacity is None else local_capacity
+        if api_style not in {"chat_completions", "responses"}:
+            raise ValueError(f"Unsupported OpenAI-compatible API style: {api_style}")
+        self._api_style = api_style
         self._client: Any = None
 
     # -----------------------------------------------------------------
@@ -238,6 +256,117 @@ class OpenAICompatibleProvider(Provider):
     # Chat
     # -----------------------------------------------------------------
 
+    def _build_sdk_kwargs(
+        self, provider_kwargs: dict[str, Any], *, max_tokens: int
+    ) -> dict[str, Any]:
+        """Translate the normalized chat knobs into the selected API shape."""
+        if self._api_style == "responses":
+            sdk_kwargs: dict[str, Any] = {
+                "max_output_tokens": max_tokens,
+                "store": bool(provider_kwargs.get("store", False)),
+            }
+            if "top_p" in provider_kwargs:
+                sdk_kwargs["top_p"] = provider_kwargs["top_p"]
+            if "reasoning_effort" in provider_kwargs:
+                sdk_kwargs["reasoning"] = {"effort": provider_kwargs["reasoning_effort"]}
+            response_format = provider_kwargs.get("response_format")
+            if isinstance(response_format, dict):
+                normalized_format = response_format
+                if response_format.get("type") == "json_schema" and isinstance(
+                    response_format.get("json_schema"), dict
+                ):
+                    normalized_format = {
+                        "type": "json_schema",
+                        **response_format["json_schema"],
+                    }
+                sdk_kwargs["text"] = {"format": normalized_format}
+            for key in ("tools", "tool_choice", "parallel_tool_calls"):
+                if key in provider_kwargs:
+                    sdk_kwargs[key] = provider_kwargs[key]
+            prompt_cache_key = provider_kwargs.get("prompt_cache_key")
+            if prompt_cache_key:
+                sdk_kwargs["extra_body"] = {"prompt_cache_key": str(prompt_cache_key)}
+            return sdk_kwargs
+
+        sdk_kwargs = {}
+        for key in (
+            "top_p",
+            "stop",
+            "presence_penalty",
+            "frequency_penalty",
+            "seed",
+            "response_format",
+            "reasoning_effort",
+        ):
+            if key in provider_kwargs:
+                sdk_kwargs[key] = provider_kwargs[key]
+        output_key = "max_completion_tokens" if self.name == "openai" else "max_tokens"
+        sdk_kwargs[output_key] = max_tokens
+        return sdk_kwargs
+
+    def _create_sdk_response(
+        self,
+        client: Any,
+        *,
+        model: str,
+        messages: list[dict[str, str]],
+        call_kwargs: dict[str, Any],
+    ) -> Any:
+        """Issue one request using Responses or Chat Completions."""
+        if self._api_style == "responses":
+            return client.responses.create(model=model, input=messages, **call_kwargs)
+        return client.chat.completions.create(
+            model=model,
+            messages=messages,  # type: ignore[arg-type]
+            **call_kwargs,
+        )
+
+    def _normalize_sdk_response(self, response: Any) -> ChatResponse:
+        """Normalize text, token usage, cache usage, and exact billed cost."""
+        if self._api_style == "responses":
+            text = getattr(response, "output_text", "") or ""
+            response_status = getattr(response, "status", None)
+            incomplete_details = getattr(response, "incomplete_details", None)
+            if isinstance(incomplete_details, dict):
+                incomplete_reason = incomplete_details.get("reason")
+            else:
+                incomplete_reason = getattr(incomplete_details, "reason", None)
+        else:
+            if not response.choices:
+                raise RuntimeError(
+                    f"{self.name} returned empty response (no choices, possible content filter)"
+                )
+            text = response.choices[0].message.content or ""
+            response_status = None
+            incomplete_reason = None
+
+        usage = getattr(response, "usage", None)
+        if usage is None:
+            return ChatResponse(text=text)
+
+        if self._api_style == "responses":
+            input_tokens = getattr(usage, "input_tokens", 0) or 0
+            output_tokens = getattr(usage, "output_tokens", 0) or 0
+            details = getattr(usage, "input_tokens_details", None)
+        else:
+            input_tokens = getattr(usage, "prompt_tokens", 0) or 0
+            output_tokens = getattr(usage, "completion_tokens", 0) or 0
+            details = getattr(usage, "prompt_tokens_details", None)
+        cached_input_tokens = getattr(usage, "cached_tokens", 0) or 0
+        if cached_input_tokens == 0 and details is not None:
+            cached_input_tokens = getattr(details, "cached_tokens", 0) or 0
+        billed_ticks = getattr(usage, "cost_in_usd_ticks", None)
+        actual_cost_usd = int(billed_ticks) / 10_000_000_000 if billed_ticks is not None else None
+        return ChatResponse(
+            text=text,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cached_input_tokens=cached_input_tokens,
+            actual_cost_usd=actual_cost_usd,
+            response_status=str(response_status) if response_status is not None else None,
+            incomplete_reason=(str(incomplete_reason) if incomplete_reason is not None else None),
+        )
+
     def chat(
         self,
         messages: list[dict[str, str]],
@@ -250,97 +379,50 @@ class OpenAICompatibleProvider(Provider):
     ) -> ChatResponse:
         """Run a chat completion against this provider.
 
-        Unknown ``provider_kwargs`` are forwarded to the underlying SDK call
-        when they correspond to OpenAI-shaped knobs (``reasoning_effort``,
-        ``top_p``, ``stop``, ``presence_penalty``, ``frequency_penalty``,
-        ``seed``, ``response_format``). Anything else is ignored so the
-        abstraction stays robust to provider-specific kwargs that this
-        provider doesn't know about.
+        Recognized ``provider_kwargs`` are translated to the selected API
+        shape. Responses supports structured text, tools, tool choice,
+        parallel-tool policy, reasoning effort, top-p, storage policy, and the
+        xAI prompt-cache extension. Unknown provider-specific knobs are ignored.
         """
         client = self._get_client()
         capacity_retry_attempt = provider_kwargs.pop("capacity_retry_attempt", 0)
 
-        # Whitelist the SDK kwargs we accept; everything else is silently
-        # dropped on the floor for this provider.
-        sdk_kwargs: dict[str, Any] = {}
-        for key in (
-            "top_p",
-            "stop",
-            "presence_penalty",
-            "frequency_penalty",
-            "seed",
-            "response_format",
-            "reasoning_effort",
-        ):
-            if key in provider_kwargs:
-                sdk_kwargs[key] = provider_kwargs[key]
-
-        # Newer OpenAI models (gpt-5.x family, o-series) reject the legacy
-        # ``max_tokens`` parameter and require ``max_completion_tokens`` instead.
-        # xAI Grok and Ollama (OpenAI-compatible but on older convention) still
-        # use ``max_tokens``. We key off the provider name so the same
-        # OpenAICompatibleProvider class works for all three transports.
-        if self.name == "openai":
-            sdk_kwargs["max_completion_tokens"] = max_tokens
-        else:
-            sdk_kwargs["max_tokens"] = max_tokens
+        sdk_kwargs = self._build_sdk_kwargs(provider_kwargs, max_tokens=max_tokens)
 
         last_error: Exception | None = None
         # OpenAI reasoning tiers (gpt-5.5, o-series, ...) reject a non-default
         # temperature with a 400. We can't reliably enumerate which models do, so
         # we send temperature optimistically and drop it on that specific error.
         omit_temperature = False
-        for attempt in range(1 + retries):
+        attempt = 0
+        while attempt <= retries:
             try:
                 call_kwargs: dict[str, Any] = dict(sdk_kwargs)
                 if not omit_temperature:
                     call_kwargs["temperature"] = temperature
-                response = client.chat.completions.create(
+                response = self._create_sdk_response(
+                    client,
                     model=model,
-                    messages=messages,  # type: ignore[arg-type]
-                    **call_kwargs,
+                    messages=messages,
+                    call_kwargs=call_kwargs,
                 )
-
-                if not response.choices:
-                    raise RuntimeError(
-                        f"{self.name} returned empty response "
-                        "(no choices — possible content filter)"
-                    )
-
-                input_tokens = 0
-                output_tokens = 0
-                cached_input_tokens = 0
-                if response.usage:
-                    input_tokens = response.usage.prompt_tokens or 0
-                    output_tokens = response.usage.completion_tokens or 0
-                    # xAI: usage.cached_tokens (top-level)
-                    cached_input_tokens = getattr(response.usage, "cached_tokens", 0) or 0
-                    # OpenAI: usage.prompt_tokens_details.cached_tokens
-                    if cached_input_tokens == 0:
-                        prompt_details = getattr(response.usage, "prompt_tokens_details", None)
-                        if prompt_details is not None:
-                            cached_input_tokens = getattr(prompt_details, "cached_tokens", 0) or 0
+                normalized = self._normalize_sdk_response(response)
+                if getattr(response, "usage", None):
                     self._record_usage(
                         model,
-                        input_tokens,
-                        output_tokens,
-                        cached_input_tokens=cached_input_tokens,
+                        normalized.input_tokens,
+                        normalized.output_tokens,
+                        cached_input_tokens=normalized.cached_input_tokens,
                     )
 
-                text = response.choices[0].message.content or ""
                 logger.info(
                     "%s call complete (model=%s): %d input, %d output tokens",
                     self.name,
                     model,
-                    input_tokens,
-                    output_tokens,
+                    normalized.input_tokens,
+                    normalized.output_tokens,
                 )
-                return ChatResponse(
-                    text=text,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    cached_input_tokens=cached_input_tokens,
-                )
+                return normalized
 
             except Exception as e:
                 last_error = e
@@ -396,6 +478,7 @@ class OpenAICompatibleProvider(Provider):
                             e,
                         )
                         time.sleep(wait)
+                        attempt += 1
                         continue
                     logger.warning(
                         "Transient %s API error on final attempt (%d/%d): %s",

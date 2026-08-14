@@ -274,6 +274,17 @@ def _create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Estimate cost and time, then exit without running the pipeline.",
     )
+    parser.add_argument(
+        "--budget",
+        type=float,
+        default=None,
+        help="Approve execution up to this USD ceiling; must cover the estimate.",
+    )
+    parser.add_argument(
+        "--skip-confirm",
+        action="store_true",
+        help="Non-interactive approval after the estimate is repeated.",
+    )
     return parser
 
 
@@ -327,7 +338,23 @@ def _estimate(
     if config.remote_icon_generation:
         cost += REMOTE_ICON_GENERATION_ESTIMATE_USD
     minutes += 0.5 * roles_count
-    return cost, max(1, int(minutes))
+    return cost, max(1, math.ceil(minutes))
+
+
+def _print_estimate(
+    company_name: str,
+    config: SkillPackConfig,
+    cost: float,
+    minutes: int,
+    *,
+    effective_roles_count: int,
+) -> None:
+    """Print the one canonical skill-pack quote."""
+    print(f"Skill pack estimate for {company_name}:")
+    print(f"  Roles: {effective_roles_count} x {config.skills_per_role} skills")
+    print(f"  Formats: {config.formats.value}")
+    print(f"  Estimated cost: ~${cost:.2f}")
+    print(f"  Estimated time: ~{minutes} min")
 
 
 def run_skills_cli(args: list[str] | None) -> int:
@@ -410,6 +437,7 @@ def run_skills_cli(args: list[str] | None) -> int:
             from_plan_path=from_plan_path,
             from_jd_path=from_jd_path,
             career_urls=career_urls,
+            max_total_cost_usd=parsed.budget,
         )
         config.validate()
     except ValueError as exc:
@@ -429,23 +457,40 @@ def run_skills_cli(args: list[str] | None) -> int:
             return 2
         config.roles_count = len(prepared_plan.final_roster)
 
+    effective_roles_count = (
+        len(prepared_plan.final_roster)
+        if prepared_plan is not None
+        else config.effective_roles_count
+    )
+    cost, minutes = _estimate(
+        config,
+        will_collect_evidence=bool((company_url or config.career_urls) and not from_report),
+        effective_roles_count=effective_roles_count,
+    )
+    _print_estimate(
+        company_name,
+        config,
+        cost,
+        minutes,
+        effective_roles_count=effective_roles_count,
+    )
     if parsed.dry_run:
-        effective_roles_count = (
-            len(prepared_plan.final_roster)
-            if prepared_plan is not None
-            else config.effective_roles_count
-        )
-        cost, minutes = _estimate(
-            config,
-            will_collect_evidence=bool((company_url or config.career_urls) and not from_report),
-            effective_roles_count=effective_roles_count,
-        )
-        print(f"Skill pack estimate for {company_name}:")
-        print(f"  Roles: {effective_roles_count} x {config.skills_per_role} skills")
-        print(f"  Formats: {config.formats.value}")
-        print(f"  Estimated cost: ~${cost:.2f}")
-        print(f"  Estimated time: ~{minutes} min")
         return 0
+
+    if parsed.budget is not None and parsed.budget + 1e-9 < cost:
+        print(
+            f"Error: estimate ${cost:.2f} exceeds --budget ${parsed.budget:.2f}.",
+            file=sys.stderr,
+        )
+        return 2
+    if parsed.budget is None and not parsed.skip_confirm:
+        from primr.utils.console import prompt_yes_no
+
+        if not prompt_yes_no("Proceed?", default=False):
+            print("Cancelled.")
+            return 0
+    if config.max_total_cost_usd is None:
+        config.max_total_cost_usd = cost
 
     output_dir = Path(parsed.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)

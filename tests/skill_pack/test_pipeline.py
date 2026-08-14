@@ -339,6 +339,35 @@ def test_pipeline_end_to_end_with_mocked_llm(tmp_path: Path, working_dir: Path):
         assert any(n.endswith("/references/role-family.md") for n in names)
 
 
+def test_total_cost_cap_stops_before_authoring(tmp_path: Path, working_dir: Path):
+    config = SkillPackConfig(
+        roles_override=["Data Engineer"],
+        max_total_cost_usd=0.01,
+    )
+    current = {
+        "grok-4.6": {
+            "actual_cost_usd": 0.01,
+            "actual_cost_calls": 1,
+            "call_count": 1,
+        }
+    }
+
+    with (
+        patch("primr.ai.stage_routing.capture_stage_usage", side_effect=[{}, current]),
+        patch("primr.skill_pack.pipeline.author_all_roles") as author,
+        pytest.raises(RuntimeError, match="cost ceiling reached before authoring"),
+    ):
+        run_skill_pack_pipeline(
+            company_name="Acme Corp",
+            company_url="https://acme.example",
+            working_dir=working_dir,
+            config=config,
+            output_dir=tmp_path / "output",
+        )
+
+    author.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "poisoned_description",
     [
