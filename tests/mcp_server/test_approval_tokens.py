@@ -90,6 +90,17 @@ async def test_research_accepts_matching_approval_token_when_enforced(server, mo
 
     assert data["accepted"] is True
     assert "job_id" in data
+    job = server.job_store.get(data["job_id"])
+    assert job is not None
+    assert job.governance_audit is not None
+    assert job.governance_audit["estimate"]["cost_usd"] == estimate["estimated_cost_usd"]
+    assert job.governance_audit["estimate"]["time_minutes"] == estimate["estimated_time_minutes"]
+    assert job.governance_audit["estimate"]["estimated_at"].endswith("Z")
+    assert job.governance_audit["approval"]["approval_token_id"] == estimate["approval_token_id"]
+    assert job.governance_audit["approval"]["approved_at"].endswith("Z")
+    assert job.governance_audit["approval"]["bound_to_estimate"] is True
+    assert job.governance_audit["approved_ceiling_usd"] == estimate["estimated_cost_usd"]
+    assert "approval_token" not in job.governance_audit
 
 
 @pytest.mark.asyncio

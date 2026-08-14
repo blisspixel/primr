@@ -90,6 +90,48 @@ class TestAIClient:
         call_args = mock_genai_client.models.generate_content.call_args
         assert call_args.kwargs["model"] == "test-pro-model"
 
+    def test_generate_omits_sampling_for_gemini_37(self, mock_genai_client, mock_settings):
+        mock_settings.ai.flash_model = "gemini-3.7-flash"
+        client = AIClient()
+
+        client.generate("Test", model_type="research", temperature=0.2)
+
+        config = mock_genai_client.models.generate_content.call_args.kwargs["config"]
+        assert config.temperature is None
+
+    def test_generate_accepts_current_medium_thinking_level(self, mock_genai_client, mock_settings):
+        mock_settings.ai.flash_model = "gemini-3.7-flash"
+        client = AIClient()
+
+        client.generate("Test", thinking_level="medium")
+
+        config = mock_genai_client.models.generate_content.call_args.kwargs["config"]
+        assert str(config.thinking_config.thinking_level).lower().endswith("medium")
+
+    def test_generate_rejects_minimal_for_gemini_37(self, mock_genai_client, mock_settings):
+        mock_settings.ai.flash_model = "gemini-3.7-flash"
+        client = AIClient()
+
+        with pytest.raises(ValueError, match="low, medium, high"):
+            client.generate("Test", thinking_level="minimal")
+        mock_genai_client.models.generate_content.assert_not_called()
+
+    def test_generate_accepts_minimal_for_gemini_36(self, mock_genai_client, mock_settings):
+        mock_settings.ai.flash_model = "gemini-3.6-flash"
+        client = AIClient()
+
+        client.generate("Test", thinking_level="minimal")
+
+        config = mock_genai_client.models.generate_content.call_args.kwargs["config"]
+        assert str(config.thinking_config.thinking_level).lower().endswith("minimal")
+
+    def test_generate_rejects_unknown_thinking_level(self, mock_genai_client, mock_settings):
+        client = AIClient()
+
+        with pytest.raises(ValueError, match="thinking_level must be one of"):
+            client.generate("Test", thinking_level="extreme")
+        mock_genai_client.models.generate_content.assert_not_called()
+
     def test_generate_retries_on_failure(self, mock_genai_client, mock_settings):
         """Should retry on failure."""
         mock_genai_client.models.generate_content.side_effect = [

@@ -10,7 +10,7 @@ through ``client.models.generate_content`` (or the streaming variant when
 
 Provider-specific knobs accepted via ``provider_kwargs``:
 
-- ``thinking_level``: ``"low"`` or ``"high"`` (default ``"high"``). Maps
+- ``thinking_level``: a supported Gemini thinking level (default ``"high"``). Maps
   to Gemini 3 ``ThinkingConfig.thinking_level``.
 - ``streaming``: ``True`` enables ``generate_content_stream`` so the
   caller eats the stream into the returned text. Defaults to ``False``.
@@ -29,7 +29,11 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from primr.ai.genai_factory import default_genai_http_options
+from primr.ai.genai_factory import (
+    accepts_sampling_parameters,
+    default_genai_http_options,
+    supported_thinking_levels,
+)
 from primr.ai.providers.base import (
     ChatResponse,
     CredentialCheck,
@@ -247,7 +251,7 @@ class GeminiProvider(Provider):
 
         ``max_tokens`` is forwarded as Gemini's explicit output ceiling so
         runtime spend cannot exceed a caller's approved output-token shape.
-        Use ``thinking_level`` (low/high) and ``streaming`` (bool) via
+        Use a model-supported ``thinking_level`` and ``streaming`` (bool) via
         ``provider_kwargs`` to control Gemini-specific behaviour.
         """
         client = self._get_client()
@@ -255,14 +259,23 @@ class GeminiProvider(Provider):
         if not contents:
             raise RuntimeError("Gemini call requires at least one non-system message in `messages`")
 
-        thinking_level = provider_kwargs.get("thinking_level", "high")
+        thinking_level = str(provider_kwargs.get("thinking_level", "high")).lower()
+        allowed_thinking_levels = supported_thinking_levels(model)
+        if thinking_level not in allowed_thinking_levels:
+            raise ValueError(
+                f"thinking_level for {model} must be one of "
+                f"{', '.join(allowed_thinking_levels)}, got {thinking_level}"
+            )
         streaming = bool(provider_kwargs.get("streaming", False))
 
         config_kwargs: dict[str, Any] = {
-            "temperature": temperature,
-            "thinking_config": _google_types.ThinkingConfig(thinking_level=thinking_level),
+            "thinking_config": _google_types.ThinkingConfig(
+                thinking_level=_google_types.ThinkingLevel(thinking_level.upper())
+            ),
             "max_output_tokens": max_tokens,
         }
+        if accepts_sampling_parameters(model):
+            config_kwargs["temperature"] = temperature
         if system_instruction:
             config_kwargs["system_instruction"] = system_instruction
         config = _google_types.GenerateContentConfig(**config_kwargs)
@@ -371,11 +384,13 @@ class GeminiProvider(Provider):
         recorded through the same accounting seam as a normal call.
         """
         client = self._get_client()
-        config = _google_types.GenerateContentConfig(
-            temperature=temperature,
-            max_output_tokens=max_tokens,
-            tools=[_google_types.Tool(google_search=_google_types.GoogleSearch())],
-        )
+        config_kwargs: dict[str, Any] = {
+            "max_output_tokens": max_tokens,
+            "tools": [_google_types.Tool(google_search=_google_types.GoogleSearch())],
+        }
+        if accepts_sampling_parameters(model):
+            config_kwargs["temperature"] = temperature
+        config = _google_types.GenerateContentConfig(**config_kwargs)
         response = client.models.generate_content(model=model, contents=prompt, config=config)
         text = (response.text or "").strip()
         if not text:
@@ -439,3 +454,14 @@ class GeminiProvider(Provider):
         # Implicit/explicit context caching reports the cache-served subset here
         cached_input_tokens = getattr(meta, "cached_content_token_count", 0) or 0
         return int(input_tokens), int(output_tokens), int(cached_input_tokens)
+
+    def record_external_response_usage(self, model: str, response: Any) -> None:
+        """Account for a Gemini response made outside ``chat``."""
+        input_tokens, output_tokens, cached_input_tokens = self._extract_usage(response)
+        if input_tokens or output_tokens:
+            self._record_usage(
+                model,
+                input_tokens,
+                output_tokens,
+                cached_input_tokens=cached_input_tokens,
+            )

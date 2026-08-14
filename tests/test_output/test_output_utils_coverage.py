@@ -202,7 +202,21 @@ def test_save_report_as_txt_handles_write_failure(tmp_path):
     section_results = {"k": "content"}
     with patch("builtins.open", side_effect=OSError("disk full")):
         result = save_report_as_txt(section_results, "Acme Corp", output_dir=tmp_path)
-    assert result is None
+        assert result is None
+
+
+def test_save_incomplete_markdown_report_labels_and_publishes_partial(tmp_path):
+    result = output_utils.save_incomplete_markdown_report(
+        "## Partial\nGrounded evidence.",
+        "Acme Corp",
+        output_dir=tmp_path,
+    )
+
+    assert result is not None
+    published = Path(result)
+    assert published.suffix == ".md"
+    assert "# Incomplete Report" in published.read_text(encoding="utf-8")
+    assert published.with_suffix(".txt").is_file()
 
 
 # --------------------------------------------------------------------------- #

@@ -3,7 +3,7 @@ and get_deep_research_orchestrator singleton."""
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -35,10 +35,12 @@ class TestExecuteDirectGeneration:
         orchestrator._client.models.generate_content.return_value = response
 
         before = orchestrator._api_call_count
-        result = await orchestrator._execute_direct_generation("prompt")
+        with patch("primr.ai.llm.record_gemini_response_usage") as record_usage:
+            result = await orchestrator._execute_direct_generation("prompt")
         assert result.status == ResearchStatus.COMPLETED
         assert result.content == "generated content body"
         assert orchestrator._api_call_count == before + 1
+        record_usage.assert_called_once_with(orchestrator.SECTION_MODEL, response)
 
     @pytest.mark.asyncio
     async def test_extracts_from_parts_when_no_text(self, orchestrator):

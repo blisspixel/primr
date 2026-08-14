@@ -259,7 +259,7 @@ Use this contract whenever a Primr MCP client may trigger paid work.
 ## Required pattern
 1. Call `estimate_run` first. Full and premium estimates include one agnostic AI Strategy by default.
 2. Tell the user the total cost (research + strategy combined) and get ONE explicit approval.
-3. Pass `max_estimated_cost_usd` and the returned `approval_token` into `research_company` when server-side MCP cost enforcement is active.
+3. Pass `max_estimated_cost_usd` and the returned `approval_token` into `research_company`; server-side MCP cost enforcement is on by default for every transport.
 4. Do NOT call `estimate_strategy` or `generate_strategy` separately for a new full or premium run. Its AI Strategy is included unless `no_ai_strategy=true`.
 5. Treat research as a long-running async job; poll `check_jobs` for completion.
 6. On completion, local stdio clients receive inline artifact content by default. Authenticated HTTP clients receive metadata and owned-job resource pointers; read those resources for report bodies.

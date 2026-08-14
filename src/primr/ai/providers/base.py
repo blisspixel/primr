@@ -62,6 +62,13 @@ class ChatResponse:
     input_tokens: int = 0
     output_tokens: int = 0
     cached_input_tokens: int = 0
+    # Exact provider-billed amount when the response exposes it. None means
+    # callers must retain conservative token-based accounting.
+    actual_cost_usd: float | None = None
+    # Responses APIs can return accepted but incomplete or tool-only results.
+    # Preserve that state so usage remains accountable even when text is empty.
+    response_status: str | None = None
+    incomplete_reason: str | None = None
 
 
 @dataclass

@@ -7,6 +7,8 @@ write-guard output, is tested deterministically.
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from primr.core.refine import (
@@ -160,6 +162,18 @@ class TestRefineLoop:
         assert result.output_path is not None
         assert result.output_path.endswith("_improved.md")
 
+    def test_reserves_regeneration_and_acceptance_stages(self, report_file):
+        path = report_file(_weak_section("Weak A") + _sources_section())
+        stages: list[str] = []
+
+        self._run(
+            path,
+            scores=[70.0, 92.0],
+            before_model_stage=stages.append,
+        )
+
+        assert stages == ["regenerate", "acceptance"]
+
     def test_no_weak_sections_stops(self, report_file):
         path = report_file(_strong_section("Alpha") + _sources_section())
         result, calls = self._run(path, scores=[70.0, 70.0])
@@ -251,6 +265,28 @@ class TestCLIWiring:
         from primr.core.cli import CLIConfig, Command, _handle_refine
 
         assert _handle_refine(CLIConfig(command=Command.REFINE)) == 1
+
+    def test_dry_run_estimates_without_refining(self, monkeypatch, tmp_path):
+        from primr.core.cli import CLIConfig, Command, _handle_refine
+        from primr.core.cli_errors import guard_dispatch
+
+        report = tmp_path / "Acme_Strategic_Overview.md"
+        report.write_text(_weak_section("Overview") + _sources_section(), encoding="utf-8")
+        find_inputs = MagicMock(return_value=(str(report), None, "", None))
+        refine = MagicMock()
+        monkeypatch.setattr("primr.core.cli._find_refine_inputs", find_inputs)
+        monkeypatch.setattr("primr.core.refine.refine_report", refine)
+
+        config = CLIConfig(
+            command=Command.REFINE,
+            refine_company="Acme Corp",
+            dry_run_requested=True,
+        )
+        result = guard_dispatch(_handle_refine, config)
+
+        assert result == 0
+        find_inputs.assert_called_once_with("Acme Corp")
+        refine.assert_not_called()
 
 
 class TestIndependentAcceptance:

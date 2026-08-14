@@ -7,7 +7,7 @@ call here. The eval harness picks them up automatically via
 list_eval_profile_names().
 
 The hard goal: the *winner* of this matrix becomes the new default `primr`
-recipe, replacing the current ~$4.36 Grok 4.3 hybrid. The binding constraint
+recipe, replacing the then-current Grok-only 4.3 hybrid. The binding constraint
 is total run cost < $1.00 with quality at or above the current 4.3 baseline.
 
 See docs/EVAL_V1_24_0.md for decision criteria, eval corpus, and process.
@@ -68,9 +68,24 @@ _V1_24_0_CLOUD_CANDIDATES = (
         estimated_cost_usd=1.20,
         description=(
             "Optional promotion candidate (not a default). Grok 4.5 reasoning "
-            "(latest flagship, $2/$6) + Gemini Flash-Lite writing. Higher cost "
+            "(previous flagship, $2/$6) + Gemini Flash-Lite writing. Higher cost "
             "than grok43-flashlite; eval-gate before flipping hybrid. Distinct "
             "from --grok-tier max (4.5 everywhere)."
+        ),
+    ),
+    EvalProfileSlot(
+        name="grok46-flashlite",
+        recipe=ProfileRecipe(
+            reasoning="grok-4.6",
+            writing="gemini-3.1-flash-lite",
+            utility="gemini-3-flash-preview",
+        ),
+        estimated_cost_usd=1.30,
+        description=(
+            "Current xAI flagship promotion candidate (not a default). Grok 4.6 "
+            "reasoning ($2/$6, cached input $0.50) + Gemini Flash-Lite writing. "
+            "Compare against the measured Grok 4.3 recipe under the aggregate "
+            "evaluation ceiling before changing production routing."
         ),
     ),
     EvalProfileSlot(
@@ -83,9 +98,22 @@ _V1_24_0_CLOUD_CANDIDATES = (
         estimated_cost_usd=0.55,
         description=(
             "Cheapest cloud candidate. Grok 4.3 reasoning + GPT-5.4-nano "
-            "writing & utility ($0.20/$1.25). Risk: nano's 16K output cap may "
-            "force per-section chunking which complicates the section-writing "
-            "fan-out. If quality matches, this is the cost floor."
+            "writing & utility ($0.20/$1.25, 128K output). Retained as a "
+            "measured historical candidate for reproducible comparisons."
+        ),
+    ),
+    EvalProfileSlot(
+        name="grok43-luna",
+        recipe=ProfileRecipe(
+            reasoning="grok-4.3",
+            writing="gpt-5.6-luna",
+            utility="gpt-5.6-luna",
+        ),
+        estimated_cost_usd=0.55,
+        description=(
+            "Current OpenAI low-cost candidate. Grok 4.3 reasoning plus "
+            "GPT-5.6 Luna writing and utility ($0.20/$1.20). Registered for a "
+            "bounded comparison only; production routing remains unchanged."
         ),
     ),
     EvalProfileSlot(
@@ -98,8 +126,8 @@ _V1_24_0_CLOUD_CANDIDATES = (
         estimated_cost_usd=0.85,
         description=(
             "GPT-5.4-mini writing instead of nano. More expensive ($0.75/$4.50) "
-            "but uncapped output and stronger small-model quality. Tests "
-            "whether nano's output cap is actually a problem in practice."
+            "with the same 128K output cap and a stronger historical small-model "
+            "baseline."
         ),
     ),
     EvalProfileSlot(
@@ -174,7 +202,7 @@ _V1_24_0_CEILING_CANDIDATE = EvalProfileSlot(
 
 
 # =============================================================================
-# Gemini 3.5 Flash PRO-tier evaluation (May 30, 2026 model refresh)
+# Gemini Flash PRO-tier evaluation
 # =============================================================================
 # Gemini 3.5 Flash (GA May 19, 2026) benchmarks above Gemini 3.1 Pro at lower
 # cost ($1.50/$9 vs $2/$12). The eval-gated question (ROADMAP "model landscape
@@ -211,6 +239,34 @@ _GEMINI_35_PRO_TIER_EVAL = (
             "writer — benchmarks above 3.1 Pro at lower cost. If this slot "
             "matches or beats protier-gemini31pro on the scorecard, repoint the "
             "PRO/quality tier to gemini-3.5-flash."
+        ),
+    ),
+    EvalProfileSlot(
+        name="protier-gemini36flash",
+        recipe=ProfileRecipe(
+            reasoning="grok-4.3",
+            writing="gemini-3.6-flash",
+            utility="gemini-3-flash-preview",
+        ),
+        estimated_cost_usd=0.80,
+        description=(
+            "PRO-tier CANDIDATE: Gemini 3.6 Flash using its introductory "
+            "through-2026 pricing. Production routing remains unchanged until "
+            "a blinded artifact comparison supports promotion."
+        ),
+    ),
+    EvalProfileSlot(
+        name="protier-gemini37flash",
+        recipe=ProfileRecipe(
+            reasoning="grok-4.3",
+            writing="gemini-3.7-flash",
+            utility="gemini-3-flash-preview",
+        ),
+        estimated_cost_usd=0.80,
+        description=(
+            "PRO-tier CANDIDATE: current GA Gemini 3.7 Flash using its "
+            "introductory through-2026 pricing. This is an evaluation slot, "
+            "not a production-default change."
         ),
     ),
 )
@@ -331,10 +387,10 @@ _V1_24_0_CURRENT_BASELINE = EvalProfileSlot(
         writing="grok-4.20-non-reasoning",
         utility="grok-4.20-non-reasoning",
     ),
-    estimated_cost_usd=4.36,
+    estimated_cost_usd=5.09,
     description=(
-        "Reference baseline: the current ~$4.36 default that v1.24.0 is "
-        "trying to replace. Grok-only hybrid. Used to establish the quality "
+        "Reference baseline: the Grok-only default that v1.24.0 set out to "
+        "replace. Grok-only hybrid. Used to establish the quality "
         "bar that sub-$1 candidates must meet or exceed."
     ),
 )

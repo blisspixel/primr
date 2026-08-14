@@ -1,18 +1,21 @@
 """
 Standalone Accordion Method test runner.
 
-Architecture (validated approach):
-1. Phase 1: Deep Research gathers foundational facts (~12 page dossier)
-2. Phase 2: Gemini Pro writes each section with context continuity
+Experimental architecture:
+1. Phase 1: Deep Research gathers foundational facts
+2. Phase 2: Gemini Flash writes each section with bounded continuity context
 3. Phase 3: Assembly into cohesive final report
 
-KEY INSIGHT: 1 Deep Research + N Gemini Pro follow-ups is the sweet spot.
-- Deep Research excels at gathering comprehensive facts from the web
-- Gemini Pro excels at writing detailed, analytical prose from those facts
-- Result: ~30+ pages of quality content in ~20 minutes
+This module is a manual compatibility surface, not the production Premium
+entry point and not a benchmark or page-count guarantee.
 
-Testing showed: 12 Deep Research calls = 10x cost/time for only +20% content.
-The Gemini Pro follow-ups produce excellent detailed content.
+Working hypothesis: 1 Deep Research call plus N Flash section calls can provide
+useful long-form expansion.
+- Deep Research excels at gathering comprehensive facts from the web
+- Gemini Flash writes detailed prose from those facts
+
+Historical experiments favored one dossier over many Deep Research calls. Any
+current quality, cost, and duration claim must come from a recorded evaluation.
 
 Usage:
     from primr.ai.accordion_test import run_accordion_test
@@ -38,8 +41,8 @@ class AccordionTestConfig:
     """Configuration for standalone Accordion Method test."""
 
     topic: str
-    target_pages: int = 30  # Quality content typically produces 30-40 pages
-    section_delay_seconds: int = 10  # Short delay for Gemini Pro calls
+    target_pages: int = 30  # Approximate writing target, not a guaranteed result
+    section_delay_seconds: int = 10  # Safety delay for Gemini Flash calls
     max_consecutive_failures: int = 3
 
 
@@ -240,13 +243,14 @@ class AccordionTestRunner:
 
     Architecture:
     - Phase 1: Deep Research gathers facts (Lead Researcher role)
-    - Phase 2: Gemini Pro writes each section (Writer role)
+    - Phase 2: Gemini Flash writes each section (Writer role)
     - Phase 3: Assembly into cohesive report
 
-    This produces ~30+ pages of quality content in ~20 minutes.
+    This remains a manual experiment. Production Deep/Premium dispatch uses
+    DeepResearchOrchestrator.generate_comprehensive_report().
     """
 
-    SECTION_DELAY = 10  # seconds between Gemini Pro calls
+    SECTION_DELAY = 10  # seconds between Gemini Flash calls
     SECTION_DELAY_AFTER_ERROR = 30
 
     def __init__(self):
@@ -272,7 +276,7 @@ class AccordionTestRunner:
 
         Architecture:
         - Phase 1: Deep Research (dossier) - gathers facts
-        - Phase 2: Gemini Pro (sections) - writes detailed content
+        - Phase 2: Gemini Flash (sections) - writes detailed content
         - Phase 3: Assembly - cohesive final report
         """
         start_time = time.time()
@@ -283,7 +287,7 @@ class AccordionTestRunner:
 
         if on_progress:
             on_progress(f"Starting Accordion Method: {config.topic}")
-            on_progress(f"Architecture: 1 Deep Research + {len(RESEARCH_SECTIONS)} Gemini Pro")
+            on_progress(f"Architecture: 1 Deep Research + {len(RESEARCH_SECTIONS)} Flash")
             on_progress("")
 
         try:
@@ -322,11 +326,11 @@ class AccordionTestRunner:
                 on_progress("")
 
             # ================================================================
-            # PHASE 2: Section Writing (Gemini Pro)
+            # PHASE 2: Section Writing (Gemini Flash)
             # ================================================================
             if on_progress:
                 on_progress("=" * 60)
-                on_progress(f"PHASE 2: Writing {len(RESEARCH_SECTIONS)} Sections (Gemini Pro)")
+                on_progress(f"PHASE 2: Writing {len(RESEARCH_SECTIONS)} Sections (Gemini Flash)")
                 on_progress("=" * 60)
                 on_progress("Each section maintains context from previous sections")
                 on_progress("")

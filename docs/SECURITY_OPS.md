@@ -436,7 +436,7 @@ Run the security test suite:
 # All security-related tests
 pytest tests/mcp_server/test_auth.py \
        tests/mcp_server/test_security.py \
-       tests/test_security.py \
+       tests/security/ \
        tests/test_utils/test_security.py \
        tests/test_api/test_auth.py \
        -v

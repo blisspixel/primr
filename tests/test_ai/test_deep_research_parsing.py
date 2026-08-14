@@ -1,12 +1,58 @@
 """Tests for shared Deep Research parsing helpers."""
 
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 from primr.ai.deep_research_parsing import (
     extract_citations_from_content,
     extract_interaction_citations,
     extract_interaction_content,
+    extract_search_queries_count,
 )
+
+
+def test_extract_interaction_content_reads_current_model_output_steps():
+    interaction = SimpleNamespace(
+        steps=[
+            SimpleNamespace(type="thought", content=[]),
+            SimpleNamespace(
+                type="model_output",
+                content=[
+                    SimpleNamespace(type="text", text="Part one "),
+                    SimpleNamespace(type="text", text="and part two"),
+                ],
+            ),
+        ]
+    )
+
+    assert extract_interaction_content(interaction) == "Part one and part two"
+
+
+def test_extract_interaction_content_reads_mapping_steps():
+    interaction = {
+        "steps": [
+            {
+                "type": "model_output",
+                "content": [{"type": "text", "text": "Current response"}],
+            }
+        ]
+    }
+
+    assert extract_interaction_content(interaction) == "Current response"
+
+
+def test_extract_interaction_content_prefers_current_steps_over_legacy_outputs():
+    interaction = SimpleNamespace(
+        steps=[
+            SimpleNamespace(
+                type="model_output",
+                content=[SimpleNamespace(type="text", text="Current response")],
+            )
+        ],
+        outputs=[SimpleNamespace(text="Legacy response")],
+    )
+
+    assert extract_interaction_content(interaction) == "Current response"
 
 
 def test_extract_interaction_content_concatenates_outputs():
@@ -19,6 +65,23 @@ def test_extract_interaction_content_concatenates_outputs():
 
     content = extract_interaction_content(interaction)
     assert content == "Part one\nPart two"
+
+
+def test_extract_search_query_count_reads_current_google_search_steps():
+    interaction = SimpleNamespace(
+        steps=[
+            SimpleNamespace(
+                type="google_search_call",
+                arguments=SimpleNamespace(queries=["one", "two"]),
+            ),
+            SimpleNamespace(
+                type="google_search_call",
+                arguments=SimpleNamespace(queries=["three"]),
+            ),
+        ]
+    )
+
+    assert extract_search_queries_count(interaction) == 3
 
 
 def test_extract_interaction_citations_with_inline_fallback():

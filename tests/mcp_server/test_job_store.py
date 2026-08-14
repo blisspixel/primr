@@ -392,6 +392,7 @@ class TestJournalSerialization:
         )
         original.error_type = "test_error"
         original.error_message = "Test error message"
+        original.actual_cost_usd = 1.2345
 
         data = original.to_journal_dict()
         restored = ResearchJobState.from_journal_dict(data)
@@ -402,6 +403,7 @@ class TestJournalSerialization:
         assert restored.stage_progress_percent == original.stage_progress_percent
         assert restored.error_type == original.error_type
         assert restored.error_message == original.error_message
+        assert restored.actual_cost_usd == 1.2345
 
 
 class TestSingleJobStore:
@@ -636,6 +638,7 @@ class TestSingleJobStore:
         terminal["completion_time"] = worker_completion.isoformat()
         terminal["last_heartbeat_time"] = worker_completion.isoformat()
         terminal["output_paths"] = ["output/report.md"]
+        terminal["actual_cost_usd"] = 1.25
 
         assert not store.apply_worker_snapshot(job.job_id, terminal)
         assert store.get(job.job_id).current_stage == ResearchStage.ACCEPTED
@@ -647,6 +650,7 @@ class TestSingleJobStore:
         assert completed.completion_time > worker_completion
         assert completed.last_heartbeat_time == completed.completion_time
         assert completed.stage_started_at == completed.completion_time
+        assert completed.actual_cost_usd == 1.25
         first_completion = completed.completion_time
 
         late_failure = completed.to_journal_dict()

@@ -10,8 +10,10 @@ import pytest
 
 from primr.ai.genai_factory import (
     DEFAULT_GENAI_HTTP_TIMEOUT_MS,
+    accepts_sampling_parameters,
     default_genai_http_options,
     get_genai_http_timeout_ms,
+    supported_thinking_levels,
 )
 
 
@@ -43,6 +45,35 @@ class TestHttpOptions:
     def test_env_override_applies(self, monkeypatch):
         monkeypatch.setenv("PRIMR_GEMINI_HTTP_TIMEOUT_MS", "120000")
         assert default_genai_http_options().timeout == 120_000
+
+
+class TestModelCapabilities:
+    @pytest.mark.parametrize(
+        ("model", "expected"),
+        [
+            ("gemini-3.7-flash", ("low", "medium", "high")),
+            ("gemini-3.6-flash", ("minimal", "low", "medium", "high")),
+            ("gemini-3.5-flash-lite", ("minimal", "low", "medium", "high")),
+            ("gemini-3.1-pro-preview", ("low", "medium", "high")),
+            ("gemini-3-pro-preview", ("low", "high")),
+            ("gemini-2.5-flash", ("low", "medium", "high")),
+            ("unknown-gemini", ("low", "high")),
+        ],
+    )
+    def test_thinking_levels_are_model_specific(self, model, expected):
+        assert supported_thinking_levels(model) == expected
+
+    @pytest.mark.parametrize(
+        ("model", "expected"),
+        [
+            ("gemini-3.5-flash-lite", False),
+            ("gemini-3.6-flash", False),
+            ("gemini-3.7-flash", False),
+            ("gemini-3.1-pro-preview", True),
+        ],
+    )
+    def test_sampling_support_is_model_specific(self, model, expected):
+        assert accepts_sampling_parameters(model) is expected
 
 
 class TestNoUnguardedConstructionsRemain:

@@ -6,18 +6,75 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
+def _field(value: Any, name: str, default: Any = None) -> Any:
+    """Read one SDK-model or mapping field without assuming a concrete SDK type."""
+    if isinstance(value, Mapping):
+        return value.get(name, default)
+    return getattr(value, name, default)
+
+
+def _items(value: Any) -> Sequence[Any]:
+    """Return list-like SDK fields while rejecting strings and mock sentinels."""
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return value
+    return ()
+
+
+def _current_interaction_text(interaction: Any) -> str:
+    """Extract the final model text from the current Interactions `steps` schema."""
+    output_text = _field(interaction, "output_text")
+    if isinstance(output_text, str) and output_text:
+        return output_text
+
+    parts: list[str] = []
+    collecting = False
+    for step in reversed(_items(_field(interaction, "steps"))):
+        step_type = _field(step, "type")
+        if step_type == "user_input":
+            break
+        if step_type != "model_output":
+            if collecting:
+                break
+            continue
+
+        content_items = _items(_field(step, "content"))
+        if not content_items:
+            if collecting:
+                break
+            continue
+        for content in reversed(content_items):
+            text = _field(content, "text")
+            if isinstance(text, str):
+                collecting = True
+                parts.append(text)
+            elif collecting:
+                parts.reverse()
+                return "".join(parts)
+
+    parts.reverse()
+    return "".join(parts)
+
+
 def extract_interaction_content(interaction: Any) -> str:
-    """Extract all text output from an interaction."""
-    if hasattr(interaction, "outputs") and interaction.outputs:
+    """Extract model text from current interactions, then the legacy schema."""
+    current_text = _current_interaction_text(interaction)
+    if current_text:
+        return current_text
+
+    # Deliberate compatibility fallback for persisted pre-June 2026 responses.
+    outputs = _items(_field(interaction, "outputs"))
+    if outputs:
         text_parts = []
-        for output in interaction.outputs:
-            if hasattr(output, "text") and output.text:
-                text_parts.append(str(output.text))
+        for output in outputs:
+            text = _field(output, "text")
+            if isinstance(text, str) and text:
+                text_parts.append(text)
         return "\n".join(text_parts) if text_parts else ""
     return ""
 
@@ -106,29 +163,40 @@ def extract_citations_from_content(
 def extract_search_queries_count(interaction: Any) -> int:
     """Extract actual search query count from grounding metadata."""
     try:
-        if hasattr(interaction, "outputs") and interaction.outputs:
-            for output in interaction.outputs:
-                metadata = None
-                if hasattr(output, "grounding_metadata"):
-                    metadata = output.grounding_metadata
-                elif hasattr(output, "groundingMetadata"):
-                    metadata = output.groundingMetadata
+        query_count = 0
+        for step in _items(_field(interaction, "steps")):
+            if _field(step, "type") != "google_search_call":
+                continue
+            queries = _field(_field(step, "arguments"), "queries")
+            query_count += len(_items(queries))
+        if query_count:
+            return query_count
 
-                if metadata and hasattr(metadata, "web_search_queries"):
-                    queries = metadata.web_search_queries
+        outputs = _items(_field(interaction, "outputs"))
+        if outputs:
+            for output in outputs:
+                metadata = None
+                if _field(output, "grounding_metadata") is not None:
+                    metadata = _field(output, "grounding_metadata")
+                elif _field(output, "groundingMetadata") is not None:
+                    metadata = _field(output, "groundingMetadata")
+
+                if metadata:
+                    queries = _field(metadata, "web_search_queries")
                     if isinstance(queries, list):
                         return len(queries)
 
-                if hasattr(output, "candidates") and output.candidates:
-                    for candidate in output.candidates:
+                candidates = _items(_field(output, "candidates"))
+                if candidates:
+                    for candidate in candidates:
                         candidate_meta = None
-                        if hasattr(candidate, "grounding_metadata"):
-                            candidate_meta = candidate.grounding_metadata
-                        elif hasattr(candidate, "groundingMetadata"):
-                            candidate_meta = candidate.groundingMetadata
+                        if _field(candidate, "grounding_metadata") is not None:
+                            candidate_meta = _field(candidate, "grounding_metadata")
+                        elif _field(candidate, "groundingMetadata") is not None:
+                            candidate_meta = _field(candidate, "groundingMetadata")
 
-                        if candidate_meta and hasattr(candidate_meta, "web_search_queries"):
-                            queries = candidate_meta.web_search_queries
+                        if candidate_meta:
+                            queries = _field(candidate_meta, "web_search_queries")
                             if isinstance(queries, list):
                                 return len(queries)
     except Exception as e:

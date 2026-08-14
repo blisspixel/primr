@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -11,6 +12,7 @@ from primr.ai.deep_research import (
     ResearchResult,
     ResearchStatus,
 )
+from primr.ai.deep_research_execution import AcceptedInteractionError
 from primr.utils.errors import AIError
 
 
@@ -29,6 +31,21 @@ def orchestrator(monkeypatch):
 
 
 class TestExecuteWithRetry:
+    @pytest.mark.asyncio
+    async def test_execute_single_cancellation_carries_accepted_id(self, orchestrator):
+        orchestrator._client.interactions.create.return_value = MagicMock(id="interaction-123")
+        orchestrator._poll_for_completion = AsyncMock(side_effect=asyncio.CancelledError())
+
+        with (
+            patch("primr.ai.deep_research.save_pending_job") as save,
+            pytest.raises(asyncio.CancelledError) as exc_info,
+        ):
+            await orchestrator._execute_single("prompt", store_name="stores/context")
+
+        assert exc_info.value.interaction_id == "interaction-123"  # type: ignore[attr-defined]
+        save.assert_called_once()
+        orchestrator._client.interactions.create.assert_called_once()
+
     @pytest.mark.asyncio
     async def test_returns_immediately_on_success(self, orchestrator):
         ok_result = ResearchResult(content="body", status=ResearchStatus.COMPLETED)
@@ -132,6 +149,16 @@ class TestExecuteWithRetry:
             await orchestrator._execute_with_retry("prompt")
 
     @pytest.mark.asyncio
+    async def test_unrelated_rate_substring_does_not_trigger_retry(self, orchestrator):
+        execute = AsyncMock(side_effect=AIError("failed to generate request", model="dr"))
+        with (
+            patch.object(orchestrator, "_execute_single", new=execute),
+            pytest.raises(AIError),
+        ):
+            await orchestrator._execute_with_retry("prompt")
+        execute.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_max_retries_exhausted_raises(self, orchestrator, monkeypatch):
         # Force MAX_RETRIES to 2 for fast test
         monkeypatch.setattr(orchestrator, "MAX_RETRIES", 2)
@@ -164,6 +191,19 @@ class TestExecuteWithRetry:
         ):
             result = await orchestrator._execute_with_retry("prompt")
         assert result is ok
+
+    @pytest.mark.asyncio
+    async def test_accepted_interaction_is_never_retried(self, orchestrator):
+        accepted_error = AcceptedInteractionError(
+            "interaction-123", TimeoutError("polling timed out")
+        )
+        execute = AsyncMock(side_effect=accepted_error)
+        with patch.object(orchestrator, "_execute_single", new=execute):
+            result = await orchestrator._execute_with_retry("prompt")
+
+        assert result.status == ResearchStatus.IN_PROGRESS
+        assert result.interaction_id == "interaction-123"
+        execute.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_generic_exception_non_retryable_propagates(self, orchestrator):
@@ -209,3 +249,20 @@ class TestExecuteWithRetry:
             before = orchestrator._api_call_count
             await orchestrator._execute_with_retry("prompt")
             assert orchestrator._api_call_count == before + 1
+
+    @pytest.mark.asyncio
+    async def test_execute_single_marks_polling_uncertainty_as_accepted(self, orchestrator):
+        orchestrator._client.interactions.create.return_value = MagicMock(id="interaction-123")
+        orchestrator._poll_for_completion = AsyncMock(
+            side_effect=AIError("polling timed out", model="dr")
+        )
+
+        with (
+            patch("primr.ai.deep_research.save_pending_job") as save_pending,
+            pytest.raises(AcceptedInteractionError) as caught,
+        ):
+            await orchestrator._execute_single("prompt", store_name="stores/context")
+
+        assert caught.value.interaction_id == "interaction-123"
+        save_pending.assert_called_once()
+        assert save_pending.call_args.kwargs["metadata"] == {"file_search_store": "stores/context"}

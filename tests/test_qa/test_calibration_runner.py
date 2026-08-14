@@ -1030,6 +1030,76 @@ class TestCLIWiring:
         assert "~2 cloud judge calls ($0.0010)" in output
         assert "~2 local judge calls ($0.00)" in output
 
+    def test_cloud_execution_decline_starts_no_paid_judge_calls(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+        from primr.qa import calibration_cli
+
+        report = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        real_run_calibration = calibration_cli.run_calibration
+        live_calls = []
+
+        def guarded_run_calibration(*args, **kwargs):
+            if kwargs.get("dry_run"):
+                return real_run_calibration(*args, **kwargs)
+            live_calls.append(True)
+            raise AssertionError("live calibration must not start after declined approval")
+
+        prompt_calls = []
+
+        def decline_prompt(*args, **kwargs):
+            prompt_calls.append((args, kwargs))
+            return False
+
+        monkeypatch.setattr(calibration_cli, "run_calibration", guarded_run_calibration)
+        monkeypatch.setattr(calibration_cli, "prompt_yes_no", decline_prompt)
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_target=str(report),
+            calibrate_judge="cloud",
+            skip_confirm=False,
+        )
+
+        assert _handle_calibrate(config) == 0
+        assert len(prompt_calls) == 1
+        assert live_calls == []
+        output = capsys.readouterr().out
+        assert "Execution estimate: ~2 cloud judge calls" in output
+        assert "Cancelled. No cloud judge calls were started." in output
+
+    def test_cloud_execution_skip_confirm_is_explicit_approval(self, tmp_path, monkeypatch):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+        from primr.qa import calibration_cli
+
+        report = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        dry_outcome = ReportCalibrationOutcome(
+            report_path=report,
+            claims_sampled=2,
+            judgeable_claims=2,
+            estimated_judge_calls=2,
+        )
+        run_modes = []
+
+        def fake_run_calibration(*args, **kwargs):
+            run_modes.append(bool(kwargs.get("dry_run")))
+            return [dry_outcome]
+
+        def unexpected_prompt(*args, **kwargs):
+            raise AssertionError("--skip-confirm must bypass the interactive prompt")
+
+        monkeypatch.setattr(calibration_cli, "run_calibration", fake_run_calibration)
+        monkeypatch.setattr(calibration_cli, "prompt_yes_no", unexpected_prompt)
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_target=str(report),
+            calibrate_judge="cloud",
+            skip_confirm=True,
+        )
+
+        assert _handle_calibrate(config) == 0
+        assert run_modes == [True, False]
+
     def test_handler_errors_when_selection_conflicts_with_target(self, tmp_path, monkeypatch):
         from primr.core.cli import CLIConfig, Command, _handle_calibrate
 

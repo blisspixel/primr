@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 DEFAULT_INFERENCE_PROFILE = InferenceProfile.CLOUD
-StageUsageByModel = dict[str, dict[str, int]]
+StageUsageByModel = dict[str, dict[str, int | float]]
 
 
 @dataclass(frozen=True)
@@ -477,6 +477,13 @@ def capture_stage_usage() -> StageUsageByModel:
 
     usage: StageUsageByModel = {}
     try:
+        from primr.ai.client import get_ai_client_usage_by_model
+
+        _merge_usage_by_model(usage, get_ai_client_usage_by_model())
+    except Exception as exc:
+        logger.debug("Legacy AI client usage snapshot skipped: %s", exc, exc_info=True)
+
+    try:
         from primr.ai.grok_client import get_grok_session_usage_by_model
 
         _merge_usage_by_model(usage, get_grok_session_usage_by_model())
@@ -520,11 +527,28 @@ def stage_usage_delta(
             0,
             _usage_int(latest, "cached_input_tokens") - _usage_int(prior, "cached_input_tokens"),
         )
-        if not (input_tokens or output_tokens or cached_input_tokens):
-            continue
-        actual_cost = _actual_usage_cost(
-            model_name, input_tokens, output_tokens, cached_input_tokens
+        actual_cost_usd = max(
+            0.0,
+            _usage_float(latest, "actual_cost_usd") - _usage_float(prior, "actual_cost_usd"),
         )
+        actual_cost_calls = max(
+            0,
+            _usage_int(latest, "actual_cost_calls") - _usage_int(prior, "actual_cost_calls"),
+        )
+        call_count = max(
+            0,
+            _usage_int(latest, "call_count") - _usage_int(prior, "call_count"),
+        )
+        if not (
+            input_tokens or output_tokens or cached_input_tokens or actual_cost_usd or call_count
+        ):
+            continue
+        if call_count > 0 and actual_cost_calls == call_count:
+            actual_cost = actual_cost_usd
+        else:
+            actual_cost = _actual_usage_cost(
+                model_name, input_tokens, output_tokens, cached_input_tokens
+            )
         models[model_name] = {
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
@@ -619,11 +643,21 @@ def _merge_usage_by_model(
             continue
         bucket = target.setdefault(
             model_name,
-            {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0},
+            {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cached_input_tokens": 0,
+                "actual_cost_usd": 0.0,
+                "actual_cost_calls": 0,
+                "call_count": 0,
+            },
         )
         bucket["input_tokens"] += _usage_int(values, "input_tokens")
         bucket["output_tokens"] += _usage_int(values, "output_tokens")
         bucket["cached_input_tokens"] += _usage_int(values, "cached_input_tokens")
+        bucket["actual_cost_usd"] += _usage_float(values, "actual_cost_usd")
+        bucket["actual_cost_calls"] += _usage_int(values, "actual_cost_calls")
+        bucket["call_count"] += _usage_int(values, "call_count")
 
 
 def _usage_int(values: dict[str, int] | dict[str, int | float], key: str) -> int:
@@ -631,6 +665,13 @@ def _usage_int(values: dict[str, int] | dict[str, int | float], key: str) -> int
     if isinstance(value, bool) or not isinstance(value, int | float):
         return 0
     return max(0, int(value))
+
+
+def _usage_float(values: dict[str, int] | dict[str, int | float], key: str) -> float:
+    value = values.get(key, 0.0)
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return 0.0
+    return max(0.0, float(value))
 
 
 def _actual_usage_cost(

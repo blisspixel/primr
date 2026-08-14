@@ -18,3 +18,13 @@ def test_vendor_research_execution_uses_its_specific_structured_preflight():
 def test_research_execution_still_requires_provider_configuration():
     config = SimpleNamespace(command="research", dry_run_requested=False)
     assert should_include_api_keys(config) is True
+
+
+def test_deterministic_improve_does_not_require_provider_configuration():
+    config = SimpleNamespace(command="improve", improve_agentic=False)
+    assert should_include_api_keys(config) is False
+
+
+def test_agentic_improve_requires_provider_configuration():
+    config = SimpleNamespace(command="improve", improve_agentic=True)
+    assert should_include_api_keys(config) is True

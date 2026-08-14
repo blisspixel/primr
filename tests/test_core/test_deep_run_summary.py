@@ -14,7 +14,53 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from primr.core.deep_run_summary import finalize_deep_run
+from primr.core.deep_run_summary import (
+    finalize_deep_run,
+    publish_partial_deep_report,
+    resolve_deep_report_artifacts,
+)
+
+
+def test_resolve_deep_report_artifacts_prefers_docx_and_text(tmp_path):
+    markdown = tmp_path / "report.md"
+    text = tmp_path / "report.txt"
+    docx = tmp_path / "report.docx"
+
+    assert resolve_deep_report_artifacts(str(docx), [markdown, text, docx]) == (
+        str(docx),
+        [markdown, text, docx],
+        str(text),
+    )
+
+
+def test_resolve_deep_report_artifacts_falls_back_to_markdown(tmp_path):
+    markdown = tmp_path / "report.md"
+    text = tmp_path / "report.txt"
+
+    assert resolve_deep_report_artifacts(None, [text, markdown]) == (
+        str(markdown),
+        [text, markdown],
+        str(text),
+    )
+
+
+def test_publish_partial_deep_report_acknowledges_durable_output(tmp_path, monkeypatch):
+    acknowledge = MagicMock(return_value=True)
+    monkeypatch.setattr(
+        "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+        acknowledge,
+    )
+    result = SimpleNamespace(
+        raw_content="## Partial\nGrounded evidence.",
+        pending_interaction_id="interaction-123",
+    )
+
+    report_path = publish_partial_deep_report(result, "AcmeCo", tmp_path, None, True)
+
+    assert report_path is not None
+    acknowledge.assert_called_once_with("interaction-123", [report_path])
+
+
 from primr.core.strategy_outcome import StrategyOutcomeTracker
 from primr.core.vendor_refresh_outcome import VendorRefreshTracker
 
@@ -115,6 +161,17 @@ class TestFinalizeDeepRun:
         assert items["Est. Cost"] == "$0.75"
         # actual = 0.50 pipeline + 0.30 Deep Research
         assert items["Actual Cost"] == "~$0.80"
+
+    def test_summary_reports_length_target_without_reclassifying_output(self, env):
+        _call(
+            env,
+            result=_result(target_pages=50, actual_pages=34, target_attained=False),
+        )
+
+        items = dict(env["console"].summary.call_args.args[0])
+        assert items["Length Target"] == "~50 pages"
+        assert items["Length Produced"] == "~34 pages"
+        assert items["Length Target Attained"] == "No"
 
     def test_trust_panel_rendered_when_traceable_claims(self, env):
         _call(env)

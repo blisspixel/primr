@@ -299,7 +299,7 @@ class ResearchOrchestrator:
         context_files: list | None = None,
     ) -> OrchestratorResult:
         """
-        Run complete research using Single-Call Deep Research Architecture.
+        Run complete research using the sequential Accordion architecture.
 
         This is the recommended mode for comprehensive reports:
 
@@ -308,14 +308,14 @@ class ResearchOrchestrator:
             - Creates baseline context (Stage 1)
             - ~15-25 minutes
 
-        Phase 2: Single Deep Research Call
-            - ONE comprehensive API call (not parallel chapters)
+        Phase 2: Dossier and Sequential Report Writing
+            - One Deep Research dossier followed by continuity-aware sections
             - Uses Stage 1 context via File Search Store
-            - Generates complete cohesive report
-            - ~10-20 minutes
+            - Generates and assembles one cohesive report
+            - ~15-30 minutes
 
-        This architecture avoids the 429 quota errors that occurred with
-        the previous parallel-chapter approach (10 concurrent API calls).
+        Sequential writing preserves cross-section context and avoids the quota
+        pressure of the previous parallel-chapter approach.
 
         Args:
             company_name: Name of the company to research
@@ -412,7 +412,7 @@ class ResearchOrchestrator:
                 step_num=2,
                 total_steps=2,
                 title="Deep Research",
-                description="Comprehensive report with sequential elaboration (50+ pages)",
+                description="Comprehensive report with sequential elaboration (~50-page target)",
                 expected_duration="15-30 minutes",
             )
 
@@ -428,8 +428,9 @@ class ResearchOrchestrator:
                 company_name=company_name,
                 website_url=website,
                 stage1_context=stage1_context,
+                context_files=[str(path) for path in context_files] if context_files else None,
                 on_progress=progress_wrapper,
-                target_pages=50,  # Target 50+ pages
+                target_pages=50,
             )
 
             phase2_duration = time_module.time() - phase2_start
@@ -454,6 +455,14 @@ class ResearchOrchestrator:
                     success=False,
                     error=deep_result.error,
                     duration_seconds=time_module.time() - total_start,
+                    raw_content=getattr(deep_result, "content", ""),
+                    citations=getattr(deep_result, "citations", []),
+                    pending_interaction_id=getattr(deep_result, "interaction_id", ""),
+                    sections_written=getattr(deep_result, "sections_written", 0),
+                    search_queries_count=getattr(deep_result, "search_queries_count", 0),
+                    target_pages=getattr(deep_result, "target_pages", 0),
+                    actual_pages=getattr(deep_result, "actual_pages", 0),
+                    target_attained=getattr(deep_result, "target_attained", False),
                 )
 
             formatter = ReportFormatter()
@@ -477,16 +486,6 @@ class ResearchOrchestrator:
             # CLEANUP & RETURN
             # ================================================================
             total_duration = time_module.time() - total_start
-
-            if step1_context_file:
-                try:
-                    import os
-
-                    os.remove(step1_context_file)
-                except Exception:
-                    logger.debug(
-                        "Failed to clean up temp file %s", step1_context_file, exc_info=True
-                    )
 
             section_results = {
                 "strategic_overview": formatted.markdown,
@@ -516,20 +515,13 @@ class ResearchOrchestrator:
                 duration_seconds=total_duration,
                 search_queries_count=deep_result.search_queries_count,
                 pending_interaction_id=deep_result.interaction_id,
+                target_pages=getattr(deep_result, "target_pages", 0),
+                actual_pages=getattr(deep_result, "actual_pages", 0),
+                target_attained=getattr(deep_result, "target_attained", False),
             )
 
         except Exception as e:
             logger.error(f"Complete research failed: {e}", exc_info=True)
-
-            if step1_context_file:
-                try:
-                    import os
-
-                    os.remove(step1_context_file)
-                except Exception:
-                    logger.debug(
-                        "Failed to clean up temp file %s", step1_context_file, exc_info=True
-                    )
 
             # Preserve partial results from structured phase if available
             partial_results = {}
@@ -548,6 +540,14 @@ class ResearchOrchestrator:
                 error=str(e),
                 duration_seconds=time_module.time() - total_start,
             )
+        finally:
+            if step1_context_file:
+                try:
+                    os.remove(step1_context_file)
+                except Exception:
+                    logger.debug(
+                        "Failed to clean up temp file %s", step1_context_file, exc_info=True
+                    )
 
     def _summarize_context(self, section_results: dict[str, str]) -> str:
         """

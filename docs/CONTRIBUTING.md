@@ -65,11 +65,13 @@ Source: `docs/images/primr-demo-terminal.html`. Requires Playwright Chromium
 # Run all tests
 python -m pytest tests/ -v
 
-# Run specific test file
-python -m pytest tests/test_cli.py -v
+# Run a specific test file
+uv run --no-sync pytest tests/test_core/test_cli.py -v
 
-# Run with coverage
-python -m pytest tests/ --cov=src/primr --cov-report=html
+# Run the CI-scoped suite with branch coverage
+uv run --no-sync pytest tests/ --ignore=tests/manual \
+  -k "not test_wait_times_out_when_no_change" -m "not integration" \
+  --cov=src/primr --cov-branch --cov-fail-under=81
 ```
 
 ### Code Quality
@@ -80,25 +82,25 @@ ordinary code changes:
 
 ```bash
 # Linting
-uv run ruff check .
+uv run --no-sync ruff check src/primr/ tests/
 
 # Formatting
-uv run ruff format --check .
+uv run --no-sync ruff format --check src/primr/ tests/
 
 # Type checking
 uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude "src/primr/api/"
 
 # Tests and branch coverage
-uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -m "not integration" -W error::ResourceWarning -W error::pytest.PytestUnknownMarkWarning -W error::pytest.PytestUnraisableExceptionWarning --cov=src/primr --cov-branch --cov-fail-under=81
+uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81
 
 # Security scan (gated at medium severity in CI)
-uv run --no-sync bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium
+uv run --no-sync bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q
 
 # Dependency vulnerability audit
 uv run --no-sync pip-audit
 
 # Documentation
-uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --strict --site-dir _site
+uv run --no-sync mkdocs build --strict
 ```
 
 For narrow fixes, run the focused tests for the touched behavior first, then

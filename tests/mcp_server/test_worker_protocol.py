@@ -141,6 +141,9 @@ def test_start_rejects_unknown_job_snapshot_field(start_command):
         ("output_paths", [""], "output_paths"),
         ("qa_score", True, "qa_score"),
         ("qa_score", 101, "qa_score"),
+        ("actual_cost_usd", -0.01, "actual_cost_usd"),
+        ("actual_cost_usd", float("nan"), "actual_cost_usd"),
+        ("actual_cost_usd", True, "actual_cost_usd"),
         ("last_heartbeat_time", "tomorrow", "last_heartbeat_time"),
     ],
 )

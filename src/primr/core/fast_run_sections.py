@@ -82,6 +82,25 @@ class SectionWritingResult:
     report_content: str | None
     written_sections: list[GeneratedSection] = field(default_factory=list)
     total_words: int = 0
+    expected_sections: int = 0
+    report_complete: bool = False
+
+
+def _report_completion(
+    expected_sections: int,
+    written_sections: list[GeneratedSection],
+    executive_summary_written: bool,
+) -> bool:
+    """Return whether a partial report meets the minimum shipping contract."""
+    minimum_sections = (expected_sections + 1) // 2
+    complete = executive_summary_written and len(written_sections) >= minimum_sections
+    if not complete:
+        console.warn(
+            "Report is materially incomplete: "
+            f"{len(written_sections)}/{expected_sections} sections, "
+            f"executive summary {'present' if executive_summary_written else 'missing'}"
+        )
+    return complete
 
 
 def write_report_sections(
@@ -188,6 +207,7 @@ def write_report_sections(
     # should NOT be in the ToC during batch writing — avoids off-by-one where
     # [NOW] marker points to the wrong section name.
     all_section_names = [s.name for batch in section_batches for s in batch]
+    expected_sections = len(all_section_names) + (1 if exec_summary_section else 0)
     written_sections: list[GeneratedSection] = []
     effective_name = company_label
 
@@ -269,6 +289,7 @@ def write_report_sections(
         global_offset += len(part_sections)
 
     # Write executive summary LAST — it now has full report context to synthesize
+    executive_summary_written = False
     if exec_summary_section is not None:
         console.info("Writing Executive Summary (with full report context)")
         exec_parsed = _write_section_with_retry(
@@ -289,6 +310,7 @@ def write_report_sections(
         )
         if exec_parsed:
             written_sections.insert(0, exec_parsed)
+            executive_summary_written = True
             console.ok(f"  {exec_parsed.title} ({exec_parsed.words:,} words)")
         else:
             console.warn("  Executive Summary — skipped (failed or empty)")
@@ -303,7 +325,11 @@ def write_report_sections(
             section_count=len(all_section_names),
             written_count=0,
         )
-        return SectionWritingResult(report_content=None)
+        return SectionWritingResult(report_content=None, expected_sections=expected_sections)
+
+    report_complete = _report_completion(
+        expected_sections, written_sections, executive_summary_written
+    )
 
     report_content = _assemble_fast_report(company_label, website, written_sections)
 
@@ -318,7 +344,7 @@ def write_report_sections(
         route,
         usage_before=usage_before,
         route_start=route_start,
-        section_count=len(all_section_names),
+        section_count=expected_sections,
         written_count=len(written_sections),
     )
 
@@ -332,6 +358,8 @@ def write_report_sections(
         report_content=report_content,
         written_sections=written_sections,
         total_words=total_words,
+        expected_sections=expected_sections,
+        report_complete=report_complete,
     )
 
 
@@ -374,6 +402,11 @@ def _resolve_report_sections_route(
         usage_before = stage_routing.capture_stage_usage()
     except Exception as e:
         logger.warning("Report sections route resolution failed: %s", e, exc_info=True)
+        console.error(
+            "Report writing skipped (route_resolution_failed) - "
+            "could not resolve a permitted writing backend"
+        )
+        return None
     return writing_model, route, usage_before, route_start
 
 

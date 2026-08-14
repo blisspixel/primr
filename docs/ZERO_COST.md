@@ -139,6 +139,7 @@ Use `~/.claude/skills/primr-zero` as the destination for Claude Code.
 | Claude Code personal skills | Copy the Claude mirror to `~/.claude/skills/primr-zero/`, or install the Primr Claude plugin |
 | GitHub Copilot personal skills | Install to `~/.agents/skills/primr-zero/` or `~/.copilot/skills/primr-zero/` |
 | Gemini CLI personal skills | Install to `~/.agents/skills/primr-zero/` or `~/.gemini/skills/primr-zero/` |
+| Agent Plugins v1 client | Use the experimental `agent-plugin/` package when the client supports its declared skills or MCP components. The MCP component requires an installed `primr` executable, but the skills remain usable if that component is unavailable. Loading the package does not authorize spend. |
 | Kiro, Cursor, or another skill-aware host | Use the host's documented Agent Skills directory; prefer the canonical repository folder when supported |
 | Cowork or another research UI without a local shell | Run `primr prep` elsewhere, attach or import the bundle, and use `HOST_WORKFLOW.md` plus the skill instructions through the host's official skill or instruction surface |
 

@@ -177,6 +177,19 @@ class TestOrderingAndDedup:
 
 
 class TestFailureIsolation:
+    def test_route_resolution_error_fails_closed_before_writing(self, seams):
+        seams["monkeypatch"].setattr(
+            "primr.ai.stage_routing.resolve_stage_model",
+            MagicMock(side_effect=RuntimeError("routing unavailable")),
+        )
+
+        result = _call(seams)
+
+        assert result.report_content is None
+        assert result.written_sections == []
+        seams["writer"].assert_not_called()
+        seams["coherence"].assert_not_called()
+
     def test_one_failed_section_does_not_block_others(self, seams):
         original = seams["writer"].side_effect
 
@@ -191,12 +204,42 @@ class TestFailureIsolation:
         assert "Market" not in titles
         assert "Competitors" in titles
         assert result.report_content is not None
+        assert result.report_complete is True
+
+    def test_majority_failures_preserve_partial_report_without_full_success(self, seams):
+        original = seams["writer"].side_effect
+
+        def mostly_failed(sec, *args, **kwargs):
+            if sec.id != "overview":
+                return None
+            return original(sec, *args, **kwargs)
+
+        seams["writer"].side_effect = mostly_failed
+        result = _call(seams)
+
+        assert result.report_content is not None
+        assert [section.title for section in result.written_sections] == ["Overview"]
+        assert result.expected_sections == 4
+        assert result.report_complete is False
+
+    def test_missing_executive_summary_is_not_full_success(self, seams):
+        original = seams["writer"].side_effect
+
+        def missing_summary(sec, *args, **kwargs):
+            return None if sec.id == "executive_summary" else original(sec, *args, **kwargs)
+
+        seams["writer"].side_effect = missing_summary
+        result = _call(seams)
+
+        assert len(result.written_sections) == 3
+        assert result.report_complete is False
 
     def test_all_sections_failed_returns_none_content(self, seams):
         seams["writer"].side_effect = lambda *a, **k: None
         result = _call(seams)
         assert result.report_content is None
         assert result.written_sections == []
+        assert result.report_complete is False
         seams["coherence"].assert_not_called()
 
 

@@ -1,769 +1,240 @@
 # Next Steps
 
-Last research refresh: 2026-08-05.
+This is Primr's canonical execution brief. It answers what to implement next.
+`ROADMAP.md` owns long-range direction and the backlog; design documents own
+rationale and contracts; `docs/CHANGELOG.md` owns completed implementation
+history.
 
-This page answers the working question: what should Primr do next, and why?
-`ROADMAP.md` remains the ordered backlog and the version ladder toward 2.0 /
-3.0. This page is the shorter execution brief.
+Last reviewed: 2026-08-13.
 
-Tone: we aim to do this work carefully and well. We do not need to claim the
-category or put other research tools down. For fit vs chat deep research,
-enterprise CI, and research APIs, see
-[`docs/design/competitive-positioning.md`](design/competitive-positioning.md).
+## Current release objective
 
-## Version order (logical, not a schedule)
+Complete paid-run governance and the audit trail before expanding backends,
+memory, or billable evaluation. Approval, provider lifecycle, partial recovery,
+and API currency foundations are complete for research. Run-scoped actual-cost
+persistence for MCP/A2A completion and paid Premium partial returns is now
+complete. Estimate, approval, and cap enforcement for the
+model-backed `primr refine` and `primr improve --improve-agentic` commands is
+complete. Accepted provider jobs now retain a minimal fsynced recovery receipt
+when the primary registry write fails, so process restart and orphan cleanup do
+not lose the interaction or its File Search Store. This objective uses
+hermetic tests only. No report run or cloud judge is required. Architecture
+cleanup remains a parallel maintenance lane and does not redefine product
+priority.
 
-| Next | Focus | Why |
-|------|--------|-----|
-| **1.40** | Fully decidable production calibration corpus + hard-gate re-decision | Quality gates and backend promotions must rest on measured epistemics, not vibes. |
-| **1.41** | Live host-vs-cloud source-relevance promotion + single-provider cleanup | Unlocks honest non-xAI/Gemini-only full runs; depends on 1.40 instruments. |
-| **1.42** | MCP Tasks + control-plane watch items | Completes safe unattended agent delegation. |
-| **1.43** | Memory layer 1 complete | Compounding value only after claims and job consumption are solid. |
-| **1.44+** | Progressive early artifacts, batch public surface, cost levers | Time-to-first-useful and economics after the quality/routing spine. |
-| **2.0** | Backend freedom + memory + control plane together | Major product step: composable research *role*, not only single-shot CLI. |
-| **3.0** | VLM, vertical compounding, post-artifact handoff | Reach expansion after 2.0 foundations. |
+## Completed foundation: report contract correctness
 
-## Where we are (post v1.39.2 + Grok routing + cost honesty polish)
+**Status:** complete in this slice; no model spend.
 
-Shipped recently and relevant to planning:
+**Deliverable:** align runtime, estimates, and documentation for the active
+Standard and Deep/Premium paths.
 
-- Native MCP `2026-07-28` on SDK v2 (dual-era clients, cache hints, templates).
-- Capability-router wiring across the fast pipeline and `premium.deep_research`,
-  with body-free `stage_routes` and fail-closed agent/local behavior when no
-  adapter qualifies.
-- Standing offline `source_relevance` corpus and review-only host/cloud
-  comparison artifacts (not a promotion gate).
-- Root README as a short front door (agentic + structured research, agent vs
-  terminal paths); operator detail in focused `docs/` guides. PyPI long
-  description tracks the README.
-- **Grok 4.5 registered; hybrid default stays 4.3.** `--grok-tier max` uses
-  4.5. Decision and cost evidence:
-  [`design/grok-default-routing.md`](design/grok-default-routing.md). Do not
-  promote 4.5 to hybrid without an eval gate (measured hybrid ~$0.76 vs
-  max-everywhere ~$8.5 on the same estimator).
-- **Operator-surface honesty:** shared Grok tier labels (no stale 4.1 / "4.3
-  max"), console-styled dry-run with progressive recovery disclosure,
-  Zero-friendly doctor, **CLI and MCP** authorize at
-  `max(planning, historical)`, corrupt run-state quarantine, partial fast-run
-  and analysis-fallback completion warn instead of green success, launch
-  prints cost even when Proceed is skipped, OpenAI/Anthropic-only and keyless
-  full dry-runs set `execution_ready: false` and disclose the XAI/Gemini
-  planning floor.
-- **Experimental `primr orchestrate` cost gate:** always estimate, support
-  `--dry-run`, require `--max-cost` under the estimate or interactive `[y/N]`,
-  always register `CostGuardHook`. Full orchestrate mode fails if no report
-  is produced.
-- **Layer 1 working brief:** after scrape (+ hiring) on fast and structured/
-  deep collection; honors run `output_dir`; hiring refresh keeps URL samples;
-  MCP `early_artifact_paths` and on-disk-true inventory. Layer 2 still design.
-- **1.40 freeze UX:** baseline inspection lists
-  `blockers.missing_decidable_confirmed_floor` with exact report paths so
-  operators can replace undecidable reports without hunting.
+Required outcomes:
 
-Still open, and still the honest center of gravity:
+- Premium does not silently discard operator context files.
+- Deep/Premium `--verify` either executes after a report is produced or is not
+  priced and advertised for that route.
+- `target_pages` has an enforceable meaning or is removed with every page-count
+  promise that depends on it.
+- Architecture and run-mode docs identify active Standard, active Premium,
+  compatibility-only, and experimental surfaces.
+- The active Accordion path has hermetic tests for input forwarding,
+  verification dispatch, pacing, partial recovery, and cleanup.
 
-1. **Epistemic quality (→ 1.40)** — calibration tooling exists; hard gates stay
-   report-only until a fully decidable production corpus supports them.
-2. **Backend freedom (→ 1.41)** — routing is wired; live host-vs-cloud promotion
-   and residual dual-provider *execution* (not only dry-run labels) remain.
-3. **Agent control-plane polish (→ 1.42)** — strong base; Tasks extension and
-   related MCP watch items remain.
-4. **Memory / strategy delta (→ 1.43 / 2.x)** — design and profile commands
-   exist; not yet the default re-run experience.
-5. **Time-to-first-useful artifact (→ 1.44+)** — Layer 1 free working brief is
-   shipped; Layer 2 early sketch remains opt-in design.
-   [`docs/design/progressive-artifacts.md`](design/progressive-artifacts.md).
-6. **Optional: Grok 4.5 hybrid-reasoning eval** — profile `grok45-flashlite`
-   is a promotion candidate only. Run only with explicit spend approval; flip
-   hybrid default only if utility-per-dollar and quality pass.
+**Acceptance:** focused tests, Ruff, mypy, strict docs, full non-integration
+suite, and the branch-coverage ratchet pass. No billable call is required.
 
-## Research-backed decision rules
+## Completed: zero-spend provider/API currency checkpoint
 
-The current docs and roadmap already match the external guidance that matters
-for Primr's shape:
+**Status:** complete after the August 13 re-audit; no model spend.
 
-- Keep the root README as a project front door: purpose, use fit, quick start,
-  and pointers to deeper material. Detailed workflows belong in focused docs,
-  matching the Diataxis split and GitHub README guidance.
-- Keep the changelog grouped under `Unreleased` and human-readable change
-  categories, following Keep a Changelog.
-- Keep docs builds strict. Broken navigation or links should fail the build
-  before they reach users.
-- Treat agent integrations as a control plane for a paid local-first research
-  product, not as generic shell execution. MCP and current agent-security
-  guidance converge on least privilege, explicit consent for high-impact
-  actions, tool safety, scoped resources, and auditability.
-- For MCP resources, keep context surfaces compact and application-driven.
-  Parameterized job reads should move toward resource templates as client
-  support matures; the current implementation extends the repo's existing
-  URI-pattern resource listing for compatibility while preserving the same
-  body-free and ownership-gated contract for artifacts, QA, usage, source
-  appendix, and scrape trace metadata. Eval-id reads should avoid arbitrary
-  file paths and expose only compact application summaries.
-- For HTTP MCP auth, keep Primr as the protected resource server and enforce
-  internal scopes per operation. The latest MCP revision adds incremental
-  scope-consent semantics through `WWW-Authenticate`, which fits the existing
-  small `read`/`research`/`delegate`/`admin` vocabulary and should shape the
-  next HTTP parity slice.
-- MCP `2026-07-28` is final and shipped in Primr (SDK v2, dual-era clients,
-  cache hints, resource templates, aligned errors). Remaining watch items from
-  that revision: the Tasks extension for long-running jobs, OpenTelemetry
-  `_meta` propagation, and Client ID Metadata Documents on the auth side.
-  Implement those only when client need is clear; do not invent parallel job
-  APIs for fashion.
-- For A2A, keep the Agent Card as a discovery contract and enforce actual
-  authorization at the server-side skill boundary. The protocol advertises
-  security schemes, but Primr-owned scope decisions must still happen before
-  handler dispatch so read-only agents cannot start paid work.
-- Treat GenAI observability as structured telemetry: model calls, tool calls,
-  token/cost metadata, outcome, and trace ids. Full prompt/output capture
-  should stay opt-in and privacy-aware.
-- Treat provider background execution as a durable lifecycle, not a long HTTP
-  request. Persist the provider interaction id immediately, reconnect by id,
-  and acknowledge completion only after Primr's owning output boundary proves
-  the required artifacts are durable. Apply that contract consistently to
-  normal completion and recovery paths.
-- Keep package publication on PyPI Trusted Publishing. Build once from an
-  immutable tag on green `main`, publish that exact artifact set through OIDC,
-  and verify registry filenames and hashes before creating the GitHub release.
-- Treat validation as layered evidence and reasoning evaluation. Citation
-  parsing, source fetches, and sidecar schemas are deterministic input
-  assembly. They are not quality validation. Validation has to judge support,
-  contradiction, source independence, source authority, uncertainty honesty,
-  reasoning strength, and business relevance through pre-registered evals,
-  agreement checks, and human spot review where needed.
-- Keep AI Strategy business-first. Begin with company economics, strategic
-  tensions, industry change, value pools, and the art of the possible. Rank
-  revenue, margin, service, product, productivity, and risk outcomes before
-  selecting models, vendors, or infrastructure. Stanford's 2026 AI Index shows
-  rapid adoption and investment alongside mixed macro-level productivity
-  evidence, which supports explicit value hypotheses rather than technology-led
-  certainty.
-- Make each AI initiative carry business and technical unit economics. Connect
-  total cost and marginal cost to a measurable unit such as revenue, cost to
-  serve, transaction, case resolved, cycle time, or risk reduction. FinOps
-  guidance explicitly uses those links to inform workload placement, packaging,
-  pricing, and roadmap tradeoffs.
-- Treat the observed technology estate as evidence, not destiny. AI Strategy
-  should account for every credible recon signal across productivity, identity,
-  data, cloud, AI providers, and existing data-center capability, then assign a
-  disposition such as reuse, integrate, contain, migrate, retire, or evaluate.
-- Default to workload-specific placement analysis across public cloud, private
-  cloud, on-premises accelerated infrastructure, edge, and hybrid patterns.
-  Recommend owned accelerated capacity only when sustained utilization, data
-  gravity, latency, sovereignty, resilience, or unit economics justify the
-  operational burden. Current vendor architecture guidance supports both
-  consumption-based AI and purpose-built AI factories, but neither is a
-  universal default.
-- Keep governance tied to business context throughout the lifecycle. NIST AI
-  RMF calls for mission goals and business value to be defined before system
-  decisions, with ongoing governance, measurement, and management rather than a
-  one-time risk checklist.
+**Deliverable:** keep the model registry, pricing boundaries, API transport,
+storage choices, prompt caching, retry behavior, and actual-cost accounting
+aligned with current official provider contracts.
 
-Reference anchors:
+The first audit correctly confirmed Grok 4.6 as the current xAI flagship and
+GPT-5.6 Sol/Terra/Luna as the current OpenAI family, but it closed this card too
+early. A fresh primary-source check found stale Grok 4.20 price/context data,
+the removed Google Interactions `outputs` schema in response parsing, and File
+Search uploads that were not awaited before paid research began. Correct the
+registry, current `steps` parsing with an explicit legacy fallback, upload
+operation lifecycle, SDK floor, retention wording, tests, and cost guidance
+before this checkpoint could return to complete. Those corrections and their
+hermetic regressions now pass.
 
-- Diataxis: <https://diataxis.fr/>
-- GitHub README guidance: <https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes>
-- Keep a Changelog: <https://keepachangelog.com/en/1.1.0/>
-- MkDocs strict mode: <https://www.mkdocs.org/user-guide/configuration/#strict>
-- MCP security best practices: <https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices>
-- MCP specification, latest 2025-11-25 overview:
-  <https://modelcontextprotocol.io/specification/2025-11-25>
-- MCP resources, latest 2025-11-25 draft:
-  <https://modelcontextprotocol.io/specification/draft/server/resources>
-- MCP authorization, latest 2025-11-25:
-  <https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization>
-- MCP 2025-11-25 changelog:
-  <https://modelcontextprotocol.io/specification/2025-11-25/changelog>
-- Gemini Interactions API overview, accessed 2026-07-10:
-  <https://ai.google.dev/gemini-api/docs/interactions-overview>
-- Gemini background execution, accessed 2026-07-10:
-  <https://ai.google.dev/gemini-api/docs/background-execution>
-- PyPA Trusted Publishing release workflow guide, updated 2026-06-22:
-  <https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/>
-- MCP 2026-07-28 release candidate blog, published 2026-05-21, final spec
-  scheduled for 2026-07-28:
-  <https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/>
-- A2A protocol specification, latest snapshot accessed 2026-06-29:
-  <https://a2a-protocol.org/latest/specification/>
-- OWASP Agentic AI Threats and Mitigations: <https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/>
-- Microsoft Zero Trust AI threat modeling: <https://learn.microsoft.com/en-us/security/zero-trust/sfi/threat-modeling-ai>
-- OpenTelemetry GenAI semantic conventions: <https://opentelemetry.io/docs/specs/semconv/gen-ai/>
-- OpenTelemetry GenAI semantic conventions repository:
-  <https://github.com/open-telemetry/semantic-conventions-genai>
-- NIST AI Risk Management Framework Generative AI Profile:
-  <https://www.nist.gov/itl/ai-risk-management-framework/generative-artificial-intelligence>
-- NIST Practices for Automated Benchmark Evaluations for AI System Security:
-  <https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.800-2.ipd.pdf>
-- Stanford AI Index 2026: <https://hai.stanford.edu/ai-index>
-- NIST AI RMF Core: <https://airc.nist.gov/airmf-resources/airmf/5-sec-core/>
-- FinOps Unit Economics:
-  <https://www.finops.org/framework/capabilities/unit-economics/>
-- Azure Well-Architected AI design principles:
-  <https://learn.microsoft.com/en-us/azure/well-architected/ai/design-principles>
-- NVIDIA AI Factories: <https://www.nvidia.com/en-us/solutions/ai-factories/>
-- OWASP Top 10 for LLM Applications 2025:
-  <https://genai.owasp.org/owasp-top-10-for-llm-applications-2025/>
-- OpenAI evaluation best practices:
-  <https://developers.openai.com/api/docs/guides/evaluation-best-practices>
-- OpenAI evals guide:
-  <https://developers.openai.com/api/docs/guides/evals>
-- OpenAI API pricing:
-  <https://openai.com/api/pricing/>
-- OpenAI prompt caching:
-  <https://developers.openai.com/api/docs/guides/prompt-caching>
-- Anthropic building effective agents:
-  <https://www.anthropic.com/engineering/building-effective-agents>
-- Anthropic long-running agent harnesses:
-  <https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents>
-- Anthropic prompt caching:
-  <https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching>
-- Gemini API pricing:
-  <https://ai.google.dev/gemini-api/docs/pricing>
-- Gemini context caching:
-  <https://ai.google.dev/gemini-api/docs/caching>
-- xAI API pricing:
-  <https://docs.x.ai/developers/pricing>
-- NSA MCP security design considerations:
-  <https://media.defense.gov/2026/Jun/02/2003943289/-1/-1/0/CSI_MCP_SECURITY.PDF>
+**Acceptance:** official source URLs and audit date recorded; no unsupported
+model or pricing claim; exact 200k xAI boundary priced correctly for every
+active xAI model; current Google `steps` responses and upload operations tested
+hermetically; current model registered without silent promotion;
+transport/storage/cache decisions tested; dry-run remains network- and
+model-call-free. Primary sources: [xAI pricing](https://docs.x.ai/developers/pricing),
+[Gemini Interactions changelog](https://ai.google.dev/gemini-api/docs/changelog),
+[Deep Research](https://ai.google.dev/gemini-api/docs/deep-research), and
+[File Search](https://ai.google.dev/gemini-api/docs/file-search).
 
-## 2026-06-27 guidance refresh
+## Completed: zero-spend correctness and resilience
 
-The refresh confirmed the roadmap direction and tightened the execution bar.
-Newer guidance has six practical implications for Primr:
+**Status:** complete in this slice; no model spend.
 
-- The eval future is local, dataset-driven, and calibrated. OpenAI now treats
-  the Evals platform as legacy, but its current evaluation guidance still
-  reinforces the durable pattern Primr should follow: define the objective,
-  collect representative data, define metrics, run comparisons, and keep
-  continuous evaluation growing from production misses. Primr should keep its
-  own eval harness and use provider tools only as optional runners.
-- Evaluation has to combine deterministic checks, human or expert spot review,
-  and model judging calibrated against trusted labels. Single score evals and
-  single model judges are not enough for gates. Pairwise, pass/fail, and
-  criterion-specific grading fit Primr better than open-ended "quality"
-  judgments.
-- Evidence validation has to separate retrieval, support, contradiction,
-  source independence, source authority, reasoning quality, uncertainty
-  honesty, and decision usefulness. A live source URL or matching phrase proves
-  access, not truth.
-- Agent surfaces need least privilege, explicit approval for high-impact or
-  paid actions, narrowly scoped tools, session-safe identity, and resource
-  access that can be audited. The 2026 MCP security guidance raises the bar
-  beyond "tools work" to "tool and resource access are bounded, consented, and
-  reviewable." Primr's shipped control-plane resources now cover artifact
-  inventory, QA summary, usage/cost metadata, source appendix metadata, and
-  scrape trace metadata, and claim verification metadata without report body
-  content, raw trace logs, raw claims, source URLs, search queries, or
-  explanations. Stage eval scorecard readback also stays compact and eval-id
-  scoped rather than accepting raw filesystem paths.
-- GenAI observability should use structured spans, metrics, and events for
-  model calls, tool calls, token and cost use, route choices, request ids, job
-  ids, outcomes, and errors. Full prompt and report body capture should remain
-  opt-in because Primr is local-first and research artifacts can be sensitive.
-- Long-running agent work needs durable state and external ground truth.
-  Compaction or summaries are not enough. Primr should continue to privilege
-  manifests, sidecars, artifacts, status resources, and test results over
-  self-reported completion.
+**Deliverable:** close the active runtime defects found after the report and
+provider currency audits:
 
-Exceptional execution standard for every workstream:
+- require estimate-bound approval on ordinary CLI and every MCP transport;
+- make every advertised dry run incapable of entering a billable delegate;
+- prevent duplicate provider jobs after an accepted interaction becomes
+  uncertain and retain resources until terminal state;
+- fail closed when paid capability routing cannot resolve;
+- return and acknowledge durable Markdown when optional DOCX rendering fails;
+- verify the actual text artifact for custom destinations;
+- clean temporary inputs and unknown-age provider resources conservatively;
+- preserve exact usage and cost across retry, refusal, incomplete, and
+  tool-only provider responses; and
+- reject misleading full-success states for materially incomplete reports.
 
-- Product behavior: a visible CLI, MCP, A2A, artifact, or report behavior
-  changes for the better.
-- Measurement: a scorecard, sidecar, trace, usage record, or calibration run
-  proves what changed.
-- Safety boundary: approval, scope, spend, egress, deletion, retention, or
-  privacy behavior is explicit.
-- Regression guard: focused deterministic tests ship with the change, and any
-  content-quality claim has a documented eval or calibration record.
-- Runtime economics: profile production-shaped work before optimizing. Improve
-  phase topology and Python algorithms first. A different runtime must beat the
-  optimized reference on an explicit end-to-end or operational SLO and carry
-  its correctness, packaging, observability, fallback, and rollback costs.
+**Acceptance:** regression tests reproduce each defect without network access,
+Ruff and mypy pass, branch coverage remains above 80 percent, the file-size
+ratchet does not rise, and all non-integration CI gates pass. No provider call,
+model call, dependency install, or paid evaluation is part of this item.
 
-## Ordered execution plan
+## Completed: zero-spend run-cost audit closure
 
-### 1. Evidence-grounded validation and label honesty
+**Status:** complete in this slice; no model spend.
 
-Status: current measured-baseline milestone complete on 2026-07-13. A curated
-five-report baseline is ready with 33 of 37 comparable cloud and local verdicts
-in agreement. Operator review deliberately kept the hard gate report-only
-because two reports lack a decidable Confirmed floor. The current body-free
-decision record and reviewable disagreement pointers preserve the evidence for
-that choice. Recalibration on a fully decidable production corpus remains a
-continuous follow-up, not a blocker to item 2.
+**Resolution:** completed research manifests now persist a run-scoped usage
+delta after optional verification. Failed and cancelled jobs retain `null`
+when cost cannot be measured, while a durably published paid Premium partial
+reconciles its tracked model usage and accepted Deep Research task once.
 
-Why next: the roadmap's measured quality gap is not prose polish, and it is
-not a request for simplistic fact matching. It is epistemic grounding: whether
-the report's conclusions, labels, caveats, and strategic inferences are
-supported by the evidence they cite and honest about what remains uncertain.
-Label traceability is the first measurable slice because it is cheap to run on
-existing artifacts, but it is only one input to validation. The broader bar is
-whether the artifact's reasoning survives evidence review, contradiction
-review, and uncertainty review.
+**Deliverable:** make the audit trail truthful after execution, including
+non-happy paths, without weakening the approval or recovery contracts:
 
-Completed in this milestone:
+- persist a run-scoped actual-cost delta for completed MCP/A2A research jobs;
+- include verification-stage usage when verification ran after the main
+  finalizer;
+- retain estimate and non-secret approval facts on failed or cancelled jobs,
+  while reporting actual cost as unavailable when it cannot be measured
+  honestly; and
+- reconcile token usage plus the accepted Deep Research task charge before a
+  paid partial Premium artifact returns.
 
-- Froze a curated five-report pack with explicit representative tags, report
-  and sidecar fingerprints, source appendices, and current-format artifacts.
-- Ran a measured multi-report baseline without reducing validation to string
-  overlap or isolated fact matching.
-- Captured 50 source reviews. Support produced 18 affirmative results; the
-  secondary contradiction, independence, authority, reasoning, uncertainty,
-  and relevance dimensions remained unknown and therefore did not justify a
-  gate.
-- Compared local and cloud judges on the same sampled claims, persisted exact
-  body-free disagreement pointers, and manually adjudicated all four
-  disagreements before deciding whether to trust the local path.
-- The report-only scorecard publishes per-dimension rates, judge agreement,
-  contradicted-claim counts, and abstention or uncertainty rates without
-  blocking runs. Shipped slices cover evidence-review rates,
-  standard verification contradiction counts, and sidecar-backed judge
-  agreement rates, plus a local-only calibration-pack manifest, a curated
-  pack-selection template for manual representative tagging, a curated
-  pack-selection contract for explicit representative coverage tags, a
-  zero-spend selection inspection that shows missing representative tags before
-  manifest generation, report/sidecar content fingerprints in pack manifests,
-  and a zero-spend baseline readiness artifact that names exactly why a pack is
-  not ready. The readiness check now requires every
-  baseline candidate to come from an explicit curated pack-selection manifest
-  with non-empty representative tag requirements; latest-N aggregate manifests
-  report `missing_representative_selection` and remain report-only. It also
-  requires every selected report to carry
-  evidence-review dimensions and cloud-vs-local judge-agreement metadata, so
-  partial coverage cannot satisfy the baseline by aggregate counts alone.
-  Calibration sidecars and eval/baseline summaries now also flag source-copied
-  `(Estimated)` / `(Hypothesis)` claims as a report-only signal.
-  `primr calibrate --inspect-baseline <baseline.json>` exposes those blockers
-  as machine-readable JSON for operators and checks current report/sidecar
-  fingerprints against the frozen pack without returning report bodies. MCP
-  clients can read the same path-allowlisted payload through
-  `primr://calibration/baseline/inspection?path=<baseline.json>`. Ready
-  baseline artifacts now publish a report-only gate recommendation from the
-  per-report Confirmed traceability floor, including the exact
-  `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` assignment to review before arming a
-  hard gate. Baseline artifacts and inspections now also include a body-free
-  operator-review block that keeps automatic gate arming disabled, names the
-  required checks for representative coverage, evidence dimensions, judge
-  disagreement, false-positive and false-negative risk, and threshold
-  selection, and distinguishes gate candidates from report-only
-  recommendations without exposing report bodies or raw claims. Ready curated
-  multi-report baselines now also publish a `measurement` block with
-  `measured_operator_curated_multi_report_baseline` status when representative
-  coverage, evidence review, and judge agreement are complete. Baseline
-  `next_actions` now mirrors the body-free hard-gate state exposed by inspection
-  JSON, including the absent, incomplete, or zero Confirmed-floor reason and the
-  selected-report counts that keep the environment variable unset. Baseline
-  artifacts and inspections now also carry a body-free
-  `operator_decision_template` with allowed decisions, required review items,
-  selected-report counts, and operator-supplied fields for documenting a later
-  report-only or manual gate decision without recording one automatically.
-  `primr calibrate --baseline-decision-from ... --baseline-decision-out ...`
-  now writes a body-free operator decision record only when the inspected
-  template allows the requested decision, and never sets the hard-gate
-  environment variable itself. `primr calibrate --inspect-baseline-decision ...`
-  revalidates a saved decision against the current baseline fingerprint and
-  allowed-decision evidence before downstream loops trust it. Raw
-  report-bound sidecars now preserve each cloud-vs-local disagreement as a
-  body-free claim-index and verdict pointer for operator adjudication. Compact
-  MCP and A2A summaries continue to omit the pointer list and all raw claim or
-  source content.
-- Kept `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` unset because two of five reports
-  lack a decidable Confirmed floor, even though the three-report measured floor
-  is 30 percent.
-- Surfaced contradicted `--verify` claims in the report trust summary. Standard
-  runs now add verification trust rows with WARN and contradiction counts when
-  verification finds contradicted claims.
-- Kept `PRIMR_LABEL_HONESTY` unchanged because adjudication found judge errors
-  in both directions and does not justify a default-on move.
+**Acceptance:** success manifests and compact usage summaries agree on
+estimate, approval binding, ceiling, and actual cost; terminal manifests never
+invent a zero; paid partial returns write usage history exactly once; process
+and worker-protocol tests prove the values survive isolation; Ruff, mypy,
+architecture, and branch-coverage gates remain green. No provider call, model
+call, dependency install, or paid evaluation is required.
 
-Continuous production-corpus follow-up:
+## Completed: model-backed improvement governance
 
-- Freeze at least five current provider-backed production reports in which
-  every report contributes decidable Confirmed claims and secondary evidence
-  dimensions are complete rather than unknown.
-- Repeat cloud-vs-local comparison and human disagreement adjudication on that
-  corpus. Reconsider the hard threshold and label-honesty default only when the
-  resulting false-positive and false-negative evidence supports the change.
+**Status:** complete in this slice; no model spend.
 
-Done when:
+`primr improve <path> --improve-agentic` and `primr refine "Company"` now
+produce bounded dry-run quotes, require explicit approval, honor `--budget`,
+reserve the quoted stage cost before model work, and provide one-object JSON
+estimate, refusal, and result contracts. Refine prices its maximum nine section
+regenerations and three bounded acceptance audits; it normally stops earlier.
+Plain `primr improve <path>` remains deterministic, local, and ungated.
 
-- The eval scorecard separates structural extraction, evidence support,
-  reasoning quality, contradiction handling, uncertainty honesty, and judge
-  agreement. The sidecar and scorecard slices are shipped, including the
-  report-only inference source-copy check; the multi-report pack-manifest,
-  selection-template, selection-inspection, curated selection, and
-  baseline-readiness artifact slices are shipped; baseline artifacts now carry
-  explicit body-free operator-review requirements; readiness now refuses
-  non-curated latest-N packs; and ready curated multi-report baselines now carry
-  explicit measurement status in JSON and Markdown; ready-but-report-only
-  baselines now publish explicit hard-gate next actions; baseline artifacts now
-  include a decision template, and the CLI can write a separate operator-created
-  decision record for gate evidence. The current five-report measured baseline
-  completed operator review and records `keep_report_only`; future production
-  corpus recalibration remains continuous evaluation work.
-- The hard gate is either armed from a defensible baseline or deliberately left
-  report-only with documented evidence.
-- Contradicted claims are visible in the human-facing report trust surface for
-  the standard `--verify` path.
-- No new deterministic prose-quality or claim-quality gate was added.
+## Optional later: paired report-quality baseline
 
-### 2. Backend freedom production wiring
+**Status:** designed but explicitly deferred. No budget is approved. Run only
+when the operator decides the product question is worth paid measurement.
 
-Status: free-path production wiring largely landed in v1.39.0 (fast pipeline +
-`premium.deep_research` via the capability router, body-free `stage_routes`,
-fail-closed agent/local, standing offline source-relevance corpus). CLI deep
-runs now pass `folder_path` so premium stage routes can persist on the run
-working folder. What remains is measured promotion (live host-vs-cloud), and
-closing residual xAI/Gemini-era assumptions on full-report preflight for pure
-single-provider profiles.
+**Deliverable:** five representative company profiles run through both
+Standard and Premium, producing ten blinded artifacts evaluated on identical
+pre-registered dimensions.
 
-Why next: provider abstraction, capability routing, and availability snapshots
-exist, but the full-report runtime still has xAI/Gemini-era assumptions. This
-is the highest-leverage architectural gap because it unlocks honest
-OpenAI-only, Anthropic-only, billing-proven host-agent, hybrid, and local
-profiles without forking the pipeline.
+Measure evidence support, contradiction handling, source authority and
+independence, uncertainty and label honesty, argument arc, repetition,
+terminology consistency, and citation resolution. Use agreement-validated
+judges plus human adjudication of disagreements. Do not add regex content gates
+or assume serial or concurrent writing wins before measurement.
 
-Do next:
+**Acceptance:** every selected dimension is decidable, every judge disagreement
+is adjudicated, structural citations resolve, and the body-free decision record
+states whether Premium provides a meaningful quality lift. See
+[`design/premium-quality-eval.md`](design/premium-quality-eval.md).
 
-- Inventory every production stage by capability requirements: browsing,
-  long-context reasoning, structured extraction, writing, vision, tool use,
-  citation handling, cache support, streaming, and max output. First slice
-  shipped: `src/primr/core/stage_inventory.py` now records router-ready
-  requirements, accepted backend families, current backend ownership,
-  promotion gates, budget checkpoints, and artifacts for the fast-mode and
-  premium deep-research stages. The inventory is descriptive only; production
-  execution still uses the legacy routing seams.
-- Move provider-specific behavior into provider-owned seams. Shipped:
-  `XAIProvider` owns the xAI Responses API browse/search surrogate behind the
-  legacy `grok_browse_and_summarize()` wrapper, and `GeminiProvider` owns
-  terminal quota guidance rendered by the legacy Gemini `llm()` path.
-- Add long-context surcharge fields and cache-token fields to estimates for
-  models with tiered long-input or cache pricing. Shipped: estimates now carry
-  live input, cached input, cached-input cost, and long-context surcharge
-  fields, with observed historical cache hits included when available.
-- Wire cheap utility stages through capability routing behind an explicit
-  inference/profile flag while preserving today's fallback chain. Shipped:
-  `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals`
-  now consume `route_stage()` behind `--inference cloud|hybrid`, log safe route
-  metadata, append capped body-free `stage_routes` records to
-  `_run_state.json`, and execute through existing provider seams with today's
-  role defaults preserved as fallback. The public CLI remains
-  `--inference cloud|hybrid`. `fast.source_relevance` also has an
-  Codex CLI adapter. Its first promotion-safety slice is shipped as an
-  unpromoted, single-company experimental route: it additionally requires
-  `--acknowledge-host-agent-may-bill`, records the route as potentially metered
-  with pending-eval status, excludes unknown host charges from Primr estimates
-  and budgets, and rejects batch fan-out. This opt-in is not promotion; cloud
-  remains the validated baseline until a representative labeled host-vs-cloud
-  comparison and human review clear the stage gate. Runtime
-  route resolution now consumes sanitized env-only cloud provider availability
-  snapshots by default, can accept injected quota snapshots, and records
-  body-free availability metadata without adding live quota collection or local
-  probes to normal runs. Route records now also include measured
-  token/cache/cost deltas when provider usage counters expose them. Body-free
-  stage route comparison helpers now aggregate those records into JSON/Markdown
-  artifacts by stage/backend/profile. Stage eval scorecards now join those
-  route rows with explicit quality evidence and classify candidates for human
-  review without auto-promotion. The scorecard artifact flow is available through
-  `primr --eval --eval-stage-scorecard --eval-stage-quality <quality.json>`,
-  and MCP clients can inspect those artifacts through
-  `primr://eval/stage_scorecard/{eval_id}` without receiving prompt, report,
-  quality-source, or raw run-state content. The website-summary local-stage
-  eval now emits `website_summary_stage_quality_evidence.json` as a structured
-  scorecard input, and same-command scorecard generation can consume it when a
-  manual `--eval-stage-quality` path is not supplied. Source-relevance labeled
-  fixtures now emit body-free precision, recall, F1, exact-match, and quality
-  evidence through `--eval-source-relevance-fixture`, giving the Codex
-  source-relevance pilot a review-only comparison path before host execution is
-  broadened. The two other routed utility stages also fail closed when the
-  internal agent profile is exercised by tests or evals and no host adapter
-  qualifies: website summaries write
-  deterministic source excerpts, hiring signals use deterministic triage plus
-  posting metadata, and both record body-free `agent_profile_unavailable` route
-  fallbacks instead of invoking cloud LLMs.
-- Wire the next production stages through capability routing while preserving
-  failovers. Shipped across the fast pipeline: utility stages
-  (`scrape_summary`, `source_relevance`, `hiring_signals`), reasoning stages
-  (`research_deepening`, `analysis_workbook`, `cross_validation`), and writing
-  stages (`report_sections`, `trust_polish`, `strategy_generation`), plus
-  optional `fast.label_honesty` route recording when
-  `PRIMR_LABEL_HONESTY=1`. All record body-free stage route usage and fail
-  closed for agent/local profiles without a qualifying adapter. Cloud remains
-  the validated baseline; host adapters remain limited to the unpromoted
-  `fast.source_relevance` pilot.
-- Promote one host/local candidate only after stage-scoped evals prove quality,
-  cost, latency, failure behavior, and billing provenance. If billing cannot be
-  proven, promotion requires an explicit operator acknowledgment that metered
-  API usage may apply.
-- Promote one stage at a time. A provider path is supported only when report
-  quality, cost, latency, and failure behavior are measured against the same
-  calibration pack.
+**Cost guard if later approved:** stage at cumulative ceilings of $5, $15, and
+$25. The $25 figure is an absolute maximum, not an expected budget or target.
+Prefer local scoring, estimate every exact command, and obtain explicit
+approval before execution. A positive Premium quality claim still requires all
+five pairs; if they cannot fit under the approved ceiling, stop as
+inconclusive.
 
-Done when:
+## Next executable slice: architecture ownership without behavior drift
 
-- The stage declares requirements; the router chooses candidates; execution
-  consumes the resulting chain. The declaration slice, full fast-pipeline
-  runtime router wiring (including optional label honesty), and
-  `premium.deep_research` execution wiring are shipped. Remaining: measured
-  host promotion for source-relevance (live comparison after spend approval).
-- Estimates and usage records name the backend and declared route category. The
-  route ledger records backend/profile/billing metadata for the fast-pipeline
-  routed stages listed above and appends measured stage-scoped
-  token/cache/cost deltas when counters are available. Codex route metadata is
-  not proof of the authenticated session's billing mode.
-- Provider comparison artifacts exist for every promoted stage.
-  The route-metadata comparison artifact exists; quality comparison artifacts
-  now have a CLI-accessible scorecard layer, and website-summary local-stage
-  evals can produce either structural completeness evidence or local semantic
-  judge-panel evidence for same-command scorecards. Source-relevance fixture
-  evals can also produce F1 quality evidence for the experimental host-agent
-  pilot. These remain report-only scorecard evidence, not promotion gates;
-  calibrated samples and human-reviewed acceptance criteria are still required
-  before any promotion. The standing source-relevance corpus
-  (`source_relevance_standing_v1`) is now packaged with representative tags and
-  dual cloud/host candidates. Offline path is complete: integrity inspect
-  (sha256-bound), standing scorecard, and body-free backend comparison
-  artifacts under safe eval-id paths, all with
-  `promotion_status=not_promoted`. The next concrete slice is a controlled live
-  host-vs-cloud comparison against that standing corpus after explicit approval
-  of potentially metered host use and direct cloud spend, then a human-reviewed
-  promotion decision without auto-arming host routing. Broader production-stage
-  router wiring beyond the three utility stages remains open after that.
-- No hidden provider dependency remains in the full-report path for the wired
-  stage.
+**Status:** in progress; hermetic and zero-spend work is authorized. The first
+P1 batch moved the shared CLI command/configuration contract out of the
+operational coordinator, reducing the largest import-cycle component from 24
+modules to 22 without changing public imports or runtime behavior.
 
-### 3. Agent control-plane consumption resources and A2A parity
+**Deliverable:** first finish the exact compatibility inventory, contract
+fixtures, and import-cycle burndown described in
+[`design/24-architecture-cohesion-plan.md`](design/24-architecture-cohesion-plan.md).
+Then reduce `ai/deep_research.py` into a few one-way, behavior-owned
+boundaries:
 
-Why next: MCP authorization, approval tokens, audit logging, and runtime budget
-propagation are shipped. A2A now shares MCP's read/research scope split,
-compact resource reads, approval-token enforcement for research execution, and
-runtime budget propagation for accepted research jobs. A2A report-read parity
-is also shipped: agents request full report content only through an explicit
-report-scoped skill, without requiring broad filesystem access or dumping
-reports into context by default.
+1. public compatibility facade;
+2. provider interaction, polling, job, and File Search lifecycle; and
+3. Premium dossier, sequential section writing, and assembly.
 
-Do next:
+Deprecate or quarantine dormant single-call, architect, executor, aggregator,
+and manual Accordion surfaces only after public-API and CLI compatibility are
+audited. The ownership split and compatibility work do not require a paid
+baseline because they must preserve behavior. Preserve serial Premium writing,
+and defer changes to citation, contradiction, repetition, terminology, or
+other report-quality behavior until a measured baseline justifies them.
 
-- Continue A2A parity now that the seven compact MCP job-scoped resource
-  slices shipped:
-  `primr://output/artifacts/by_job/{job_id}` returns ownership-gated file names,
-  paths, physical classifications, semantic roles, sizes, hashes, timestamps,
-  and missing-file state for one job, and
-  `primr://output/qa_summary/by_job/{job_id}` returns compact QA score/status
-  and count metadata, and
-  `primr://output/usage_summary/by_job/{job_id}` returns compact cost, timing,
-  approval, execution, and artifact-count metadata, and
-  `primr://output/source_summary/by_job/{job_id}` returns compact citation and
-  source appendix metadata, and
-  `primr://output/trace_summary/by_job/{job_id}` returns compact scrape trace
-  health metadata, and
-  `primr://output/verification_summary/by_job/{job_id}` returns compact claim
-  verification trust score, claim counts, status counts, first-party downgrade
-  counts, and source-reference counts, and
-  `primr://output/calibration_summary/by_job/{job_id}` returns compact
-  label-calibration per-label counts, inference source-copy counts,
-  evidence-review count buckets, judge provenance, and judge-agreement
-  metadata. None returns report body content;
-  trace summaries omit raw trace entries and page content, verification
-  summaries omit raw claims, source URLs, search queries, and explanations,
-  and calibration summaries omit raw claims, source URLs, evidence reviews,
-  and rationales. Resource reads are now audited with normalized resource kind,
-  hashed URI, hashed result body, job id when present, granted scopes,
-  duration, and outcome, without raw URI query values or resource bodies.
-  A2A now advertises equivalent read-scoped `read_artifacts_by_job`,
-  `read_qa_summary_by_job`, `read_usage_summary_by_job`,
-  `read_source_summary_by_job`, `read_trace_summary_by_job`, and
-  `read_verification_summary_by_job`, and `read_calibration_summary_by_job`
-  skills for the artifact metadata, QA summary, usage/cost, source appendix,
-  scrape trace, claim verification, and label-calibration slices, using the
-  same ownership-gated compact summary helpers.
-- Non-job eval readback is also available for routed-stage scorecards:
-  `primr://eval/stage_scorecard/{eval_id}` reads
-  `output/evals/{eval_id}/stage_eval_scorecard.json` through a simple eval-id
-  segment, returning status, blocker, route, cost, quality-score, and compact
-  row fields without arbitrary path access or raw evidence bodies. A2A now
-  advertises the equivalent read-scoped `read_stage_scorecard` skill, backed by
-  the same compact eval-id summary contract.
-- Scope matrix shipped so far: monitor can read status and compact summaries;
-  artifact read can read compact resources; report can read bounded report
-  bodies; research can estimate; and A2A paid research execution now requires
-  the same approved cap plus approval token as MCP when cost-cap enforcement
-  is active. MCP report reads now use
-  the separate `report` scope and `primr://output/report/by_job/{job_id}` path
-  before exposing report bodies.
-- Shipped first A2A parity slice: authenticated A2A HTTP requests now bind the
-  bearer token into the shared MCP auth context, and A2A skill dispatch
-  enforces `read` for `estimate_research`, `check_jobs`, `system_health`, and
-  compact read skills such as `read_artifacts_by_job` and
-  `read_qa_summary_by_job`, `read_usage_summary_by_job`, and
-  `read_source_summary_by_job`, `read_trace_summary_by_job`,
-  `read_verification_summary_by_job`, `read_calibration_summary_by_job`, and
-  `read_stage_scorecard`, and `research` for `research_company`, `run_qa`, and
-  task cancellation.
-  Authenticated A2A jobs are owned by the token `client_id`. Local
-  unauthenticated loopback behavior remains permissive, and legacy `write`
-  still satisfies research-scope operations for compatibility.
-- Shipped second A2A parity slice: skill invocations and task cancellation now
-  append privacy-preserving audit events with transport, skill name, hashed
-  message/result payloads, hashed caller id, granted scopes, duration,
-  outcome, and job id when present, without raw message text, task ids, URLs,
-  report paths, raw results, or caller ids.
-- Shipped A2A approval and budget parity: `estimate_research` returns
-  `approval_token`, `approval_token_id`, and `approval_expires_at`, and
-  `research_company` enforces `max_estimated_cost_usd` plus a matching token
-  when cost-cap enforcement is active before job creation. Accepted caps are
-  propagated into `PipelineRunner` as runtime budgets, and audit events record
-  sanitized estimate/cap metadata without raw URLs, message text, or approval
-  tokens.
-- Shipped A2A report-read parity: `read_report_by_job` requires `report` scope
-  for authenticated callers, reuses the MCP ownership-gated
-  `primr://output/report/by_job/{job_id}` reader, and supports
-  `content_mode`, `artifact_type`, and `max_chars` output negotiation while
-  preserving hashed A2A audit events.
-- Shipped remaining compact status output negotiation: authenticated MCP
-  `check_jobs`, `primr://output/latest`, and `primr://output/by_job/{job_id}`
-  now stay metadata-first even for `report`-scoped callers and point agents to
-  the explicit report resource; A2A `check_jobs` returns compact artifact and
-  report resource URIs instead of raw output paths.
-- Shipped OpenTelemetry-compatible audit projections: every MCP tool call,
-  MCP resource read, and A2A skill audit event now carries a `request_id` plus
-  a body-free `otel_span` name/attribute payload with job id when present,
-  without storing raw arguments, results, resource bodies, report bodies, URLs,
-  or raw caller ids.
-- Shipped non-fast runtime budget visibility: run manifests now persist the
-  estimate-time budget-enforcement payload plus the approved ceiling and active
-  runtime-budget flag, and compact usage-summary readback exposes that metadata
-  including non-interruptible required Deep Research tasks without returning
-  company URLs, approval tokens, manifest bodies, or artifact lists.
-- Shipped truthful local cancellation: MCP and A2A share one parent-owned
-  worker supervisor, strict JSONL lifecycle protocol, ready handshake,
-  cleanup-confirmed process-tree escalation, immutable terminal state,
-  lease-time journal reload before restart reconciliation, raw non-interpolated
-  worker environment loading, exact A2A task ownership, and worker-exit
-  manifests for supervised failure or cancellation. Spawn and restart failures
-  remain journal-only. A `cancelled` response now means the local worker exited;
-  remote provider state remains explicit and may be `unknown`.
-- MCP `2026-07-28` release candidate watch: after the final spec ships on
-  July 28, 2026, audit Primr's HTTP MCP server against the stateless transport
-  model, server discovery, operation routing headers, cache hints, explicit
-  task-handle lifecycle, Apps extension security model, JSON Schema 2020-12
-  schema handling, trace-context `_meta`, and authorization hardening. Keep
-  this as compatibility planning until the final spec and SDK support settle.
+**Acceptance:** no golden-artifact or eval regression, one-way dependencies,
+no mutually dependent micro-modules, and coverage rises on the extracted seams.
+The boundary test is
+[`design/24-architecture-cohesion-plan.md`](design/24-architecture-cohesion-plan.md).
 
-Done when:
+## Parallel portability lane
 
-- A read-only agent credential can monitor and consume a completed job without
-  starting paid work.
-- A research credential still cannot delegate unless it also has the delegate
-  scope.
-- Tool invocations and artifact-resource reads are auditable without raw
-  argument, URI query, resource-body, or report-body persistence.
-- MCP and A2A enforce the same approval, audit, and compact read-resource
-  semantics for equivalent operations. The shared `read`/`research` skill
-  scope split, MCP report-read scope separation, A2A skill-call audit parity,
-  artifact-metadata compact read
-  parity, QA-summary compact read parity, usage-summary compact read parity,
-  source-summary compact read parity, stage-scorecard compact eval-read
-  parity, all seven job-scoped compact read parity slices, and A2A research
-  approval/budget parity, A2A report-read parity, and compact non-fast runtime
-  budget visibility, plus truthful local worker cancellation, are shipped.
+**Agent Plugins v1 status:** implemented in the current slice. The experimental
+portable package is generated from canonical Primr skills using root
+`plugin.json`, `skills/`, and `mcp.json`, with pinned-schema and drift tests.
+Keep the Claude package as a host adapter, claim only smoke-tested clients, and
+never let plugin loading or skill invocation bypass Primr's estimate and
+approval contract. Revalidate when the Working Draft changes.
 
-### 4. Research memory layer 1
+**OKF v0.2 status:** design contract updated in the current slice. Keep the
+polished report unchanged and use OKF only as the future findings-interchange
+shape for memory, claim-store export, and handoff. Implement serialization
+when those consumers exist. Primr confidence remains distinct from OKF
+verification. See
+[`design/open-knowledge-format.md`](design/open-knowledge-format.md).
 
-Why later: memory compounds Primr's value, but it should not precede claim
-calibration and job-scoped artifact resources. Without those, memory risks
-repeating stale or weak claims with too much confidence.
+## Later, in dependency order
 
-Do next after the first three items are stable:
+1. Controlled live host-versus-cloud source-relevance comparison, after spend
+   approval and the quality instruments above.
+2. Residual single-provider execution cleanup.
+3. MCP Tasks and remaining control-plane parity where client demand is clear.
+4. Research memory layer 1, including retention, deletion, freshness, and
+   source attribution from its first release.
+5. Progressive artifacts, cost levers, and measured runtime overlap.
 
-- Implement filesystem-backed company tracking in the per-user data directory.
-  Foundation shipped: default `ResearchMemory()` now writes to
-  `<per-user data dir>/research_memory`, `PRIMR_DATA_DIR` relocates it,
-  `doctor` reports the path, and memory writes reject secret-like values before
-  YAML persistence. Company profile tracking is also started:
-  `primr company track`, `company list`, `company show`, and `company export`
-  create/read/export local profile bundles under
-  `<per-user data dir>/company_profiles` with no network or paid calls. Export
-  now includes profile metadata, stored run pointers when present, persisted
-  hypotheses, and explicit flagged gaps for missing run-history or claim-store
-  data.
-- Store run pointers, hypothesis history, source attribution, confidence,
-  freshness metadata, retention metadata, and exportable OKF bundles.
-- Ship deletion, retention, and no-secret write rules with layer 1, not after
-  it.
-- Require every persisted hypothesis to identify the source artifact and the
-  evidence dimension that supports it.
-
-Done when:
-
-- Run-history pointers, confidence evolution, and source-attributed claim
-  history feed the existing company export instead of remaining flagged gaps.
-- Completed research runs attach body-free pointers to tracked profiles without
-  loading report bodies into profile storage.
-- Clearing a company removes its local profile and claim history.
-- Prior-run material can inform a run only as clearly marked context, never as a
-  fresh claim without attribution.
-- Stale prior-run material cannot be promoted without fresh source evidence.
-
-### 5. Coverage and maintenance ratchet
-
-Why continuous: the recent refactors made the core easier to test. The right
-coverage goal is not a blanket 95 percent global target; it is a rising branch
-coverage gate plus per-module coverage on the newly extracted seams.
-
-Do next alongside every feature slice:
-
-- Add focused tests for each touched seam.
-- Raise per-module coverage where a refactor makes that honest.
-- Add mutation or adversarial fixtures for high-risk slices such as claim
-  parsing, scope checks, cost caps, redirects, and citation handling.
-- Run the standing bug-hunt and security review lane every six to eight cycles.
-- Keep Bandit, pip-audit, Trivy, Ruff, mypy, strict docs, and branch coverage
-  green.
-
-Done when:
-
-- New code has local regression coverage.
-- No warning-only resource leak, redirect bypass, or cost-control ambiguity is
-  accepted as "later" when it is in the touched surface.
-
-### Cross-cutting: runtime efficiency and execution isolation
-
-This work supports the ordered product priorities rather than displacing them.
-Instrument first, ship pipeline overlap, make cancellation own the actual
-worker, and consolidate repeated HTML work into a parse-once Python boundary.
-Only then run the optional Rust and Python 3.14t comparisons.
-
-Go and Mojo remain trigger-based evaluations, not queued rewrites. A Go control
-plane requires measured Python admission or p99 pressure after durable queueing
-exists. Mojo requires a real Primr-owned accelerator kernel; MAX or another
-model server may be compared externally through the existing
-OpenAI-compatible endpoint. The binding gates and stop conditions are in
-[`design/runtime-language-boundaries.md`](design/runtime-language-boundaries.md).
+The version ladder remains v1.40 quality readiness, v1.41 backend freedom,
+v1.42 control-plane completion, v1.43 memory, and v2.0 when those pillars meet
+their joint exit criteria.
 
 ## Explicitly not next
 
-- Do not expand the README with roadmap detail. Link to this page and the
-  design docs instead.
-- Do not add more regex-like prose gates for content quality.
-- Do not call validation complete because a cited page contains a matching
-  phrase. That is retrieval evidence, not reasoning validation.
-- Do not promote a new backend because it works once. Promote only after
-  measured quality, cost, and failure behavior are recorded.
-- Do not build memory before deletion, retention, source attribution, and
-  confidence-label rules are explicit.
-- Do not create a generic agent orchestration platform. Primr remains URL in,
-  serious artifact out, with a disciplined control plane around that job.
-- Do not add a language because it is fashionable or because one isolated
-  microbenchmark is faster. The complete product and operational contract must
-  improve.
+- A new `--long` alias or overlapping product tier.
+- Naive independent chapter fan-out for lower wall-clock time.
+- A deterministic prose-quality gate or a lone LLM judge.
+- An OKF wrapper around the narrative report or a new OKF platform.
+- Deletion of importable compatibility APIs without a compatibility audit.
+- A generic agent orchestration framework, daemon, or new implementation
+  language without a measured product bottleneck.
 
-## Validation policy
+## Standing validation policy
 
-Use free and local validation first: unit tests, strict docs build, static
-analysis, mocked evals, local judge comparison, and existing report sidecars.
-Deterministic checks may prepare evidence, prove structure, and guard
-irreversible actions. They must not judge free-form content quality. Any paid
-eval must have a pre-registered question, a cost cap, explicit approval, and a
-rubric that measures substance rather than phrase matches.
+Use free local validation first. Deterministic checks guard spend, egress,
+disk, schemas, citation resolution, and other prose-invariant structure.
+Content quality is measured through pre-registered, agreement-validated
+evaluation and human review. Every paid evaluation requires an exact estimate,
+an explicit cost cap, and approval before launch.

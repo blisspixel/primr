@@ -177,6 +177,10 @@ def generate_analysis_workbook(
         usage_before = stage_routing.capture_stage_usage()
     except Exception as e:
         logger.warning("Analysis workbook route resolution failed: %s", e, exc_info=True)
+        console.warn(
+            "Analysis workbook skipped (route_resolution_failed) - using collected insights"
+        )
+        return _finish_workbook(combined_insights, reasoning_session, folder_path, True)
 
     try:
         from primr.pipeline.integration import analysis_with_recovery

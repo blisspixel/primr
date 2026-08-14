@@ -39,7 +39,7 @@ classifiers = [
 # made known-breaking changes (see [project.optional-dependencies].a2a) — hard
 # caps on a library cause resolution conflicts for downstream consumers.
 dependencies = [
-    "google-genai>=1.55.0",
+    "google-genai>=2.3.0",
     # The default pipeline routes reasoning through xAI/Grok, which - like
     # OpenAI and Ollama - speaks the OpenAI chat-completions protocol via the
     # `openai` SDK (see ai/providers/openai_compatible.py). It is therefore a
@@ -85,11 +85,13 @@ dependencies = [
     # Security floors for otherwise-transitive deps, pinned so the resolver can
     # never select a known-vulnerable version on any install path:
     #   cryptography      GHSA-537c-gmf6-5ccf / CVE-2026-69247 (need ≥50.0.0)
+    #   h2                PYSEC-2026-3628
     #   python-multipart  CVE-2026-53538/53539/53540  quadratic-time DoS
     #   msgpack           GHSA-6v7p-g79w-8964
     #   pydantic-settings GHSA-4xgf-cpjx-pc3j
     #   pillow            PYSEC-2026-2253 through PYSEC-2026-2257
     "cryptography>=50.0.0",
+    "h2>=4.4.1",
     "python-multipart>=0.0.31",
     "msgpack>=1.2.1",
     "pydantic-settings>=2.14.2",
@@ -103,6 +105,7 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
     "hypothesis>=6.0.0",
+    "jsonschema>=4.0.0",
     "mypy>=1.0.0",
     "types-PyYAML",
     "ruff>=0.15.5,<0.16.0",
@@ -203,7 +206,7 @@ primr = [
     "resources/eval/*.json",
 ]
 
-# mypy configuration lives in mypy.ini (authoritative — mypy ignores a
+# mypy configuration lives in mypy.ini (authoritative; mypy ignores a
 # [tool.mypy] block here when mypy.ini is present). Edit strictness, the
 # per-module ignore list, and the strict allowlist there, not here. This
 # avoids the two-config drift trap (the prior [tool.mypy] block was dead

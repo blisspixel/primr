@@ -14,13 +14,9 @@ and never spends beyond the cheap tree pass.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+from primr.core.cli_contract import CLIConfig
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
-
-if TYPE_CHECKING:
-    from primr.core.cli import CLIConfig
 
 logger = get_logger("core.cli_plan")
 

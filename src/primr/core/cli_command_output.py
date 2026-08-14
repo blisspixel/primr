@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+from collections.abc import Iterator
+from contextlib import contextmanager, redirect_stdout
 
 from primr.utils.console import console
 
@@ -10,6 +13,16 @@ from primr.utils.console import console
 def emit_json(obj: dict[str, object]) -> None:
     """Write exactly one formatted JSON object to stdout."""
     print(json.dumps(obj, indent=2, ensure_ascii=False))
+
+
+@contextmanager
+def suppress_json_command_stdout(enabled: bool) -> Iterator[None]:
+    """Keep nested human output out of a command's one-object JSON response."""
+    if not enabled:
+        yield
+        return
+    with open(os.devnull, "w", encoding="utf-8") as sink, redirect_stdout(sink):
+        yield
 
 
 def report_command_error(
@@ -41,4 +54,4 @@ def report_command_error(
     return exit_code
 
 
-__all__ = ["emit_json", "report_command_error"]
+__all__ = ["emit_json", "report_command_error", "suppress_json_command_stdout"]

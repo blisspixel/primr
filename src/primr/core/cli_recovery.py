@@ -38,6 +38,15 @@ class _RollbackIncompleteError(RuntimeError):
     """Raised when an artifact promotion failure cannot be fully rolled back."""
 
 
+def _cleanup_pending_store(client: Any, job_info: dict[str, Any]) -> bool:
+    """Delete an owned store after its provider interaction is terminal."""
+    metadata = job_info.get("metadata", {})
+    store_name = metadata.get("file_search_store") if isinstance(metadata, dict) else None
+    if not isinstance(store_name, str) or not store_name:
+        return True
+    return bool(client._cleanup_file_store(store_name))
+
+
 def _sanitize_output_stem(value: str) -> str:
     """Convert user/model-provided names into safe filename stems."""
     cleaned = re.sub(r"[^A-Za-z0-9 _-]", "", (value or "").strip())
@@ -557,6 +566,13 @@ def resume_pending_jobs() -> int:
                 console.ok(f"  Finalized DOCX: {outputs['docx']}")
                 from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
 
+                if not _cleanup_pending_store(client, job_info):
+                    console.error(
+                        "  Outputs saved, but File Search Store cleanup failed; "
+                        "the pending record was retained for retry"
+                    )
+                    check_errors += 1
+                    continue
                 if not acknowledge_pending_job_after_outputs(interaction_id, outputs.values()):
                     console.error(
                         "  Outputs saved, but the pending job record could not be updated"
@@ -592,6 +608,13 @@ def resume_pending_jobs() -> int:
         console.error(f"  Status: {status.upper()}")
         console.error(f"  Error: {error or 'Unknown'}")
         if bool(result.get("terminal", False)) or status in _TERMINAL_FAILURE_STATUSES:
+            if not _cleanup_pending_store(client, job_info):
+                console.error(
+                    "  File Search Store cleanup failed; the pending record was retained for retry"
+                )
+                check_errors += 1
+                failed += 1
+                continue
             if remove_pending_job(interaction_id):
                 console.info("  Removed terminal job from the pending list.")
             else:

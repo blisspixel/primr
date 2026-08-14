@@ -18,7 +18,7 @@ Grok + Gemini is the measured default, but it is not the only supported provider
 
 | Credential | Purpose | Console |
 |------------|---------|---------|
-| `OPENAI_API_KEY` | Optional OpenAI GPT/o-series fallback for utility, writing, reasoning, and premium research roles | [OpenAI Platform](https://platform.openai.com/api-keys) |
+| `OPENAI_API_KEY` | Optional OpenAI GPT/o-series fallback for routed utility, writing, reasoning, and registered premium-research candidates; the current full launch path still requires xAI or Gemini | [OpenAI Platform](https://platform.openai.com/api-keys) |
 | `ANTHROPIC_API_KEY` | Optional Claude fallback for writing, reasoning, and pro roles | [Anthropic Console](https://console.anthropic.com/settings/keys) |
 | `OLLAMA_API_KEY` | Optional local/OpenAI-compatible endpoint key; Ollama uses `ollama` by default | Local runtime |
 | `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_BASE_URL`/`AZURE_OPENAI_ENDPOINT` | Microsoft Foundry / Azure OpenAI via the OpenAI-compatible `/openai/v1/` endpoint (Phi-4, GPT, Llama, DeepSeek) | [Azure AI Foundry](https://ai.azure.com/) |
@@ -140,7 +140,10 @@ primr keys path
 4. **Immediately copy the key** - you won't see it again
 5. Run `primr keys set gemini`
 
-**Pricing**: Free tier includes 60 requests/minute. See [pricing](https://ai.google.dev/pricing).
+Gemini rate limits are model-, project-, and usage-tier-specific. Check the
+active limits for the project in AI Studio rather than assuming a fixed free
+tier RPM. See Google's [rate-limit guide](https://ai.google.dev/gemini-api/docs/rate-limits)
+and [pricing](https://ai.google.dev/pricing).
 
 ### 4. OpenAI API Key
 
@@ -274,7 +277,7 @@ primr doctor --fix
 | "No cloud LLM provider key configured" | No Gemini, xAI, OpenAI, or Anthropic key is configured | Run one of `primr keys set gemini`, `primr keys set xai`, `primr keys set openai`, or `primr keys set anthropic` |
 | "XAI_API_KEY not set" | Grok standard mode is disabled | Run `primr keys set xai` if you want the measured default reasoner |
 | "GEMINI_API_KEY not set" | Gemini writing/premium stages are disabled | Run `primr keys set gemini` if you want the cheapest measured writer or premium mode |
-| "Quota exceeded" | Hit rate/daily limit | Wait for reset, or use `--mode deep` (uses Gemini search) |
+| "Quota exceeded" | Provider RPM, token, daily, or spend-rate limit | Check the provider's current project limits, honor retry guidance for transient 429s, and wait for reset when the quota is exhausted. Choose another configured route only after a fresh dry-run and approval. |
 | "Invalid API key" | Typo, extra whitespace, or wrong key | Re-copy from console, check for spaces |
 | "API not enabled" | Custom Search API not enabled | Enable in Cloud Console → APIs & Services |
 | "Forbidden" | Key restrictions blocking request | Check IP/referrer restrictions |
@@ -342,9 +345,10 @@ launch still requires `XAI_API_KEY` or `GEMINI_API_KEY`.
 | Mode | Tokens | Deep Research | Search | Total |
 |------|--------|---------------|--------|-------|
 | scrape | ~$0.05 | -- | ~$0.04 | ~$0.10 |
-| deep | -- | ~$2.50 | -- | ~$2.50 |
+| deep | Sequential Flash writing and strategy included | ~$2.50 planning point | -- | ~$5.38 with one integrated AI Strategy; ~$2.88 base |
 | full, xAI plus Gemini | provider-token based | -- | DuckDuckGo default | ~$0.89 with one integrated AI Strategy |
-| full, xAI only | provider-token based | -- | DuckDuckGo default | ~$5.06 with one integrated AI Strategy |
+| full, xAI only | provider-token based | -- | DuckDuckGo default | ~$5.84 with one integrated AI Strategy |
+| premium | Structured collection, sequential Flash writing, and strategy included | ~$2.50 planning point | DuckDuckGo default | ~$6.71 with one integrated AI Strategy |
 
 Gemini Deep Research is billed from the underlying model tokens and tools, so
 the final charge varies by task. Google currently describes a typical standard

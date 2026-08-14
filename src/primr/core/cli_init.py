@@ -18,6 +18,7 @@ from typing import Any
 
 from primr.ai.genai_factory import default_genai_http_options
 from primr.utils.console import console
+from primr.utils.console import prompt_yes_no as _prompt_yes_no
 
 logger = logging.getLogger(__name__)
 
@@ -27,18 +28,6 @@ MODEL_PROVIDER_ENV_NAMES = (
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
 )
-
-
-def _prompt_yes_no(prompt: str, *, default: bool) -> bool:
-    """Prompt for a yes/no answer in interactive setup flows."""
-    suffix = "Y/n" if default else "y/N"
-    try:
-        answer = input(f"{prompt} [{suffix}] ").strip().lower()
-    except EOFError:
-        return default
-    if not answer:
-        return default
-    return answer in {"y", "yes"}
 
 
 def _should_offer_interactive_key_setup(validation_result: Any) -> bool:
@@ -219,7 +208,7 @@ def _run_init_flow(
         (
             "xai",
             "XAI_API_KEY",
-            "Grok 4.3 standard reasoning (~$4.36 XAI-only base; sub-$1 base with Gemini writing)",
+            "Grok 4.3 standard reasoning (~$5.09 XAI-only base; sub-$1 base with Gemini writing)",
             "https://console.x.ai/",
             "$25 free credits for new accounts",
             True,

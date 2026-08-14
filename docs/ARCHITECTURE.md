@@ -79,6 +79,26 @@ The full policy, benchmarks, stop conditions, and packaging rules live in
 
 ## Research Modes
 
+### Canonical production topology
+
+This table is the source of truth for report-generation ownership. Class names
+that remain importable for compatibility are not necessarily active product
+paths.
+
+| Surface | Active caller and behavior | Status |
+|---------|----------------------------|--------|
+| Standard provider-backed report | `perform_research` dispatches to `perform_fast_research`: collection and workbook analysis, planned section batches with rolling context, cross-validation, trust polish, and a guarded whole-document coherence pass | Production default when the measured xAI plus Gemini recipe is available |
+| Deep/Premium report | `perform_deep_research` dispatches through `ResearchOrchestrator` and `premium_deep_research_stage` to `generate_comprehensive_report`: Deep Research dossier, sequential Flash section writing, then assembly | Production Deep Research path |
+| Single-call `DeepResearchOrchestrator.generate_report` | One comprehensive Deep Research interaction | Compatibility and test surface; no internal production caller |
+| `MasterArchitect`, `ResearchExecutor`, `ReportAggregator` | Chapter planning, node execution, and aggregation APIs | Compatibility surface; no internal production caller |
+| `accordion_test.py` / `--test-accordion` | Standalone manual experiment | Experimental CLI compatibility surface |
+
+Standard uses bounded concurrency inside an explicit report plan and follows it
+with document-level validation. Premium keeps section writing sequential so
+recent findings can flow forward and provider pressure stays bounded. Neither
+topology should be changed on latency intuition alone; compare complete report
+quality on the same evidence and evaluation corpus.
+
 ### Scrape Mode (Corpus+Insights)
 
 Website-focused research using the `build_site_corpus` workflow with AI-powered insight extraction.
@@ -122,13 +142,16 @@ Website-focused research using the `build_site_corpus` workflow with AI-powered 
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**When to use:** Quick website intel, data collection for downstream use. Fast (5-10 min) and cheap (~$0.01-0.05).
+**When to use:** Quick website intel and data collection for downstream use.
+The current static estimate is about 2-5 minutes and $0.10. This is a billable
+provider-backed path, not Primr Zero.
 
 ### Deep Mode
 
-Autonomous research using Gemini's Deep Research Agent with built-in Google Search.
-Before the deep phase, the ATS/careers hiring-signal stage runs and its fenced
-block is threaded into the Deep Research stage-1 context (roadmap #3).
+Deep mode uses the production Accordion path: Gemini Deep Research gathers a
+dossier with built-in Google Search, then Gemini Flash writes configured report
+sections sequentially before assembly. Before the deep phase, the ATS/careers
+hiring-signal stage runs and its fenced block is threaded into stage-1 context.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -153,26 +176,32 @@ block is threaded into the Deep Research stage-1 context (roadmap #3).
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      Result Normalization                            │
-│              (Convert agent output to section format)               │
+│                    Sequential Report Expansion                       │
+│          (Dossier -> configured sections -> assembly)                │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 **When to use:** Broad market analysis, competitive intelligence, industry trends, when you need information beyond the company's own website.
 
-### Complete Mode (Recommended)
+### Premium Accordion Path
 
-Three-phase "Accordion Method" architecture for comprehensive 30+ page reports. This approach treats Deep Research as a Lead Researcher (gathering facts) and Gemini 3.1 Pro as the Writer (crafting sections with context continuity).
+The Deep/Premium path treats Deep Research as a lead researcher that gathers a
+dossier and Gemini Flash as the sequential report writer. It is intended for
+greater evidence breadth and section depth than a single Deep Research output,
+not for a guaranteed page count.
 
-**Observed Deep Research API limitation:** Google's Deep Research Agent (`deep-research-preview-04-2026`) produces ~8-12 pages maximum per API call, regardless of prompt instructions. Tests with explicit "30 page" requests produced ~4,000-5,000 words. The Accordion Method works around this output limit by using Deep Research for fact-gathering and Gemini 3.1 Pro for section-by-section writing.
+The Accordion design exists because one agent interaction has bounded output.
+Primr asks Deep Research for evidence and citations, then expands the report
+through the configured YAML section plan. Generated length still depends on
+evidence and model behavior and is not a product guarantee.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    Complete Mode: Accordion Method                   │
-│                  (Research → Outline → Write Sections)              │
+│                  (Research -> Write Sections -> Assemble)           │
 └─────────────────────────────────────────────────────────────────────┘
 
-Phase 1: Data Collection (10-20 min)
+Phase 1: Data Collection
 ┌─────────────────────────────────────────────────────────────────────┐
 │                      Structured Pipeline                             │
 │         (Full website scraping + Google search + AI analysis)       │
@@ -183,7 +212,7 @@ Phase 1: Data Collection (10-20 min)
 └─────────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
-Phase 2: Research Dossier (10-15 min)
+Phase 2: Research Dossier
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    Deep Research Agent                               │
 │                (deep-research-preview-04-2026)                      │
@@ -194,23 +223,21 @@ Phase 2: Research Dossier (10-15 min)
 │  │  Access: File Search Store with Phase 1 context              │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 │                                                                      │
-│  Key insight: Don't ask Deep Research to write 30 pages.            │
-│  Ask it to gather the facts that will support 30 pages.             │
+│  Deep Research gathers evidence; it does not own final length.       │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
-Phase 3: Section-by-Section Writing (10-15 min)
+Phase 3: Section-by-Section Writing
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    Sequential Section Writer                         │
-│                     (gemini-3.1-pro-preview)                        │
+│                 (configured Gemini Flash model)                     │
 │  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  Uses: previous_interaction_id from Phase 2                  │   │
 │  │  Process: Write one section at a time, sequentially          │   │
-│  │  Context: Research dossier + summary of previous sections    │   │
-│  │  Output: ~1,000-2,000 words per section                      │   │
+│  │  Context: Dossier + bounded excerpts of recent sections      │   │
+│  │  Output: Evidence-dependent section prose                    │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 │                                                                      │
-│  Section 1 ──▶ Section 2 ──▶ Section 3 ──▶ ... ──▶ Section 10      │
+│  Section 1 ──▶ Section 2 ──▶ Section 3 ──▶ configured plan         │
 │      │             │             │                      │           │
 │      └─────────────┴─────────────┴──────────────────────┘           │
 │              Context flows forward for consistency                   │
@@ -223,7 +250,7 @@ Phase 4: Assembly (< 1 min)
 │  ┌─────────────────────────────────────────────────────────────┐   │
 │  │  - Combine sections with consistent formatting               │   │
 │  │  - Generate table of contents                                │   │
-│  │  - Consolidate citations                                     │   │
+│  │  - Preserve section-local citations                          │   │
 │  │  - Apply clean header style (no PART headers)                │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
@@ -231,22 +258,22 @@ Phase 4: Assembly (< 1 min)
 
 **Why the Accordion Method?**
 
-A single Deep Research call produces ~12 pages due to output token limits. Asking for "50 pages" causes:
-- **Middle Muddle**: Pages 10-40 become vague and repetitive
-- **Hallucination Spirals**: Small errors compound as the model consumes its own output
+A single Deep Research interaction has a bounded response. Asking one response
+to satisfy an arbitrary page target can trade evidence density for repetition
+and can compound unsupported claims.
 
 The Accordion Method solves this by:
 1. **Expanding** (research): Gather comprehensive facts
-2. **Contracting** (outline): Structure into sections with word targets
-3. **Expanding** (writing): Write each section with full context
+2. **Structuring** (plan): Use the configured YAML section order and contract
+3. **Expanding** (writing): Write each section with the dossier and bounded recent context
 
 **Model Usage:**
 - `deep-research-preview-04-2026`: Autonomous web research (Phase 2)
-- `gemini-3.1-pro-preview`: Section writing with `previous_interaction_id` (Phase 3)
+- `PrimrModels.FLASH_MODEL`: Direct section generation (Phase 3)
 
 **Rate Limit Strategy:**
 - Sequential section writes (not parallel) avoid 429 errors
-- 10-20 second delays between sections
+- Adaptive delays between sections, beginning from the configured safety floor
 - Adaptive backoff on rate limit detection
 
 **Hierarchy of Truth:**
@@ -282,6 +309,7 @@ The `src/primr/core/` directory contains the research orchestration logic, decom
 | Module | Responsibility |
 |--------|----------------|
 | `cli.py`, `cli_*.py` | CLI entry point, parsing, command dispatch, preflight, budget, and recovery handlers |
+| `cli_contract.py` | Stable command enum and parsed configuration contract shared by CLI workflows |
 | `research_agent.py` | Shared research entry point and fast/premium pipeline dispatch |
 | `research_orchestrator.py` | Structured and premium Deep Research orchestration used by non-fast paths |
 | `fast_run_*.py` | Ten extracted fast-pipeline stages coordinated by `perform_fast_research` |
@@ -344,7 +372,8 @@ Each module exposes dataclasses and functions that can be imported directly:
 from primr.core.workspace import create_working_folder, WorkspaceConfig
 from primr.core.ai_strategy import generate_ai_strategy_sync, CloudVendor
 from primr.core.deep_research_runner import validate_preflight, DeepResearchConfig
-from primr.core.cli import parse_args, CLIConfig
+from primr.core.cli import parse_args
+from primr.core.cli_contract import CLIConfig
 
 # Backward-compatible imports (still work, delegate to new modules)
 from primr.core.research_agent import main, run_doctor, create_working_folder
@@ -489,13 +518,19 @@ result = await client.research(
 )
 ```
 
-### Master Architect
+### Compatibility Chapter-Plan APIs
 
-Location: `src/primr/ai/report_architect.py`
+Locations: `src/primr/ai/report_architect.py`,
+`src/primr/ai/research_executor.py`, and
+`src/primr/ai/report_aggregator.py`.
 
-Decomposes comprehensive reports into chapters using gemini-3-flash-preview for fast, cost-effective planning.
+These importable APIs implement JSON chapter planning, node execution, and
+aggregation. Primr retains them as compatibility and test surfaces, but the
+active Standard and Premium callers listed above do not use them. New
+production work must not attach to this stack until its compatibility inventory
+reaches an explicit keep or deprecate decision.
 
-Default chapter structure (customized per company):
+Its fallback chapter structure is:
 1. Executive Summary & Company Snapshot
 2. Products, Services & Value Proposition
 3. Leadership, Culture & Organization
@@ -506,17 +541,6 @@ Default chapter structure (customized per company):
 8. SWOT Analysis & Strategic Assessment
 9. Risk Analysis & Mitigation Strategies
 10. Strategic Recommendations & Discovery Questions
-
-### Research Node Executor
-
-Location: `src/primr/ai/research_executor.py`
-
-Executes multiple Deep Research tasks in parallel with rate limiting.
-
-- Semaphore-based concurrency control (default: 3 concurrent)
-- Per-chapter timeout (15 minutes)
-- Adaptive polling intervals
-- Graceful handling of partial failures
 
 ### Quality Grading Agent
 
@@ -670,7 +694,7 @@ Company Name + URL
 │  │  deep-research-preview-04-2026                           │   │
 │  │  Role: Lead Researcher (gather facts, NOT write report)  │   │
 │  │  Output: Raw facts, data tables, citations               │   │
-│  │  Returns: interaction_id for follow-up calls             │   │
+│  │  Returns: dossier text and source metadata                │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
     │
@@ -678,15 +702,15 @@ Company Name + URL
 ┌─────────────────────────────────────────────────────────────────┐
 │  Phase 3: Sequential Section Writing                             │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │  gemini-3.1-pro-preview with previous_interaction_id     │   │
+│  │  configured Gemini Flash model, direct generation        │   │
 │  │                                                          │   │
-│  │  Section 1 ──▶ Section 2 ──▶ Section 3 ──▶ ... ──▶ 10   │   │
+│  │  Section 1 ──▶ Section 2 ──▶ Section 3 ──▶ YAML plan     │   │
 │  │      │             │             │                       │   │
 │  │      └─────────────┴─────────────┘                       │   │
-│  │         Context flows forward for consistency            │   │
+│  │      Recent bounded excerpts flow forward                │   │
 │  │                                                          │   │
-│  │  Each section: ~1,000-2,000 words                        │   │
-│  │  Delay: 10-20s between sections (rate limit avoidance)   │   │
+│  │  Length: evidence-dependent                              │   │
+│  │  Delay: adaptive rate-limit pacing                       │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
     │
@@ -695,7 +719,7 @@ Company Name + URL
 │  Phase 4: Report Assembly                                        │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
 │  │  Section    │─▶│  TOC        │─▶│  Citation   │             │
-│  │  Combine    │  │  Generation │  │  Consolidate│             │
+│  │  Combine    │  │  Generation │  │  Preserve   │             │
 │  └─────────────┘  └─────────────┘  └─────────────┘             │
 └─────────────────────────────────────────────────────────────────┘
     │
@@ -719,6 +743,7 @@ src/primr/
 │
 ├── core/                    # CLI and research/strategy orchestration
 │   ├── cli.py, cli_*.py    # Command parsing, dispatch, preflight, and budgets
+│   ├── cli_contract.py     # Shared command and parsed-configuration contract
 │   ├── research_agent.py  # Shared run entry and mode dispatch
 │   ├── research_orchestrator.py # Structured and premium orchestration
 │   ├── fast_run_*.py      # Ten extracted fast-pipeline stages
@@ -1048,19 +1073,17 @@ hashlib.md5(url.encode(), usedforsecurity=False).hexdigest()
 
 ### Security Testing
 
-Location: `tests/test_security.py`
+Location: `tests/security/`
 
-Comprehensive test suite with 22 tests covering:
+The security suite is split by behavior rather than held in one compatibility
+module. It covers SSRF and redirect-hop egress controls, XXE, path traversal,
+input validation, prompt-injection fixtures, and invariant properties. The
+legacy `tests/test_security.py` file is only a compatibility placeholder and
+does not collect the suite.
 
-- **SSRF Protection** (11 tests): Localhost blocking, private IP blocking, link-local blocking, invalid schemes, malformed URLs
-- **XXE Protection** (3 tests): Safe parsing, external entity blocking, entity reference handling
-- **Path Traversal** (3 tests): Parent directory blocking, safe path validation, absolute path validation
-- **Input Validation** (4 tests): Empty strings, whitespace, None handling, URL normalization
-- **Security Headers** (1 test): Timeout configuration
-
-All tests passing. Run with:
+Run the current suite with:
 ```bash
-python -m pytest tests/test_security.py -v
+python -m pytest tests/security -v
 ```
 
 ### Automated Security Scanning
@@ -1069,17 +1092,22 @@ python -m pytest tests/test_security.py -v
 
 Configuration: `.bandit`
 
-Results (January 2026):
-- HIGH severity: 3 issues (MD5 usage) - FIXED
-- MEDIUM severity: 5 issues (XML warnings, false positives) - ADDRESSED
-- LOW severity: 57 issues (intentional patterns) - SUPPRESSED
+CI runs Bandit against `src/primr` at medium severity and confidence. Run the
+same check locally with:
 
-#### Safety (Dependency Scanner)
+```bash
+uv run --no-sync bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q
+```
 
-Results (January 2026):
-- Core dependencies: CLEAN [OK]
-- Development dependencies: Some vulnerabilities (non-critical)
-- Production deployment: SECURE [OK]
+#### Dependency Audit
+
+CI and the scheduled dependency-audit workflow run `pip-audit` against the
+locked environment. Current workflow status, not a dated prose snapshot, is
+the security result. Run the same audit locally with:
+
+```bash
+uv run --no-sync pip-audit
+```
 
 ### Security Best Practices
 
@@ -1092,7 +1120,9 @@ Results (January 2026):
 
 ### Security Documentation
 
-Complete security audit report: `docs/SECURITY_REVIEW_2026-01-21.md`
+Current policy and controls: `docs/SECURITY.md`
+
+Historical audit snapshot: `docs/SECURITY_REVIEW_2026-01-21.md`
 
 Includes:
 - Vulnerability findings and fixes
@@ -1202,19 +1232,22 @@ See `docs/CONFIG.md` for detailed configuration reference.
 
 | Mode | Duration | Output Size | API Calls |
 |------|----------|-------------|-----------|
-| Scrape | 2-5 min | 15-20 pages | ~20 Gemini |
-| Deep | 8-15 min | ~12 pages | 1 Deep Research |
-| Complete | 25-40 min | 30+ pages | 1 Deep Research + 10 Gemini 3.1 Pro |
+| Scrape | 2-5 min | Site corpus plus insights | Scrape requests plus routed insight extraction |
+| Standard provider-backed | 34-53 min | Evidence-dependent Strategic Overview + strategy | Planned section batches plus validation and coherence stages |
+| Deep | 32-62 min with the default strategy; 24-47 min without it | Evidence-dependent Deep Research report plus optional strategy | One Deep Research dossier, 23 sequential Flash section calls, and the default strategy task |
+| Premium | 74-132 min with the default strategy | Evidence-dependent report plus strategy | Structured collection, one Deep Research dossier, 23 sequential Flash sections, and the default strategy task |
 
 ### Resource Usage
 
 - Memory: ~200-500MB during scraping (Playwright browser)
 - Network: Variable based on site complexity
-- API calls: ~10-50 Gemini calls per research run
+- Provider calls vary by route; the dry-run lists the priced plan
 
 ### Rate Limits
 
-- Deep Research: 3 concurrent tasks (configurable)
+- Active Deep/Premium report path: one dossier interaction followed by
+  sequential section calls; the configurable concurrent chapter executor is a
+  compatibility surface, not the production topology
 - Scraping: Homepage-first pilot, then a bounded 3-worker live corpus path;
   requests still pass through per-host concurrency, token-bucket, jitter, and
   backoff controls
@@ -1262,27 +1295,30 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 
 | Model | Role | Pricing (per 1M tokens) |
 |-------|------|-------------------------|
-| Grok 4.3 | Default hybrid/fast: reasoning stages (analysis, workbook, cross-validation) | $1.25/$2.50 (≤200k) · $2.50/$5.00 (≥200k) · $0.20 cached |
-| Grok 4.5 | Opt-in `--grok-tier max` (latest flagship); analysis fallback after 4.3 | $2/$6 (≤200k) · $4/$12 (≥200k) · $0.30 cached |
+| Grok 4.3 | Default hybrid/fast: reasoning stages (analysis, workbook, cross-validation) | $1.25/$2.50 (<200k) · $2.50/$5.00 (>=200k) · $0.20 cached below the boundary |
+| Grok 4.5 | Version-pinned opt-in `--grok-tier max`; analysis fallback after 4.3 | $2/$6 (<200k) · $4/$12 (>=200k) · $0.30 cached below the boundary |
 | Grok 4.20 non-reasoning | XAI-only utility and writing fallback when Gemini is not configured | See registry / estimator |
 | Grok 4.20 reasoning | Legacy — resume of in-flight runs and deeper analysis fallback | See registry / estimator |
 | Gemini 3.1 Flash-Lite | Default routed writing and utility path when `XAI_API_KEY` and `GEMINI_API_KEY` are both configured | See provider pricing in the estimator |
-| Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
-| Deep Research Agent | `--premium` mode: autonomous research | ~$2.50 planning estimate per standard task; actual token and tool billing varies |
+| Gemini 3.1 Pro | Registered PRO-tier and evaluation/strategy option; not the active Premium section writer | $2/$12 (≤200k) · $4/$18 (>200k) |
+| Configured Gemini Flash | Active Deep/Premium sequential section writer | See provider pricing in the estimator |
+| Deep Research Agent | `--mode deep` and `--premium`: autonomous dossier research | ~$2.50 planning estimate per standard task; actual token and tool billing varies |
 
-### Why Grok 4.3 is the Default (not 4.5)
+### Why Grok 4.3 is the default
 
 Primr originally ran everything through Google's Deep Research API plus Gemini
 3.1 Pro. That path remains available via `--premium` when maximum research depth
 justifies the cost. The measured default uses **Grok 4.3** for reasoning-heavy
-stages and **Gemini 3.1 Flash-Lite** for bulk writing when both keys are set —
-about **~$0.76–$0.89** on dry-run for Strategic Overview plus AI Strategy.
+stages and **Gemini 3.1 Flash-Lite** for bulk writing when both keys are set.
+The current static plan is about **$0.76** for the base Strategic Overview and
+**$0.89** when the default AI Strategy is included.
 
 **Grok 4.5** is registered and used for `--grok-tier max` (and as the next
-analysis fallback if 4.3 is unhealthy). It is xAI’s coding/agent flagship and
-is priced higher with a smaller context window. MAX-everywhere estimates land
-around **~$8+**, not the sub-dollar default. Promoting 4.5 to hybrid default
-requires an eval gate; see
+analysis fallback if 4.3 is unhealthy). It is a higher-cost opt-in with a
+smaller context window than 4.3. The current static MAX plan is about **$8.53**
+for the base report or **$9.93** with the default AI Strategy, not the
+sub-dollar default. Promoting another model to hybrid default requires an eval
+gate; see
 [`design/grok-default-routing.md`](design/grok-default-routing.md).
 
 XAI-only setups still work with the legacy writing/utility fallback path.

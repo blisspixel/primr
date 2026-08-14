@@ -77,7 +77,7 @@ def test_generate_rejects_bad_temperature(client):
 
 def test_generate_rejects_bad_thinking_level(client):
     with pytest.raises(ValueError, match="thinking_level"):
-        client.generate("hi", thinking_level="medium")
+        client.generate("hi", thinking_level="extreme")
 
 
 # ---------------------------------------------------------------------------

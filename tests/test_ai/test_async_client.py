@@ -291,6 +291,66 @@ class TestGenerate:
     @pytest.mark.asyncio
     @patch("primr.ai.async_client.get_settings")
     @patch("primr.ai.async_client.genai.Client")
+    async def test_generate_omits_sampling_for_gemini_37(
+        self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client
+    ):
+        mock_get_settings.return_value = mock_settings
+        mock_settings.ai.flash_model = "gemini-3.7-flash"
+        mock_client_class.return_value = mock_genai_client
+
+        async with AsyncAIClient() as client:
+            await client.generate("Test prompt", temperature=0.2)
+
+        config = mock_genai_client.models.generate_content.call_args.kwargs["config"]
+        assert config.temperature is None
+
+    @pytest.mark.asyncio
+    @patch("primr.ai.async_client.get_settings")
+    @patch("primr.ai.async_client.genai.Client")
+    async def test_generate_accepts_current_medium_thinking_level(
+        self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client
+    ):
+        mock_get_settings.return_value = mock_settings
+        mock_client_class.return_value = mock_genai_client
+
+        async with AsyncAIClient() as client:
+            await client.generate("Test prompt", thinking_level="medium")
+
+        config = mock_genai_client.models.generate_content.call_args.kwargs["config"]
+        assert str(config.thinking_config.thinking_level).lower().endswith("medium")
+
+    @pytest.mark.asyncio
+    @patch("primr.ai.async_client.get_settings")
+    @patch("primr.ai.async_client.genai.Client")
+    async def test_generate_rejects_minimal_for_gemini_37(
+        self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client
+    ):
+        mock_get_settings.return_value = mock_settings
+        mock_settings.ai.flash_model = "gemini-3.7-flash"
+        mock_client_class.return_value = mock_genai_client
+
+        async with AsyncAIClient() as client:
+            with pytest.raises(ValueError, match="low, medium, high"):
+                await client.generate("Test prompt", thinking_level="minimal")
+        mock_genai_client.models.generate_content.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("primr.ai.async_client.get_settings")
+    @patch("primr.ai.async_client.genai.Client")
+    async def test_generate_rejects_unknown_thinking_level(
+        self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client
+    ):
+        mock_get_settings.return_value = mock_settings
+        mock_client_class.return_value = mock_genai_client
+
+        async with AsyncAIClient() as client:
+            with pytest.raises(ValueError, match="thinking_level must be one of"):
+                await client.generate("Test prompt", thinking_level="extreme")
+        mock_genai_client.models.generate_content.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("primr.ai.async_client.get_settings")
+    @patch("primr.ai.async_client.genai.Client")
     async def test_generate_fast(
         self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client
     ):

@@ -287,6 +287,59 @@ VERIFICATION_OVERHEAD = {
     "duration_max": 5,
 }
 
+# Active Deep Research products expand the paid dossier through 23 serial
+# Gemini Flash section calls. These floors include growing-context headroom and
+# stay separate so historical base averages cannot erase planned Accordion spend.
+ACCORDION_WRITING_OVERHEAD = {
+    "deep-research": {
+        "section_calls": 23,
+        "target_pages": 30,
+        "flash_input_tokens": 600_000,
+        "flash_output_tokens": 25_000,
+        "duration_min": 15,
+        "duration_max": 30,
+    },
+    "complete": {
+        "section_calls": 23,
+        "target_pages": 50,
+        "flash_input_tokens": 900_000,
+        "flash_output_tokens": 42_000,
+        "duration_min": 20,
+        "duration_max": 40,
+    },
+}
+
+
+def _apply_accordion_writing_overhead(
+    mode: str,
+    flash_in: int,
+    flash_out: int,
+    duration_min: int,
+    duration_max: int,
+) -> tuple[int, int, int, int, dict[str, int] | None]:
+    """Add the known serial-writing plan without trusting sparse history."""
+    overhead = ACCORDION_WRITING_OVERHEAD.get(mode)
+    if not overhead:
+        return flash_in, flash_out, duration_min, duration_max, None
+    return (
+        flash_in + overhead["flash_input_tokens"],
+        flash_out + overhead["flash_output_tokens"],
+        duration_min + overhead["duration_min"],
+        duration_max + overhead["duration_max"],
+        overhead,
+    )
+
+
+def _accordion_writing_notes(overhead: dict[str, int] | None) -> list[str]:
+    if not overhead:
+        return []
+    return [
+        "Includes "
+        f"{overhead['section_calls']} sequential Gemini Flash section calls "
+        f"for the approximately {overhead['target_pages']}-page Accordion target"
+    ]
+
+
 # AI Strategy adds another Deep Research call per vendor
 AI_STRATEGY_OVERHEAD = {
     "deep_research_tasks": 1,
@@ -515,6 +568,13 @@ def estimate_cost(
             duration_max = max(1, int(avg_mins * 1.2))
             historical_used = True
 
+    # Price the live Accordion expansion after historical calibration. The
+    # historical bucket can describe collection and dossier usage, but it must
+    # never replace the known 23-call serial writing plan approved by the user.
+    flash_in, flash_out, duration_min, duration_max, accordion_overhead = (
+        _apply_accordion_writing_overhead(mode, flash_in, flash_out, duration_min, duration_max)
+    )
+
     # Add AI strategy overhead (use historical if available)
     ai_strategy_hist = None
     if include_ai_strategy:
@@ -670,6 +730,8 @@ def estimate_cost(
         notes.append(f"AI Strategy based on {ai_strategy_hist['sample_size']} runs")
     notes.extend(_strategy_type_notes(priced_strategy_types, unavailable_strategy_types))
     notes.extend(_vendor_refresh_notes(refresh_tasks))
+
+    notes.extend(_accordion_writing_notes(accordion_overhead))
 
     if verify:
         notes.append("Includes claim verification (~$0.01, DDG searches are free)")

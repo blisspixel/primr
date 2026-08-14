@@ -254,6 +254,35 @@ def save_report_as_txt(section_results, company_name, output_dir: str | Path | N
         return None
 
 
+def save_incomplete_markdown_report(
+    markdown_content: str,
+    company_name: str,
+    output_dir: str | Path | None = None,
+    diagnostics_dir: str | Path | None = None,
+    write_txt: bool = True,
+) -> str | None:
+    """Publish a visibly incomplete paid report without claiming DOCX success."""
+    if not markdown_content.strip():
+        return None
+    date_str = datetime.now().strftime("%m-%d-%Y")
+    base_name = f"{sanitize_for_filename(company_name, 200)}_Strategic_Overview_{date_str}"
+    destination = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
+    destination.mkdir(parents=True, exist_ok=True)
+    content = (
+        "# Incomplete Report\n\n"
+        "> Generation stopped before the full report contract was satisfied. "
+        "The paid partial result is preserved below.\n\n" + markdown_content
+    )
+    md_path = destination / f"{base_name}.md"
+    md_path.write_text(content, encoding="utf-8")
+    if write_txt or diagnostics_dir is not None:
+        text_dir = destination if write_txt else Path(diagnostics_dir)
+        text_dir.mkdir(parents=True, exist_ok=True)
+        (text_dir / f"{base_name}.txt").write_text(content, encoding="utf-8")
+    console.warn(f"Incomplete report preserved: {md_path}")
+    return str(md_path)
+
+
 def save_report_as_docx_premium(
     section_results,
     company_name,

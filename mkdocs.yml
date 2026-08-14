@@ -106,6 +106,10 @@ nav:
       - Runtime and language boundaries: design/runtime-language-boundaries.md
       - Research tradecraft: design/research-tradecraft.md
       - Eval plan: design/eval-plan.md
+      - Standard versus Premium quality eval: design/premium-quality-eval.md
+      - Competitive positioning: design/competitive-positioning.md
+      - Grok default routing: design/grok-default-routing.md
+      - Progressive artifacts: design/progressive-artifacts.md
       - Provider expansion: design/provider-expansion.md
       - Orchestrator refactor map: design/23-orchestrator-refactor-map.md
       - Architecture cohesion plan: design/24-architecture-cohesion-plan.md

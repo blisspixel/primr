@@ -56,6 +56,12 @@ For personal installation, Codex uses `~/.agents/skills`, Copilot supports
 `~/.agents/skills` or `~/.gemini/skills`, and Claude Code uses
 `~/.claude/skills`.
 
+Agent Plugins v1 clients can instead load the generated `agent-plugin/`
+package. Component support is incremental. Its skills can remain available
+when MCP is unsupported or cannot start. The packaged MCP entry uses a bare
+`primr` executable token, so it requires Primr to be installed and discoverable
+through the client's executable search rules.
+
 Do not hardcode plan quotas in the skill. Hosts change limits frequently. Read
 the host's current usage display or official documentation when capacity
 matters.

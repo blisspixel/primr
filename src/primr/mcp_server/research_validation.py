@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from primr.mcp_server.types import MCPErrorCode
+from primr.utils.model_policy import unpriced_model_opt_ins
 
 RESEARCH_MODES = frozenset({"scrape", "deep", "full", "premium"})
 RESEARCH_PLATFORMS = frozenset(
@@ -34,6 +35,8 @@ def validate_research_estimate_arguments(
     platform documents and YAML-defined strategy modules use the standalone
     ``estimate_strategy`` and ``generate_strategy`` flow after research.
     """
+    if error := _validate_governed_environment():
+        return error
     if error := _validate_mode(arguments):
         return error
     if error := _validate_strategy_type(arguments):
@@ -75,6 +78,8 @@ def validate_research_execution_arguments(
     arguments: dict[str, Any],
 ) -> dict[str, Any] | None:
     """Reject execution shapes the MCP input schema cannot itself enforce."""
+    if error := _validate_governed_environment():
+        return error
     if error := _validate_mode(arguments):
         return error
     if "platforms" in arguments:
@@ -97,6 +102,25 @@ def validate_research_execution_arguments(
             return error
 
     return _validate_boolean_fields(arguments, RESEARCH_BOOLEAN_FIELDS)
+
+
+def _validate_governed_environment() -> dict[str, Any] | None:
+    """Reject ambient paid features that are absent from the approval shape."""
+
+    enabled = unpriced_model_opt_ins()
+    if not enabled:
+        return None
+    names = ", ".join(enabled)
+    return {
+        "error": True,
+        "error_type": "unpriced_model_opt_in",
+        "error_code": MCPErrorCode.INVALID_PARAMS,
+        "model_opt_ins": list(enabled),
+        "message": (
+            f"Disable unpriced environment model opt-ins before governed research: {names}. "
+            "They are not bound to this estimate, approval token, or runtime cap."
+        ),
+    }
 
 
 def _validate_mode(arguments: dict[str, Any]) -> dict[str, Any] | None:

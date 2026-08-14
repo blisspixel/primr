@@ -7,6 +7,8 @@ hybrid and fast stay on Grok 4.3; ``--grok-tier max`` is Grok 4.5.
 
 from __future__ import annotations
 
+import os
+
 # Product tier → short operator label (used inside "full (...)" mode strings).
 GROK_TIER_LABELS: dict[str, str] = {
     "fast": "Grok 4.3 (low-effort)",
@@ -25,3 +27,16 @@ def full_mode_label(grok_tier: str, *, has_xai: bool = True) -> str:
     if has_xai:
         return f"full ({grok_tier_label(grok_tier)})"
     return "full (provider-routed)"
+
+
+def resolved_full_mode_label(grok_tier: str) -> str:
+    """Return the full-mode label for the currently configured provider route."""
+    if os.environ.get("XAI_API_KEY"):
+        return full_mode_label(grok_tier, has_xai=True)
+    if os.environ.get("GEMINI_API_KEY"):
+        return "full (Gemini routed)"
+    if os.environ.get("OPENAI_API_KEY"):
+        return "full (OpenAI estimate only; execution needs XAI or Gemini)"
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return "full (Anthropic estimate only; execution needs XAI or Gemini)"
+    return f"full ({grok_tier_label(grok_tier)}; provider keys required)"

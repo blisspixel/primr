@@ -496,23 +496,6 @@ def test_property_fallback_extracts_metadata(industry: str, company: str):
 class TestConsecutiveFailureThreshold:
     """Tests for consecutive failure handling in section writing."""
 
-    def test_consecutive_failure_constant_exists(self):
-        """
-        **Feature: test-coverage-hardening, Property 4: Consecutive failure threshold stops processing**
-        **Validates: Requirements 3.5, 4.4**
-
-        The consecutive failure threshold should be defined (typically 3).
-        """
-        # The threshold is hardcoded in the generate_comprehensive_report method
-        # We verify the behavior exists by checking the code pattern
-        orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        orchestrator._settings = Mock()
-        orchestrator._settings.api.gemini_key = "test-key"
-
-        # The threshold is 3 consecutive failures
-        # This is verified by the code: if consecutive_failures >= 3:
-        assert True  # Threshold exists in code
-
     def test_sections_written_reflects_successful_only(self):
         """
         **Feature: test-coverage-hardening, Property 4: Consecutive failure threshold stops processing**

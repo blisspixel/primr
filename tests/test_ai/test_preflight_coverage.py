@@ -200,7 +200,7 @@ async def test_check_models_missing_google_sdk_reports_error(validator):
 @pytest.mark.asyncio
 async def test_check_models_flash_success_deep_research_success(validator):
     fake_client = MagicMock()
-    fake_client.models.generate_content.return_value = SimpleNamespace(text="OK")
+    fake_client.models.get.return_value = SimpleNamespace(name="gemini")
     fake_client.interactions.create.return_value = SimpleNamespace(id="abc123def456ghi789")
     with patch("google.genai.Client", return_value=fake_client):
         errors, warnings, checks = [], [], {}
@@ -208,22 +208,13 @@ async def test_check_models_flash_success_deep_research_success(validator):
     assert checks["gemini_flash"]["passed"] is True
     assert checks["deep_research"]["passed"] is True
     assert not errors
-
-
-@pytest.mark.asyncio
-async def test_check_models_flash_empty_response(validator):
-    fake_client = MagicMock()
-    fake_client.models.generate_content.return_value = SimpleNamespace(text="")
-    with patch("google.genai.Client", return_value=fake_client):
-        errors, warnings, checks = [], [], {}
-        await validator._check_models("scrape", errors, warnings, checks, _noop)
-    assert any("empty response" in e for e in errors)
+    fake_client.models.generate_content.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_check_models_flash_not_found(validator):
     fake_client = MagicMock()
-    fake_client.models.generate_content.side_effect = Exception("model not found")
+    fake_client.models.get.side_effect = Exception("model not found")
     with patch("google.genai.Client", return_value=fake_client):
         errors, warnings, checks = [], [], {}
         await validator._check_models("scrape", errors, warnings, checks, _noop)
@@ -233,7 +224,7 @@ async def test_check_models_flash_not_found(validator):
 @pytest.mark.asyncio
 async def test_check_models_flash_quota(validator):
     fake_client = MagicMock()
-    fake_client.models.generate_content.side_effect = Exception("429 quota")
+    fake_client.models.get.side_effect = Exception("429 quota")
     with patch("google.genai.Client", return_value=fake_client):
         errors, warnings, checks = [], [], {}
         await validator._check_models("scrape", errors, warnings, checks, _noop)
@@ -243,7 +234,7 @@ async def test_check_models_flash_quota(validator):
 @pytest.mark.asyncio
 async def test_check_models_flash_api_key_invalid(validator):
     fake_client = MagicMock()
-    fake_client.models.generate_content.side_effect = Exception("invalid api key")
+    fake_client.models.get.side_effect = Exception("invalid api key")
     with patch("google.genai.Client", return_value=fake_client):
         errors, warnings, checks = [], [], {}
         await validator._check_models("scrape", errors, warnings, checks, _noop)
@@ -415,7 +406,7 @@ async def test_validate_orchestration_scrape_mode(validator):
     ):
         result = await validator.validate(mode="scrape", on_progress=progress_msgs.append)
     assert result.success is True
-    assert result.estimated_duration  # populated from ESTIMATES
+    assert "dry-run" in result.estimated_duration
     assert any("passed" in m for m in progress_msgs)
 
 

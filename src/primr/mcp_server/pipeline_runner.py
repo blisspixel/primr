@@ -112,8 +112,10 @@ class PipelineRunner:
             # reset marks THIS job failed instead of wedging the single-job
             # store with a forever-running job.
             from primr.ai.client import reset_run_usage_accounting
+            from primr.ai.stage_routing import capture_stage_usage
 
             reset_run_usage_accounting()
+            usage_baseline = capture_stage_usage()
 
             import os
 
@@ -218,6 +220,7 @@ class PipelineRunner:
 
                 all_artifacts = _with_trace_artifacts(all_artifacts, job)
                 job.output_paths = all_artifacts
+                job.actual_cost_usd = _reconcile_actual_cost(usage_baseline)
                 await self._complete_with_manifest(
                     job,
                     company_url,
@@ -250,7 +253,20 @@ class PipelineRunner:
                 with contextlib.suppress(asyncio.CancelledError):
                     await heartbeat_task
 
+            pending_interaction_id = getattr(result, "pending_interaction_id", "")
+            pending_interaction_id = (
+                pending_interaction_id if isinstance(pending_interaction_id, str) else ""
+            )
             if not result.success:
+                await self._publish_paid_premium_partial(
+                    job=job,
+                    result=result,
+                    mode=mode,
+                    pending_interaction_id=pending_interaction_id,
+                    job_output_dir=job_output_dir,
+                    destination=destination,
+                    usage_baseline=usage_baseline,
+                )
                 logger.error(
                     "Research job %s failed: %s",
                     job.job_id,
@@ -272,8 +288,8 @@ class PipelineRunner:
                 job.company_name, result, output_dir=job_output_dir
             )
             job.output_paths = [output_path]
-            pending_interaction_id = getattr(result, "pending_interaction_id", "")
-            if isinstance(pending_interaction_id, str) and pending_interaction_id:
+            deep_research_tasks_started = int(bool(pending_interaction_id))
+            if pending_interaction_id:
                 from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
 
                 if not acknowledge_pending_job_after_outputs(pending_interaction_id, [output_path]):
@@ -305,6 +321,7 @@ class PipelineRunner:
                 if not isinstance(strategy_path, str) or not strategy_path:
                     raise RuntimeError("AI strategy generation produced no output artifact")
                 job.output_paths.append(strategy_path)
+                deep_research_tasks_started += 1
                 self.mcp_server.job_store.update(job)
 
             # Stage: QA (unless skipped)
@@ -344,6 +361,10 @@ class PipelineRunner:
                 )
 
             job.output_paths = _with_trace_artifacts(job.output_paths, job)
+            job.actual_cost_usd = _reconcile_actual_cost(
+                usage_baseline,
+                deep_research_tasks_started=deep_research_tasks_started,
+            )
             await self._complete_with_manifest(
                 job,
                 company_url,
@@ -390,6 +411,45 @@ class PipelineRunner:
             job.heartbeat()
             self.mcp_server.job_store.update(job)
             logger.debug(f"Heartbeat for job {job.job_id}")
+
+    async def _publish_paid_premium_partial(
+        self,
+        *,
+        job: ResearchJobState,
+        result: Any,
+        mode: str,
+        pending_interaction_id: str,
+        job_output_dir: Path,
+        destination: str | None,
+        usage_baseline: dict[str, dict[str, int | float]],
+    ) -> None:
+        """Durably publish and reconcile one measurable Premium partial."""
+        partial_content = getattr(result, "raw_content", "")
+        if (
+            mode != "premium"
+            or not pending_interaction_id
+            or not isinstance(partial_content, str)
+            or not partial_content.strip()
+        ):
+            return
+        from primr.core.deep_run_summary import publish_partial_deep_report
+
+        partial_path = publish_partial_deep_report(
+            result,
+            job.company_name,
+            job_output_dir,
+            diagnostics_dir=None,
+            write_txt=False,
+        )
+        if partial_path is None:
+            raise RuntimeError("Paid Premium partial could not be persisted")
+        job.output_paths = [partial_path]
+        if destination:
+            job.output_paths = _copy_artifacts_to_destination(
+                job.output_paths, str(Path(destination) / job.job_id)
+            )
+        job.output_paths = _with_trace_artifacts(job.output_paths, job)
+        job.actual_cost_usd = _reconcile_actual_cost(usage_baseline, deep_research_tasks_started=1)
 
     def _attach_generated_manifest(self, job: ResearchJobState, path: object) -> None:
         """Attach one generated manifest without duplicating job artifacts."""
@@ -558,23 +618,27 @@ class PipelineRunner:
             premium_mode=resolved_premium_mode,
         ).as_dict()
 
+        audit = job.governance_audit or {}
+        estimate_audit = audit.get("estimate") if isinstance(audit.get("estimate"), dict) else {}
+        approval_audit = audit.get("approval") if isinstance(audit.get("approval"), dict) else {}
         # Build manifest per FR-7.2 schema
         manifest = {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "job_id": job.job_id,
             "company_name": job.company_name,
             "company_url": company_url,
             "mode": mode,
             "estimate": {
-                "cost_usd": None,  # Would need to track from estimate_run
-                "time_minutes": None,
-                "estimated_at": None,
+                "cost_usd": estimate_audit.get("cost_usd"),
+                "time_minutes": estimate_audit.get("time_minutes"),
+                "estimated_at": estimate_audit.get("estimated_at"),
             },
             "approval": {
-                "token": None,  # Would need to track from workflow
-                "approved_at": None,
+                "token": None,
+                "approval_token_id": approval_audit.get("approval_token_id"),
+                "approved_at": approval_audit.get("approved_at"),
                 "approved_by": job.owner_client_id or "stdio",
-                "bound_to_estimate": False,
+                "bound_to_estimate": bool(approval_audit.get("bound_to_estimate", False)),
             },
             "budget": {
                 "approved_ceiling_usd": budget_usd,
@@ -585,7 +649,7 @@ class PipelineRunner:
                 "started_at": job.start_time.isoformat() if job.start_time else None,
                 "completed_at": job.completion_time.isoformat() if job.completion_time else None,
                 "status": job.get_status().value,
-                "actual_cost_usd": None,  # Would need usage tracking
+                "actual_cost_usd": job.actual_cost_usd,
                 "actual_time_minutes": actual_time_minutes,
             },
             "artifacts": job.output_paths or [],
@@ -605,6 +669,20 @@ class PipelineRunner:
         self._cancel_requested = True
         if self._running_task:
             self._running_task.cancel()
+
+
+def _reconcile_actual_cost(
+    usage_baseline: dict[str, dict[str, int | float]],
+    *,
+    deep_research_tasks_started: int = 0,
+) -> float:
+    """Combine run-scoped model deltas with accepted Deep Research tasks."""
+    from primr.ai.stage_routing import stage_usage_delta
+    from primr.core.deep_budget import deep_research_flat_cost
+
+    usage = stage_usage_delta(usage_baseline)
+    model_cost = float(usage.get("actual_cost_usd", 0.0))
+    return round(model_cost + deep_research_flat_cost(deep_research_tasks_started), 8)
 
 
 def _collect_run_artifacts(primary_path: str, _company_name: str) -> list[str]:

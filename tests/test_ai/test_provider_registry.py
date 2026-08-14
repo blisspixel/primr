@@ -133,6 +133,12 @@ class TestBuildProvider:
         assert isinstance(provider, GeminiProvider)
         assert provider.name == "gemini"
 
+    def test_openai_entry_uses_responses_api(self) -> None:
+        openai_entry = next(p for p in KNOWN_PROVIDERS if p.name == "openai")
+        provider = build_provider(openai_entry)
+        assert isinstance(provider, OpenAICompatibleProvider)
+        assert provider._api_style == "responses"
+
     def test_model_provider_resolution_is_cached_without_routing_import(self, monkeypatch) -> None:
         monkeypatch.setattr(registry, "_PROVIDER_INSTANCES", {})
         first = registry.get_registered_provider_for_model(PrimrModels.PRO_MODEL)

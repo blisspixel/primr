@@ -93,15 +93,58 @@ class TestSavePendingJob:
         loaded = json.loads(job_path.read_text(encoding="utf-8"))
         assert set(loaded) == {"iid-1"}
 
-    def test_save_raises_when_disk_write_fails(self, job_path):
+    def test_primary_write_failure_uses_durable_recovery_receipt(self, job_path):
         save_pending_job("iid-1", "vendor_research", "X")
-        # Force the second write to fail at the atomic-replace seam.
+        with patch(
+            "primr.ai.job_persistence.atomic_replace",
+            side_effect=OSError("primary registry locked"),
+        ):
+            save_pending_job("iid-2", "vendor_research", "Y")
+
+        receipts = job_path.with_name(job_path.name + ".recovery.jsonl")
+        assert receipts.is_file()
+        read_success, jobs = get_pending_jobs_with_status()
+        assert read_success is True
+        assert set(jobs) == {"iid-1", "iid-2"}
+        assert jobs["iid-2"]["description"] == (
+            "Emergency recovery receipt for accepted vendor_research"
+        )
+
+    def test_emergency_receipt_keeps_only_recovery_metadata(self, job_path):
+        with patch(
+            "primr.ai.job_persistence.atomic_replace",
+            side_effect=OSError("primary registry locked"),
+        ):
+            save_pending_job(
+                "iid-2",
+                "deep_research",
+                "sensitive prompt text",
+                metadata={
+                    "file_search_store": "stores/live",
+                    "company_name": "ExampleCo",
+                    "secret": "must-not-persist",
+                },
+            )
+
+        job = get_pending_jobs()["iid-2"]
+        assert job["metadata"] == {
+            "company_name": "ExampleCo",
+            "file_search_store": "stores/live",
+        }
+        assert "sensitive prompt text" not in json.dumps(job)
+        assert "must-not-persist" not in json.dumps(job)
+
+    def test_save_raises_when_primary_and_recovery_receipt_fail(self, job_path):
         with (
             patch(
                 "primr.ai.job_persistence.atomic_replace",
-                side_effect=OSError("disk full"),
+                side_effect=OSError("primary registry locked"),
             ),
-            pytest.raises(OSError),
+            patch(
+                "primr.ai.job_persistence._append_recovery_receipt",
+                side_effect=OSError("recovery volume unavailable"),
+            ),
+            pytest.raises(OSError, match="both failed"),
         ):
             save_pending_job("iid-2", "vendor_research", "Y")
 
@@ -172,6 +215,19 @@ class TestRemovePendingJobs:
     def test_missing_file_is_successful_no_op(self, job_path):
         assert remove_pending_jobs(("unknown",)) == (True, 0)
         assert not job_path.exists()
+
+    def test_removes_emergency_only_record(self, job_path):
+        with patch(
+            "primr.ai.job_persistence.atomic_replace",
+            side_effect=OSError("primary registry locked"),
+        ):
+            save_pending_job("accepted-1", "deep_research", "ExampleCo")
+
+        receipts = job_path.with_name(job_path.name + ".recovery.jsonl")
+        assert "accepted-1" in get_pending_jobs()
+        assert remove_pending_jobs(("accepted-1",)) == (True, 1)
+        assert get_pending_jobs() == {}
+        assert not receipts.exists()
 
     def test_corrupt_file_fails_closed(self, job_path):
         job_path.write_text("{not-json", encoding="utf-8")
@@ -395,6 +451,13 @@ class TestGetPendingJobs:
 
     def test_status_rejects_non_object_job_entry(self, job_path):
         job_path.write_text('{"j1": null}', encoding="utf-8")
+
+        assert get_pending_jobs_with_status() == (False, {})
+        assert get_pending_jobs() == {}
+
+    def test_status_fails_closed_for_malformed_recovery_receipt(self, job_path):
+        receipts = job_path.with_name(job_path.name + ".recovery.jsonl")
+        receipts.write_text("{not-json\n", encoding="utf-8")
 
         assert get_pending_jobs_with_status() == (False, {})
         assert get_pending_jobs() == {}

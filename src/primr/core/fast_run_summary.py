@@ -49,6 +49,8 @@ def finalize_fast_run(
     display_name: str,
     folder_path: str,
     written_sections_count: int,
+    expected_sections_count: int,
+    report_complete: bool,
     total_words: int,
     validated_source_count: int,
     pages_scraped: int,
@@ -106,6 +108,7 @@ def finalize_fast_run(
 
     artifacts_passed = (
         bool(docx_path)
+        and report_complete
         and all(str(path).lower().endswith(".docx") for path in strategy_paths.values())
         and strategy_outcome.status in {"not_requested", "completed"}
     )
@@ -127,6 +130,8 @@ def finalize_fast_run(
     _update_run_state(
         folder_path,
         report_sections=written_sections_count,
+        report_sections_expected=expected_sections_count,
+        report_complete=report_complete,
         report_words=total_words,
         external_sources_validated=validated_source_count,
         strategy_artifacts=len(strategy_paths),
@@ -149,15 +154,10 @@ def finalize_fast_run(
 
     by_model = get_grok_session_usage_by_model()
     model_rows: list[tuple[str, str]] = []
-    for mname, t in sorted(by_model.items(), key=lambda kv: -kv[1]["input_tokens"]):
+    for mname, t in sorted(by_model.items(), key=lambda kv: -float(kv[1]["input_tokens"])):
         try:
-            mcost = PrimrModels.calculate_cost(
-                mname,
-                t["input_tokens"],
-                t["output_tokens"],
-                cached_input_tokens=t.get("cached_input_tokens", 0),
-            )
-            cost_label = f"~${mcost:.2f}"
+            mcost, exact = PrimrModels.calculate_recorded_cost(mname, t)
+            cost_label = f"${mcost:.2f} exact" if exact else f"~${mcost:.2f}"
         except KeyError:
             # Never report $0.00 for real token traffic without registry pricing.
             logger.warning(
@@ -168,7 +168,10 @@ def finalize_fast_run(
             )
             cost_label = "~$? (unpriced model)"
         model_rows.append(
-            (mname, f"{t['input_tokens']:,} in / {t['output_tokens']:,} out  {cost_label}")
+            (
+                mname,
+                f"{int(t['input_tokens']):,} in / {int(t['output_tokens']):,} out  {cost_label}",
+            )
         )
 
     summary_items: list[tuple[str, Any]] = [
@@ -235,4 +238,7 @@ def finalize_fast_run(
     )
     log_job_summary(job_summary)
 
+    # An incomplete report remains a paid, durable artifact. Its completion
+    # and artifact-gate fields stay false, but callers receive the saved
+    # Markdown path instead of losing the only usable output.
     return primary_output_path

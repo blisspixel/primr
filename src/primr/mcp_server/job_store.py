@@ -238,6 +238,8 @@ class ResearchJobState:
     error_message: str | None = None
     deep_research_job_id: str | None = None  # For recovery after restart
     qa_score: int | None = None  # QA score (0-100) when available
+    actual_cost_usd: float | None = None  # Run-scoped measured or reconciled spend
+    governance_audit: dict | None = None  # Non-secret estimate and approval facts
 
     # Stage ordering for monotonic progression
     _STAGE_ORDER: list[ResearchStage] = field(
@@ -400,6 +402,8 @@ class ResearchJobState:
             "error_message": self.error_message,
             "deep_research_job_id": self.deep_research_job_id,
             "qa_score": self.qa_score,
+            "actual_cost_usd": self.actual_cost_usd,
+            "governance_audit": self.governance_audit,
         }
 
     @classmethod
@@ -436,6 +440,12 @@ class ResearchJobState:
         job.error_message = data.get("error_message")
         job.deep_research_job_id = data.get("deep_research_job_id")
         job.qa_score = data.get("qa_score")
+        cost = data.get("actual_cost_usd")
+        job.actual_cost_usd = (
+            float(cost) if not isinstance(cost, bool) and isinstance(cost, int | float) else None
+        )
+        audit = data.get("governance_audit")
+        job.governance_audit = dict(audit) if isinstance(audit, dict) else None
         return job
 
 
@@ -770,6 +780,7 @@ class SingleJobStore(JobStore):
             worker_job.mode = canonical.mode
             worker_job.start_time = canonical.start_time
             worker_job.owner_client_id = canonical.owner_client_id
+            worker_job.governance_audit = canonical.governance_audit
 
             self._job = worker_job
             self._save_journal()

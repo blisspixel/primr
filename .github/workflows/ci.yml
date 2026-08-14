@@ -38,7 +38,7 @@ jobs:
         timeout-minutes: 5
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
-          version: "0.11.17"
+          version: "0.11.33"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
           cache-suffix: ${{ runner.os }}-py${{ matrix.python-version }}
@@ -105,39 +105,85 @@ jobs:
             --cov-fail-under=13 \
             --cov-report=term
 
-      - name: Test
+      - name: Test (non-primary interpreters)
         timeout-minutes: 25
+        if: matrix.python-version != '3.13'
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
-        # Global branch-coverage gate is a non-regression RATCHET (raise only,
-        # never lower). It runs on the primary interpreter; the other matrix
-        # legs run the suite without the coverage gate.
         run: |
-          if [ "${{ matrix.python-version }}" = "3.13" ]; then
-            uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q \
-              -k "not test_wait_times_out_when_no_change" -m "not integration" \
-              --cov=src/primr --cov-branch --cov-fail-under=81
-          else
-            uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q \
-              -k "not test_wait_times_out_when_no_change" -m "not integration"
-          fi
+          uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q \
+            -k "not test_wait_times_out_when_no_change" -m "not integration"
 
-      # Property tests live in tests/property_tests / tests/agentic/property_tests
-      # and include the deploy/** hardcoded-secret scanner. A few pre-existing
-      # hypothesis-found flakes need root-cause fixes before this can block
-      # merges, so it produces signal but does not gate yet. Run once.
-      - name: Property + security-gate tests
-        timeout-minutes: 10
+      # The primary suite is divided only at the CI orchestration boundary.
+      # Every shard appends branch data to one coverage database, and the final
+      # report enforces the global non-regression ratchet across the full suite.
+      # This preserves scope while keeping each step below the hosted timeout.
+      - name: Test with coverage (agent protocols)
+        timeout-minutes: 12
         if: matrix.python-version == '3.13'
-        continue-on-error: true
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: |
-          uv run --no-sync pytest tests/property_tests tests/agentic/property_tests \
-            --tb=short -q -m "not integration"
+          uv run --no-sync coverage erase
+          uv run --no-sync pytest \
+            tests/a2a tests/mcp_server tests/openclaw tests/security tests/skill_pack \
+            -x --tb=short -q \
+            -k "not test_wait_times_out_when_no_change" -m "not integration" \
+            --cov=src/primr --cov-branch --cov-append --cov-report=
 
-      # Hard-gated security slice: the deploy/** hardcoded-secret scanner cannot
-      # silently regress while the model-selection property flake is fixed.
+      - name: Test with coverage (agentic and property)
+        timeout-minutes: 12
+        if: matrix.python-version == '3.13'
+        env:
+          GEMINI_API_KEY: fake-key-for-ci-tests
+        run: |
+          uv run --no-sync pytest tests/agentic tests/property_tests \
+            -x --tb=short -q \
+            -k "not test_wait_times_out_when_no_change" -m "not integration" \
+            --cov=src/primr --cov-branch --cov-append --cov-report=
+
+      - name: Test with coverage (providers and configuration)
+        timeout-minutes: 12
+        if: matrix.python-version == '3.13'
+        env:
+          GEMINI_API_KEY: fake-key-for-ci-tests
+        run: |
+          uv run --no-sync pytest tests/test_ai tests/test_api tests/test_config \
+            -x --tb=short -q \
+            -k "not test_wait_times_out_when_no_change" -m "not integration" \
+            --cov=src/primr --cov-branch --cov-append --cov-report=
+
+      - name: Test with coverage (core)
+        timeout-minutes: 12
+        if: matrix.python-version == '3.13'
+        env:
+          GEMINI_API_KEY: fake-key-for-ci-tests
+        run: |
+          uv run --no-sync pytest tests/test_core \
+            -x --tb=short -q \
+            -k "not test_wait_times_out_when_no_change" -m "not integration" \
+            --cov=src/primr --cov-branch --cov-append --cov-report=
+
+      - name: Test with coverage (remaining suite)
+        timeout-minutes: 12
+        if: matrix.python-version == '3.13'
+        env:
+          GEMINI_API_KEY: fake-key-for-ci-tests
+        run: |
+          uv run --no-sync pytest \
+            tests/test_data tests/test_deploy tests/test_lifecycle tests/test_output \
+            tests/test_pipeline tests/test_prompts tests/test_qa tests/test_scripts \
+            tests/test_utils tests/test_*.py \
+            -x --tb=short -q \
+            -k "not test_wait_times_out_when_no_change" -m "not integration" \
+            --cov=src/primr --cov-branch --cov-append --cov-report=
+
+      - name: Enforce global branch coverage
+        if: matrix.python-version == '3.13'
+        run: uv run --no-sync coverage report --fail-under=81
+
+      # Keep this security invariant visible as a dedicated hard gate even though
+      # the same test also contributes to the combined coverage result above.
       - name: Security gate (hardcoded secret scan)
         timeout-minutes: 5
         if: matrix.python-version == '3.13'
@@ -174,7 +220,7 @@ jobs:
         timeout-minutes: 5
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
-          version: "0.11.17"
+          version: "0.11.33"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
           cache-suffix: ${{ runner.os }}-py3.13-cross-platform
@@ -213,7 +259,7 @@ jobs:
         timeout-minutes: 5
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
-          version: "0.11.17"
+          version: "0.11.33"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
           cache-suffix: ${{ runner.os }}-py3.13-a2a

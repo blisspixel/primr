@@ -147,7 +147,21 @@ class TestCollectFallbackContent:
         # Wayback candidates are always built regardless of grok toggle.
         assert any(u.endswith("/about") for u in captured["wayback_urls"])
 
-    def test_grok_surrogate_enabled_by_default(self, monkeypatch):
+    def test_grok_surrogate_disabled_by_default(self, monkeypatch):
+        monkeypatch.delenv("PRIMR_DISABLE_GROK_SURROGATE", raising=False)
+        monkeypatch.delenv("PRIMR_ENABLE_GROK_SURROGATE", raising=False)
+        captured = {}
+
+        def _capture(**kwargs):
+            captured.update(kwargs)
+            return []
+
+        with patch("primr.data.fallback_sources.gather_fallback_content", side_effect=_capture):
+            _collect_fallback_content("Acme Corp", "https://acme.example")
+        assert captured["grok_surrogate_urls"] is None
+
+    def test_grok_surrogate_requires_explicit_enable(self, monkeypatch):
+        monkeypatch.setenv("PRIMR_ENABLE_GROK_SURROGATE", "1")
         monkeypatch.delenv("PRIMR_DISABLE_GROK_SURROGATE", raising=False)
         captured = {}
 

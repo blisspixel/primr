@@ -377,6 +377,25 @@ class TestComputeSessionLLMCost:
         finally:
             grok_client.reset_grok_session()
 
+    def test_complete_exact_provider_cost_replaces_token_estimate(self, monkeypatch):
+        from primr.ai import grok_client
+        from primr.core.research_agent import _compute_session_llm_cost
+
+        grok_client.reset_grok_session()
+        try:
+            grok_client._mirror_session_usage(
+                "grok-4.6",
+                200_000,
+                50_000,
+                cached_input_tokens=100_000,
+                actual_cost_usd=0.73,
+            )
+            self._patch_flash_cost(monkeypatch, 0.25)
+
+            assert _compute_session_llm_cost() == pytest.approx(0.98)
+        finally:
+            grok_client.reset_grok_session()
+
     def test_empty_session_is_flash_only(self, monkeypatch):
         from primr.ai import grok_client
         from primr.core.research_agent import _compute_session_llm_cost

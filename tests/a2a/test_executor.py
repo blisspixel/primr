@@ -634,6 +634,28 @@ class TestPrimrAgentExecutor:
         assert "Invalid URL" in text or "url" in text.lower()
 
     @pytest.mark.asyncio
+    async def test_estimate_rejects_unpriced_environment_model_calls(
+        self,
+        executor,
+        event_queue,
+        context,
+        monkeypatch,
+    ):
+        monkeypatch.setenv("PRIMR_ENABLE_GROK_SURROGATE", "1")
+        context.message = {
+            "parts": [{"kind": "text", "text": '{"url": "https://example.com"}'}],
+            "metadata": {"skillId": "estimate_research"},
+        }
+
+        await executor.execute(context, event_queue)
+
+        data = json.loads(_get_event_text(event_queue.enqueue_event.call_args[0][0]))
+        assert data["error"] is True
+        assert data["error_type"] == "unpriced_model_opt_in"
+        assert data["model_opt_ins"] == ["PRIMR_ENABLE_GROK_SURROGATE"]
+        assert "approval_token" not in data
+
+    @pytest.mark.asyncio
     async def test_estimate_research_returns_approval_token(self, executor, event_queue, context):
         """A2A estimates use the same approval-token contract as MCP estimates."""
         auth_context = MagicMock()
@@ -1015,7 +1037,7 @@ class TestPrimrAgentExecutor:
         self, executor, event_queue, context, monkeypatch
     ):
         """A queue failure after job creation cannot leave an accepted job active."""
-        monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
+        monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "0")
         context.task_id = "task-queue-failure"
         context.context_id = "ctx-queue-failure"
         context.message = {
@@ -1042,7 +1064,7 @@ class TestPrimrAgentExecutor:
         self, executor, event_queue, context, monkeypatch
     ):
         """Request cancellation before worker launch records terminal job truth."""
-        monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
+        monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "0")
         context.task_id = "task-cancelled-before-launch"
         context.context_id = "ctx-cancelled-before-launch"
         context.message = {
@@ -1083,7 +1105,7 @@ class TestPrimrAgentExecutor:
         self, executor, event_queue, context, monkeypatch
     ):
         """Supervisor launch failure commits FAILED before returning an A2A error."""
-        monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
+        monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "0")
         executor._mcp._skip_background_tasks = False
         monkeypatch.setattr(
             executor._mcp.job_supervisor,
@@ -1115,7 +1137,7 @@ class TestPrimrAgentExecutor:
         self, executor, event_queue, context, monkeypatch
     ):
         """Cancellation while the supervisor starts cannot strand an active job."""
-        monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
+        monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "0")
         executor._mcp._skip_background_tasks = False
         start_entered = asyncio.Event()
         never_complete = asyncio.Event()
@@ -2521,9 +2543,10 @@ class TestPrimrAgentExecutor:
 
     @pytest.mark.asyncio
     async def test_research_create_uses_authenticated_client_owner(
-        self, executor, event_queue, context
+        self, executor, event_queue, context, monkeypatch
     ):
         """research_company passes the caller client id into job creation."""
+        monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "0")
         auth_context = MagicMock()
         auth_context.is_authenticated = True
         auth_context.scopes = ["research"]

@@ -66,7 +66,7 @@ def resolve_fast_run_setup(
     # which prefers gemini-3.1-flash-lite when GEMINI_API_KEY is set. Until
     # this fix, perform_fast_research kept using the Grok-tier writer
     # (grok-4.20-non-reasoning), so a max_estimated_cost_usd cap approved
-    # against a ~$0.79 Gemini estimate could let through a real ~$4.36 Grok
+    # against a ~$0.79 Gemini estimate could let through a real ~$5.09 Grok
     # run. MAX is the explicit "Grok everywhere" opt-in and still uses the
     # Grok-tier writer for both reasoning and writing.
     from primr.ai.routing import Role, get_active_eval_recipe, pick_model_for_role

@@ -224,17 +224,10 @@ class TestPreflightValidator:
         assert PreflightValidator.DEEP_RESEARCH_AGENT == "deep-research-preview-04-2026"
         assert PreflightValidator.SECTION_MODEL == "gemini-3-flash-preview"
 
-    def test_estimates_by_mode(self):
-        """PreflightValidator has estimates for all modes."""
+    def test_preflight_does_not_publish_stale_static_estimates(self):
         from primr.ai.preflight import PreflightValidator
 
-        assert "full" in PreflightValidator.ESTIMATES
-        assert "deep" in PreflightValidator.ESTIMATES
-        assert "scrape" in PreflightValidator.ESTIMATES
-
-        for _mode, est in PreflightValidator.ESTIMATES.items():
-            assert "duration" in est
-            assert "cost" in est
+        assert not hasattr(PreflightValidator, "ESTIMATES")
 
     @pytest.mark.asyncio
     async def test_deep_research_preflight_does_not_launch_billable_job(self):

@@ -1,7 +1,8 @@
 # Provider Expansion: OpenAI, Anthropic, Billing-Verifiable Hosts, Gateways, and Local
 
-Status: STARTED (provider pricing refreshed June 29, 2026; explicitly gated
-Codex experiment and host-native plan handoff shipped)
+Status: STARTED (provider facts refreshed August 13, 2026; Responses adapters,
+the explicitly gated Codex experiment, and host-native handoff shipped; full
+cross-provider recipes remain eval-gated)
 ROADMAP anchor: Active Queue #26. Companion to
 [`2.0-backend-freedom.md`](2.0-backend-freedom.md) (routing architecture);
 this doc is the concrete provider catalog and delivery plan that routing
@@ -27,7 +28,7 @@ will route over.
    OpenAI-compatible servers only; no platform-specific code. (vLLM has no
    Windows support; that is the server operator's concern, not primr's,
    because primr only speaks the protocol.)
-5. **Latest models only.** June 2026 model generations below; never
+5. **Current models only.** August 2026 model generations below; never
    register a superseded model as a default. Re-verify IDs at
    implementation time against provider docs (the registry refresh is
    cheap; shipping stale defaults is not).
@@ -60,16 +61,17 @@ will route over.
 
 - `Provider` ABC with xAI / Gemini / OpenAI / Anthropic / Ollama providers;
   `pick_model_for_role` falls through XAI > Gemini > OpenAI > Anthropic by
-  key presence. OpenAI/Anthropic models ARE registered but from an older
-  generation; they have never been validated as full-pipeline recipes. As of
+  key presence. Current OpenAI GPT-5.6 and current Claude-family candidates are
+  registered, but they have not been validated as full-pipeline recipes. As of
   1.37.0, `ai/providers/azure_foundry.py` and `ai/providers/bedrock.py` also
   exist as real `Provider` classes registered in `KNOWN_PROVIDERS` — wired for
   credential validation (`primr keys test`) and `doctor` only; full-pipeline
   model→provider routing for them is still tracked under the gateway phase
   (Phase C) below.
-- `OpenAICompatibleProvider` + `openai_compatible_client.chat_completion`
-  (base-URL + key, retry/backoff): the seam Bedrock/Foundry/local all plug
-  into.
+- `OpenAICompatibleProvider` supports explicit Responses and Chat Completions
+  API styles. Direct OpenAI and xAI use Responses with `store=false`; the
+  `openai_compatible_client.chat_completion` helper remains for local
+  Chat Completions servers. Bedrock and Foundry have separate provider classes.
 - `ai/local_inference.py` (shipped with the calibration local judge):
   fail-open `/v1/models` detection, env-chain base URL, family-preference
   model pick. Missing: the memory fit-check from principle 5.
@@ -98,25 +100,59 @@ will route over.
   handoff without passing subscription credentials into Primr. Neither path
   treats subscription credentials as interchangeable with API keys.
 
-## Verified provider facts (June 29, 2026)
+## Verified provider facts (August 13, 2026)
 
-Full citations live in the research transcripts; key integration facts:
+Primary sources are linked inline with the integration facts they support:
 
 ### OpenAI (direct)
 
-- Models: `gpt-5.5` ($5/$30 per MTok, 1.05M ctx), `gpt-5.4` ($2.50/$15),
+- Models: [GPT-5.6 Sol, Terra, and Luna](https://developers.openai.com/api/docs/models)
+  are $5/$30, $2/$12, and $0.20/$1.20 per MTok respectively.
+  Their cached-input prices are $0.50, $0.20, and $0.02. All three have 1.05M
+  context and 128K output. The older registered
+  family includes `gpt-5.5` ($5/$30), `gpt-5.4` ($2.50/$15),
   `gpt-5.4-mini` ($0.75/$4.50), `gpt-5.4-nano` ($0.20/$1.25, 400K ctx).
-  Registered GPT-5.x entries now include the current >270K long-context tier
-  metadata so estimates can surface the surcharge. Reasoning depth via
-  `reasoning.effort` (none..xhigh).
-- Web search: `web_search` tool in the **Responses API**, $10 per 1k calls
-  plus content tokens. Build new work on Responses; Chat Completions still
-  supported, but the Assistants API retires 2026-08-26.
-- Batch: flat 50%, 24h window, stacks with caching.
-- Caching: automatic, cached input at 10% of base, no write surcharge,
-  optional `prompt_cache_retention: "24h"`.
-- Deep research: `o3-deep-research` / `o4-mini-deep-research` via Responses
-  (a premium-mode alternative to Gemini Deep Research).
+  Registered 1.05M-context entries include the current >272K long-context tier
+  metadata. GPT-5.6 reasoning effort adds `max` to none through xhigh.
+- Web search: `web_search` in the **Responses API** is
+  [$10 per 1k calls](https://developers.openai.com/api/docs/pricing#tools)
+  plus search-content tokens at model rates. Build new work on Responses; Chat
+  Completions is still supported, but the
+  [Assistants API shuts down on 2026-08-26](https://platform.openai.com/docs/assistants/deep-dive).
+- Batch: OpenAI documents
+  [50% lower costs and a 24-hour completion window](https://developers.openai.com/api/docs/guides/batch).
+  Primr does not currently route production stages through Batch.
+- Caching: GPT-5.6 cache writes cost 1.25x uncached input and current explicit
+  controls use `prompt_cache_options`. Primr records cache reads but does not
+  yet opt into explicit OpenAI cache writes or estimate their multiplier. Older
+  retention-field assumptions must not drive new behavior. See the
+  [GPT-5.6 guide](https://developers.openai.com/api/docs/guides/latest-model#prompt-caching).
+- Deep research: OpenAI still documents
+  [`o3-deep-research`](https://developers.openai.com/api/docs/models/o3-deep-research)
+  and [`o4-mini-deep-research`](https://developers.openai.com/api/docs/models/o4-mini-deep-research)
+  on Responses. They are provider-expansion candidates, not a wired Primr
+  Premium route.
+
+### Google baseline
+
+- Primr Premium uses Gemini Deep Research through background Interactions with
+  storage enabled. Current responses are parsed from
+  `steps[*].model_output.content`; the legacy `outputs` shape remains only for
+  persisted-job compatibility. See Google's
+  [Deep Research guide](https://ai.google.dev/gemini-api/docs/deep-research)
+  and [Interactions overview](https://ai.google.dev/gemini-api/docs/interactions-overview).
+- File Search uploads are long-running operations and must complete before an
+  interaction references the store. Imported store data persists until manual
+  deletion; raw File API uploads are deleted after 48 hours. See Google's
+  [File Search guide](https://ai.google.dev/gemini-api/docs/file-search).
+- Gemini 3.7 Flash, 3.6 Flash, and 3.5 Flash-Lite are registered evaluation
+  candidates. Direct Gemini production defaults remain pinned. Primr omits
+  unsupported sampling controls on these request paths, records explicit
+  thinking levels, and applies Google's published January 1, 2027 price change
+  to 3.6 and 3.7 by pricing date. Promotion still requires representative
+  quality and cost evaluation. See the
+  [latest-model migration guide](https://ai.google.dev/gemini-api/docs/latest-model)
+  and [pricing page](https://ai.google.dev/gemini-api/docs/pricing).
 
 ### Anthropic (direct)
 
@@ -242,11 +278,11 @@ the operator must explicitly acknowledge that metered API billing may apply.
 
 ### Phase A: first-class OpenAI and Anthropic recipes (1.x)
 
-1. **Registry refresh to June-2026 generations** (gpt-5.5/5.4 family;
-   claude-fable-5/opus-4-8/sonnet-4-6/haiku-4-5) with current prices and
-   NEW capability flags: `supports_temperature`, `tokenizer_multiplier`,
-   `web_search_tool` (none | openai_responses | anthropic_messages |
-   xai_browse), `requires_responses_api`.
+1. **Registry refresh - PARTIAL:** GPT-5.6 and current Claude-family model rows
+   are registered at current prices. The finer-grained capability flags remain
+   queued: `supports_temperature`, `tokenizer_multiplier`, `web_search_tool`
+   (none | openai_responses | anthropic_messages | xai_browse), and
+   `requires_responses_api`.
 2. **Sampling-param guard**: the LLM call seam consults
    `supports_temperature` before setting sampling params (Fable 5 /
    Opus 4.7+ reject them).
@@ -356,12 +392,13 @@ existing OpenAI-compatible provider.
 
 ### Sequencing vs the Version Plan
 
-Phase A is 1.x-compatible incremental work (registry + flags + one stage
-dispatch). Phase B can start behind a fake-runner seam once the stage-packet
-contract is designed; it should not block direct API recipes. Phase C is
-config/docs heavy and can land any time after A. Phase D is the backend-freedom
-pillar (2.0) and depends on the step-1 instruments (shipped) plus #18 routing
-for per-stage requirements.
+Phase A remains 1.x-compatible incremental work. Registry refresh and the
+Responses transport are shipped; capability flags, provider-native search
+routing, recipe estimates, and eval promotion remain. Phase B's typed runner
+and first gated Codex transport are shipped experiments and do not block direct
+API recipes. Phase C is config/docs heavy and can land after A. Phase D is the
+backend-freedom pillar (2.0) and depends on the shipped evaluation instruments
+plus per-stage routing requirements.
 
 ## Validation protocol (cost-disciplined)
 

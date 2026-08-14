@@ -4,6 +4,8 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
 
+import pytest
+
 from primr.ai.capability_routing import BillingMode, InferenceProfile
 from primr.ai.host_agent_cli import codex_cli_backend
 from primr.ai.provider_availability import (
@@ -570,6 +572,57 @@ def test_stage_usage_delta_reports_body_free_model_cost() -> None:
     }
 
     reset_grok_session()
+
+
+def test_capture_stage_usage_includes_legacy_client_exact_cost(monkeypatch) -> None:
+    legacy = {
+        PrimrModels.FLASH_MODEL: {
+            "input_tokens": 500,
+            "output_tokens": 100,
+            "cached_input_tokens": 0,
+            "actual_cost_usd": 0.00125,
+            "actual_cost_calls": 1,
+            "call_count": 1,
+        }
+    }
+    monkeypatch.setattr("primr.ai.client.get_ai_client_usage_by_model", lambda: legacy)
+    monkeypatch.setattr("primr.ai.grok_client.get_grok_session_usage_by_model", dict)
+    monkeypatch.setattr("primr.ai.llm.get_llm_provider_usage_by_model", dict)
+
+    snapshot = capture_stage_usage()
+
+    assert snapshot == legacy
+
+
+def test_stage_usage_delta_prefers_fully_covered_exact_xai_cost() -> None:
+    before = {
+        "grok-4.6": {
+            "input_tokens": 100,
+            "output_tokens": 20,
+            "cached_input_tokens": 10,
+            "actual_cost_usd": 0.001,
+            "actual_cost_calls": 1,
+            "call_count": 1,
+        }
+    }
+    after = {
+        "grok-4.6": {
+            "input_tokens": 300_100,
+            "output_tokens": 2_020,
+            "cached_input_tokens": 100_010,
+            "actual_cost_usd": 0.463,
+            "actual_cost_calls": 3,
+            "call_count": 3,
+        }
+    }
+
+    delta = stage_usage_delta(before, after)
+
+    assert delta["actual_input_tokens"] == 300_000
+    assert delta["actual_output_tokens"] == 2_000
+    assert delta["actual_cached_input_tokens"] == 100_000
+    assert delta["actual_cost_usd"] == pytest.approx(0.462)
+    assert delta["actual_usage_by_model"]["grok-4.6"]["actual_cost_usd"] == pytest.approx(0.462)
 
 
 def test_record_stage_route_usage_caps_history(tmp_path, monkeypatch) -> None:

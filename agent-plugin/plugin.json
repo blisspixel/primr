@@ -1,0 +1,18 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "primr",
+  "version": "1.39.2",
+  "description": "Company intelligence through Primr Zero or the estimate-gated provider-backed Primr pipeline.",
+  "author": {
+    "name": "blisspixel",
+    "url": "https://github.com/blisspixel"
+  },
+  "homepage": "https://github.com/blisspixel/primr",
+  "repository": "https://github.com/blisspixel/primr",
+  "license": "Apache-2.0",
+  "keywords": [
+    "company-research",
+    "strategic-intelligence",
+    "primr"
+  ]
+}

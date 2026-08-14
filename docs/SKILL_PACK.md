@@ -431,6 +431,14 @@ Output + validation:
 - `--emit-agent-metadata` - add optional primr-namespaced metadata to each `SKILL.md` frontmatter; off by default
 - `--remote-icons` - opt in to remote image-generation APIs for Cowork icons; off by default so configured provider keys do not create image API spend
 - `--dry-run` - estimate cost + time, exit before running
+- `--budget USD` - approve a ceiling that must cover the repeated estimate; the pipeline checks observed spend between paid phases
+- `--skip-confirm` - explicit non-interactive approval after the estimate is repeated
+
+Normal execution prints the same bounded quote as `--dry-run` and requires an
+explicit yes unless `--budget` or `--skip-confirm` supplies non-interactive
+approval. The total ceiling is enforced at paid phase boundaries. The legacy
+per-role configuration value is not advertised as an enforceable cap because
+parallel role authoring does not provide reliable role-scoped attribution.
 
 ## MCP reference
 
@@ -449,7 +457,8 @@ Optional:
 - `career_urls` (array of exact career / ATS URLs; merged before planning)
 - `remote_icons` (bool, default false; includes the explicit remote icon image-generation allowance)
 
-Returns `{cost_usd, min_minutes, max_minutes}` plus the approval token fields when MCP cost-cap enforcement is enabled.
+Returns `{cost_usd, min_minutes, max_minutes}` plus the approval token fields.
+MCP cost-cap enforcement is enabled by default on every transport.
 
 ### `generate_skill_pack`
 

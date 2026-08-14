@@ -89,6 +89,33 @@ def test_improve_output_file_writes_improved_report(tmp_path: Path):
     assert "citation inventory" not in text.lower()
 
 
+def test_agentic_improve_reserves_each_model_stage(tmp_path: Path, monkeypatch):
+    import primr.core.research_agent as research_agent
+
+    report = tmp_path / "demo.md"
+    report.write_text("## Overview\n\nClaim (Reported).", encoding="utf-8")
+    monkeypatch.setattr(
+        research_agent,
+        "_fast_cross_validate",
+        lambda *_args, **_kwargs: {"weak_sections": [{"title": "Overview"}]},
+    )
+    monkeypatch.setattr(
+        research_agent,
+        "_polish_fast_report_for_trust",
+        lambda _company, _website, content, _sources: content,
+    )
+    stages: list[str] = []
+
+    result = improve_output_file(
+        str(report),
+        use_agentic=True,
+        before_model_stage=stages.append,
+    )
+
+    assert result is not None
+    assert stages == ["review", "polish"]
+
+
 def test_validate_output_markdown_flags_internal_artifacts():
     result = _validate_output_markdown(
         "## Report\n\nClaim [Workbook: Financial Profile] [Source: https://example.com/a].\n"

@@ -138,7 +138,7 @@ def enforce_approval_token(
             "approval_token_required",
             MCPErrorCode.APPROVAL_TOKEN_REQUIRED,
             (
-                "approval_token is required when MCP cost-cap enforcement is enabled; "
+                "approval_token is required for cost-governed MCP execution; "
                 "call the matching estimate tool, get user approval, then pass the "
                 "returned approval_token into this tool."
             ),
@@ -155,6 +155,25 @@ def enforce_approval_token(
             f"approval_token is invalid: {exc}",
         )
     return None
+
+
+def approval_token_audit(approval_token: object) -> dict[str, str] | None:
+    """Return non-secret issuance metadata from a validated approval token."""
+    if not isinstance(approval_token, str) or not approval_token.strip():
+        return None
+    try:
+        payload = _decode_token(approval_token.strip())
+        token_id = payload["jti"]
+        issued_at = payload["iat"]
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not isinstance(token_id, str) or not token_id:
+        return None
+    try:
+        issued_at_iso = _iso_from_epoch(int(issued_at))
+    except (TypeError, ValueError, OSError, OverflowError):
+        return None
+    return {"approval_token_id": token_id, "estimated_at": issued_at_iso}
 
 
 def _hash_approval_args(approval_args: dict[str, Any]) -> str:

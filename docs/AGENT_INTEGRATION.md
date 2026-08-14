@@ -100,7 +100,9 @@ primr mcp --http --port 8000
 primr-mcp --stdio
 ```
 
-Use stdio for local desktop agent hosts. Use HTTP only when you need a networked service with JWT auth and explicit cost-cap enforcement.
+Use stdio for local desktop agent hosts. Use HTTP only when you need a
+networked service with JWT auth. Both transports require estimate-bound cost
+caps and approval tokens by default.
 
 Important MCP concepts:
 
@@ -117,7 +119,10 @@ Important MCP concepts:
   detailed QA or report body content.
 - `primr://output/usage_summary/by_job/{job_id}` exposes compact cost, timing,
   approval, execution, and artifact-count metadata from owned-job run manifests
-  without full manifest content.
+  without full manifest content. Completed research jobs report run-scoped
+  actual spend. The field remains null for cancellation and failures whose
+  spend cannot be measured; a failed Premium job with a durable paid partial
+  can report reconciled spend. Estimates and ceilings are never actual spend.
 - `primr://output/source_summary/by_job/{job_id}` exposes compact
   citation/source appendix counts, domains, missing citations, duplicate URL
   counts, and source URLs without report body content.
@@ -133,7 +138,8 @@ Important MCP concepts:
   evidence-review count buckets, judge provenance, and judge-agreement
   metadata without raw claims, source URLs, evidence reviews, rationales, or
   report body content.
-- HTTP mode can enforce server-side cost caps and approval tokens.
+- Every MCP transport requires server-side cost caps and estimate-bound
+  approval tokens by default.
 - Audit resources record MCP tool calls, MCP resource reads, and A2A skill
   calls with hashed payloads and normalized resource kinds for admin review.
 - MCP/A2A doctor and the recent-audit resource expose only body-free audit-sink
@@ -171,6 +177,44 @@ but not raw message text, task ids, URLs, report paths, raw results, or caller
 ids.
 
 ## Host Configuration
+
+### Portable Agent Plugins v1 package
+
+[`agent-plugin/`](https://github.com/blisspixel/primr/tree/main/agent-plugin) is an experimental distribution artifact
+for the Agent Plugins v1.0.0 Working Draft. It contains the portable root
+`plugin.json`, immediate `skills/primr` and `skills/primr-zero` children, and a
+root `mcp.json` that starts `primr mcp` over stdio.
+
+The portable specification standardizes Agent Skills and MCP discovery. It
+does not standardize installation, permissions, user interface, or every
+client extension. Check the specification's compatible-client registry and
+the selected client's installation guide before claiming support. Claude Code
+is not currently claimed through this portable artifact; use the existing
+[`claude-code/`](https://github.com/blisspixel/primr/tree/main/claude-code) package for Claude-specific installation.
+
+Agent Plugins v1 defines skills and MCP servers as separate portable component
+types, and clients can support them incrementally. Primr's `mcp.json` uses the
+bare executable token `primr`, so the MCP component works only when Primr is
+installed and discoverable through the client's executable search rules. If
+that server cannot start, the skills can still load and provide the host-native
+Primr Zero fallback. The portable operator skill omits `argument-hint` and the
+experimental `allowed-tools` metadata because their support or semantics vary
+between hosts.
+
+The package is deterministically generated from the canonical skill sources:
+
+```bash
+uv run --no-sync python scripts/sync_agent_plugin.py --check
+```
+
+Installing or loading it performs no research and authorizes no spend. The
+same Primr Zero routing and provider-backed estimate/approval rules apply after
+installation.
+
+See the [Agent Plugins specification](https://agent-plugins.org/specification)
+and [compatible clients](https://agent-plugins.org/compatible-clients).
+
+### Host-specific configuration
 
 Per-host snippets live under [`clients/`](https://github.com/blisspixel/primr/tree/main/clients):
 

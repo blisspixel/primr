@@ -53,8 +53,8 @@ MAX_REFINE_ITERATIONS = 5
 # deterministic worst-case fan-out.
 MAX_AUTO_RESOLVE_PAIRS = 10
 
-# Per-role cost ceiling — pipeline aborts a role if its share exceeds this
-# even before CostGuardHook fires at the global level.
+# Legacy compatibility setting. Parallel role authoring has no reliable
+# role-scoped usage attribution; the enforceable control is the run total.
 DEFAULT_MAX_COST_PER_ROLE_USD = 0.08
 
 # Conservative allowance for exactly one remote Cowork color-icon generation
@@ -71,7 +71,8 @@ class SkillPackConfig:
     formats: SkillPackFormat = SkillPackFormat.BOTH
     max_refine_iterations: int = DEFAULT_MAX_REFINE_ITERATIONS
     max_cost_per_role_usd: float = DEFAULT_MAX_COST_PER_ROLE_USD
-    max_total_cost_usd: float | None = None  # None = no cap (CostGuardHook still applies)
+    # Checked between paid phases. An active provider call is never interrupted.
+    max_total_cost_usd: float | None = None
 
     # Pack-level coherence pass is on by default — it's what gives the pack
     # its "no overlapping skills, distinct triggers" quality.

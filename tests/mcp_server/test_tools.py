@@ -142,6 +142,36 @@ class TestEstimateRun:
         assert data["error"] is True
         assert data["error_type"] == "ssrf_blocked"
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("name", "value"),
+        [
+            ("PRIMR_LABEL_HONESTY", "1"),
+            ("PRIMR_PDF_LLM_MAX_CALLS", "2"),
+            ("PRIMR_ENABLE_GROK_SURROGATE", "true"),
+        ],
+    )
+    async def test_estimate_run_rejects_unpriced_environment_model_calls(
+        self,
+        server,
+        monkeypatch,
+        name,
+        value,
+    ):
+        monkeypatch.setenv(name, value)
+
+        result = await call_tool_handler(
+            server,
+            "estimate_run",
+            {"company_url": "https://example.com", "mode": "full"},
+        )
+
+        data = json.loads(result.content[0].text)
+        assert data["error"] is True
+        assert data["error_type"] == "unpriced_model_opt_in"
+        assert data["model_opt_ins"] == [name]
+        assert "approval_token" not in data
+
 
 class TestEstimateStrategy:
     """Tests for estimate_strategy tool."""
@@ -349,6 +379,27 @@ class TestCostCaps:
         with tempfile.TemporaryDirectory() as tmpdir:
             journal_path = str(Path(tmpdir) / "test_journal.json")
             yield create_mcp_server(journal_path=journal_path, skip_background_tasks=True)
+
+    @pytest.mark.asyncio
+    async def test_research_company_requires_cap_by_default_on_stdio(self, server, monkeypatch):
+        from primr.mcp_server.cost_caps import set_active_transport
+
+        monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
+        set_active_transport("stdio")
+
+        result = await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Acme Corp",
+                "company_url": "https://example.com",
+            },
+        )
+
+        data = json.loads(result.content[0].text)
+        assert data["error"] is True
+        assert data["error_type"] == "cost_cap_required"
+        assert server.job_store.get_active() is None
 
     @pytest.mark.asyncio
     async def test_research_company_rejects_when_cap_exceeded(self, server):

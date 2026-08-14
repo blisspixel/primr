@@ -1,6 +1,6 @@
 # Architecture Cohesion and Agent-Maintainability Plan
 
-Status: P0 complete, P1 queued, evidence refreshed 2026-07-14
+Status: P0 complete, P1 in progress, evidence refreshed 2026-08-13
 
 ## Goal
 
@@ -12,21 +12,18 @@ that add navigation without an independent boundary.
 
 ## What the repository shows
 
-The current medium-trust code graph at commit `2d0cccf` is schema-valid,
-artifact-consistent, and passes 10 of 10 spot checks. Its automation records
-show:
+The current package-inclusive AST graph and repository inventory show:
 
-- 416 non-`__init__` Python source modules, with a median size of 275 physical
-  lines. Thirty are below 60 lines, 62 are below 100, and 13 exceed 1,000.
+- 461 non-`__init__` Python source modules, with a median size of 272 physical
+  lines. Thirty-six are below 60 lines, 68 are below 100, and 12 exceed 1,000.
   Primr is therefore not globally dominated by tiny files. It has local
   fragmentation and local concentration at the same time.
-- `core/` is the clearest navigation problem: 79 modules, a 222-line median,
-  only 29 percent of resolved internal imports staying within the package, and
-  one resolved import-cycle component spanning 23 core modules.
-- Four first-party import-cycle components are present. Two are narrow pairs:
-  `ai.deep_research` with `ai.file_search_resources`, and `config.models` with
-  `config.settings`. Two are broad components spanning orchestration, routing,
-  configuration, data, QA, and provider code.
+- `core/` remains the clearest navigation problem: 105 non-`__init__` modules,
+  a 223-line median, and the largest resolved import-cycle component.
+- Three first-party import-cycle components remain after P0 and the first P1
+  batch: a 22-module CLI/research orchestration component, a five-module
+  model-routing component, and a three-module first-party extraction
+  component. CI pins their exact memberships and permits only shrinkage.
 - Ten low-blast, single-consumer modules under 80 lines have no directly mapped
   test. Manual review found different outcomes: `worker_environment.py` owns a
   least-privilege secrets boundary; `temporary_files.py` owns file lifetime;
@@ -110,7 +107,7 @@ Acceptance criteria:
 
 ### P1: Burn down the broad core cycle by dependency direction
 
-Produce the exact edge ledger for the package-inclusive 25-module core
+Produce the exact edge ledger for the package-inclusive core
 component and remove one verified back edge per atomic change. Prefer passing
 immutable values or a small existing protocol from orchestrator to stage over
 importing an orchestrator from a stage. Do not create interface files solely
@@ -150,15 +147,25 @@ For every extraction, record the old and new cycle size, import fan-out,
 direct-test mapping, and module-count delta. Reject an extraction that merely
 turns one long file into several mutually dependent files.
 
-## Completed first task and next task
+## Completed work and maintenance-lane next task
 
 P0 completed on 2026-07-14 without adding a source module. Four
 package-inclusive cycle components fell to two, the unused empty module was
 removed, both import orders pass in fresh interpreters against the local source
 tree, and the repository passed 12,718 tests at 86.20 percent branch coverage.
-The next task is P1: produce the exact internal edge ledger for the remaining
-25-member core component and remove its lowest-risk back edge as one atomic,
-behavior-preserving change.
+
+The first P1 batch completed on 2026-08-13. `Command` and `CLIConfig` now live
+in the 202-line `cli_contract.py` owner used by parsing, budgeting, dry-run,
+planning, and vendor workflows. `core.cli` still re-exports both names, so the
+public import surface is unchanged. Moving this real shared contract and
+removing the reciprocal budget/dry-run label dependency reduced the largest
+component from 24 modules to 22 and lowered `cli.py` from 2,774 to 2,573 lines.
+It added one substantive contract module, not a forwarding shim.
+
+The next P1 batch should remove one verified orchestration back edge from the
+22-module component. Record the before/after membership, direct tests, public
+compatibility result, and module-count delta. Do not alter report generation
+behavior or create an interface file solely to make the graph look cleaner.
 
 ### Safety-boundary cohesion addendum
 

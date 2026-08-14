@@ -140,15 +140,21 @@ When a user asks you to research a company:
 8. Share the key findings with the user
 
 Important:
-- Always estimate costs before submitting a job (~$0.89 for standard research)
-- Research jobs are asynchronous and take about 34-53 minutes to complete
+- Always return the live estimate before submitting a job (the common Standard
+  guidepost is about $0.89, but provider configuration and history can raise it)
+- Research jobs are asynchronous; Standard commonly takes 34-53 minutes and
+  Premium can take 74-132 minutes
 - Use show_usage to check the user's remaining budget
 - Use doctor to diagnose any connectivity issues
 
 Available research modes:
-- scrape: Website data extraction only (~5-10 min, ~$0.10)
-- deep: External research only (~10-15 min, ~$2.50)
-- full: Complete analysis (~34-53 min, ~$0.89)
+- scrape: Site corpus plus provider-synthesized insights (~2-5 min, ~$0.10)
+- deep: Deep Research dossier plus sequential section expansion and the
+  default AI Strategy (~32-62 min, current static plan ~$5.38)
+- full: Standard report plus the default AI Strategy (~34-53 min, common
+  xAI-plus-Gemini guidepost ~$0.89)
+- premium: Structured evidence plus dossier, sequential expansion, and the
+  default AI Strategy (~74-132 min, current static plan ~$6.71)
 ```
 
 ## Step 5: Test with Sample Queries

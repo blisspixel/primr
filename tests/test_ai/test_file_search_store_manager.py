@@ -6,7 +6,8 @@ upload_file, delete_store, and the get_file_search_store_manager singleton.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -20,6 +21,10 @@ def mock_client(monkeypatch):
     import primr.ai.deep_research as dr
 
     client = MagicMock()
+    client.file_search_stores.upload_to_file_search_store.return_value = SimpleNamespace(
+        done=True,
+        error=None,
+    )
     fake_genai = MagicMock()
     fake_genai.Client.return_value = client
 
@@ -88,6 +93,18 @@ class TestUploadContext:
         mgr.upload_context("stores/abc", "body", "x.md", mime_type="text/markdown")
         kwargs = mock_client.file_search_stores.upload_to_file_search_store.call_args.kwargs
         assert kwargs["config"]["mime_type"] == "text/markdown"
+
+    def test_waits_for_indexing_operation_before_returning(self, mock_client):
+        pending = SimpleNamespace(done=False, error=None)
+        completed = SimpleNamespace(done=True, error=None)
+        mock_client.file_search_stores.upload_to_file_search_store.return_value = pending
+        mock_client.operations.get.return_value = completed
+        mgr = FileSearchStoreManager()
+
+        with patch("primr.ai.file_search_resources.time.sleep"):
+            mgr.upload_context("stores/abc", "body", "x.txt")
+
+        mock_client.operations.get.assert_called_once_with(pending)
 
     def test_wraps_upload_exception(self, mock_client):
         mock_client.file_search_stores.upload_to_file_search_store.side_effect = RuntimeError(

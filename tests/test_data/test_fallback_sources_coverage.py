@@ -8,7 +8,9 @@ All HTTP, DNS, and LLM access is mocked — no network.
 from __future__ import annotations
 
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from primr.data.fallback_sources import (
     _http_get,
@@ -353,6 +355,17 @@ class TestGrokSurrogates:
             side_effect=RuntimeError("boom"),
         ):
             assert fetch_grok_surrogates(["https://example.com/a"], "Acme") == []
+
+    def test_billing_exhaustion_stops_surrogate_fanout(self):
+        from primr.ai.providers.base import QuotaExhaustedError
+
+        browse = MagicMock(side_effect=QuotaExhaustedError("credits exhausted"))
+        with (
+            patch("primr.ai.grok_client.grok_browse_and_summarize", browse),
+            pytest.raises(QuotaExhaustedError, match="credits exhausted"),
+        ):
+            fetch_grok_surrogates(["https://example.com/a", "https://example.com/b"], "Acme")
+        browse.assert_called_once()
 
     def test_respects_max_pages(self):
         def fake_browse(url, context=None, timeout=None):

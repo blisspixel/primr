@@ -60,6 +60,18 @@ def _enable_windows_ansi():
 _enable_windows_ansi()
 
 
+def prompt_yes_no(prompt: str, *, default: bool) -> bool:
+    """Prompt for operator confirmation, returning the default at EOF."""
+    suffix = "Y/n" if default else "y/N"
+    try:
+        answer = input(f"{prompt} [{suffix}] ").strip().lower()
+    except EOFError:
+        return default
+    if not answer:
+        return default
+    return answer in {"y", "yes"}
+
+
 @lru_cache(maxsize=1)
 def _detect_terminal():
     is_tty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()

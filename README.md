@@ -7,14 +7,15 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/blisspixel/primr/badge)](https://securityscorecards.dev/viewer/?uri=github.com/blisspixel/primr)
 
 **Company URL → sourced strategic brief.** Built for agent hosts and the CLI:
-structured collection, confidence labels, and durable artifacts—not a free-form
+structured collection, confidence labels, and durable artifacts, not a free-form
 chat essay.
 
 Primr gathers public site pages, DNS/recon, hiring signals, and other open
 sources, then produces a consultant-style Strategic Overview (and optional
 strategy modules) with citations and Confirmed / Reported / Estimated /
-Hypothesis labels. Point an agent at the repo, or run the CLI; the product is
-the same job either way.
+Hypothesis labels. Point an agent at the repo, or run the CLI. Both paths use
+the same evidence and uncertainty contract and can produce the same artifact
+formats, but their execution, model ownership, and assurance are different.
 
 <p align="center">
   <img
@@ -40,7 +41,7 @@ approval.
 ## What it is for
 
 Use Primr when you need a serious first draft for discovery, account planning,
-diligence, competitive analysis, or strategy work—not a two-paragraph pre-call
+diligence, competitive analysis, or strategy work, not a two-paragraph pre-call
 blurb (use normal web search for that).
 
 - Structured brief with uncertainty labels, not scattered notes
@@ -56,11 +57,13 @@ platform, or a tool for bypassing authentication, paywalls, or site restrictions
 | Where you run it | Default path | Spend | Result |
 |---|---|---|---|
 | Agent chat pointed at Primr | Primr Zero | No Primr model API spend; verify host plan allowance | Evidence bundle + host-written sourced dossier |
-| Terminal or script | Provider-backed | Billable after `--dry-run` + approval | Primr Strategic Overview + strategy artifacts |
+| Terminal or script | Provider-backed | Billable after a fresh quote and explicit approval | Primr Strategic Overview + strategy artifacts |
 
-Same deliverable set either way: Strategic Overview and AI Strategy as Markdown
-**and** DOCX (on the Zero path, `primr render <file>.md` converts host Markdown
-to DOCX at `$0`). A configured API key is capability, not consent to spend.
+Both paths can deliver a Strategic Overview and AI Strategy as Markdown and
+DOCX (on the Zero path, `primr render <file>.md` converts host Markdown to DOCX
+at `$0`). The provider-backed path additionally owns its measured synthesis,
+cross-validation, usage accounting, and recovery stages. A configured API key
+is capability, not consent to spend.
 
 ### Agent path
 
@@ -74,6 +77,11 @@ The agent uses Primr Zero unless you explicitly request paid, metered,
 provider-backed, or premium execution. Details, MCP setup, and host handoff:
 [Agent Integration](docs/AGENT_INTEGRATION.md) ·
 [Zero-Cost / Primr Zero](docs/ZERO_COST.md).
+
+The experimental [`agent-plugin/`](agent-plugin/) distribution follows the
+Agent Plugins v1.0.0 Working Draft with a portable root `plugin.json`, Agent
+Skills, and `mcp.json`. The existing [`claude-code/`](claude-code/) package
+remains the Claude-specific adapter.
 
 ### Terminal path
 
@@ -146,17 +154,18 @@ Focused help: `primr --help`. Everything: `primr --help-all`.
 
 ## Cost gate
 
-Billable runs need a fresh estimate and explicit approval. `--budget N` refuses
-to start above the cap. Batch, enrichment, vendor research, and standalone
-strategy each have their own quote path—see
-[Run Modes and Costs](docs/RUN_MODES.md#cost-controls).
+Billable runs need a fresh estimate and explicit approval. Use `--dry-run` to
+inspect the plan without starting work; normal execution repeats the quote and
+asks before provider work begins. `--budget N` refuses to start above the cap.
+Batch, enrichment, vendor research, and standalone strategy each have their own
+quote path. See [Run Modes and Costs](docs/RUN_MODES.md#cost-controls).
 
 ## Outputs
 
 Default: customer-facing files under `output/`, diagnostics under `working/`.
 
 - `<Company>_Strategic_Overview_<date>.md` / `.docx`
-- `<Company>_AI_Strategy_<date>.md` (unless `--no-ai-strategy`)
+- `<Company>_AI_Strategy_<date>.md` / `.docx` (unless `--no-ai-strategy`)
 - `run_manifest.json` (estimate, approval, audit)
 
 Agent inventory (paths/roles only, no report body):
@@ -184,7 +193,7 @@ Docs site index: [docs/README.md](docs/README.md).
 
 Primr retrieves and analyzes public web content. You are responsible for site
 terms, provider costs, output accuracy, and legal fit. AI-generated analysis can
-be wrong or outdated—verify important findings before acting on them.
+be wrong or outdated. Verify important findings before acting on them.
 
 ## License
 

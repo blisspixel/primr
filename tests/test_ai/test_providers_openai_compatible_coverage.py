@@ -10,6 +10,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from primr.ai.provider_availability import LocalCapacityBusyError
@@ -56,6 +57,28 @@ def test_chat_retries_without_temperature_on_reasoning_400():
     assert "temperature" not in calls[1].kwargs  # retry dropped it
 
 
+def test_temperature_correction_does_not_consume_retry_budget():
+    prov = _make(name="openai")
+    prov._client = MagicMock()
+    good = MagicMock()
+    good.choices = [SimpleNamespace(message=SimpleNamespace(content="OK"))]
+    good.usage = SimpleNamespace(prompt_tokens=5, completion_tokens=2, cached_tokens=0)
+    prov._client.chat.completions.create.side_effect = [
+        Exception("Error code: 400 - Unsupported value: 'temperature' does not support 0.4"),
+        good,
+    ]
+
+    response = prov.chat(
+        [{"role": "user", "content": "hi"}],
+        model="gpt-5.5",
+        temperature=0.4,
+        retries=0,
+    )
+
+    assert response.text == "OK"
+    assert prov._client.chat.completions.create.call_count == 2
+
+
 def _make(name="testprov", **kw):
     return OpenAICompatibleProvider(
         name=name,
@@ -93,6 +116,44 @@ def _resp(text="hi", prompt=10, completion=5, cached=0, openai_shape=False):
 def test_is_retryable_markers():
     assert _is_retryable_error(Exception("503 service unavailable")) is True
     assert _is_retryable_error(Exception("connection refused")) is True
+
+
+def test_is_retryable_real_openai_connection_error():
+    openai = pytest.importorskip("openai")
+    request = httpx.Request("POST", "https://example.test/v1/responses")
+
+    assert _is_retryable_error(openai.APIConnectionError(request=request)) is True
+
+
+def test_chat_retries_real_openai_connection_error():
+    openai = pytest.importorskip("openai")
+    request = httpx.Request("POST", "https://example.test/v1/responses")
+    p = _make(name="openai", api_style="responses")
+    fake = MagicMock()
+    fake.responses.create.side_effect = [
+        openai.APIConnectionError(request=request),
+        SimpleNamespace(
+            output_text="recovered",
+            status="completed",
+            incomplete_details=None,
+            usage=SimpleNamespace(
+                input_tokens=4,
+                output_tokens=2,
+                input_tokens_details=None,
+            ),
+        ),
+    ]
+    p._client = fake
+
+    with patch("primr.ai.providers.openai_compatible.time.sleep", return_value=None):
+        result = p.chat(
+            [{"role": "user", "content": "x"}],
+            model="gpt-5.6",
+            retries=1,
+        )
+
+    assert result.text == "recovered"
+    assert fake.responses.create.call_count == 2
 
 
 def test_is_retryable_false_for_billing(monkeypatch):
@@ -215,6 +276,75 @@ def test_no_usage_records_nothing():
     result = p.chat([{"role": "user", "content": "x"}], model="grok-4.3")
     assert result.text == "hi"
     assert p.get_usage()["input_tokens"] == 0
+
+
+def test_responses_preserves_incomplete_status_and_billed_usage():
+    p = _make(name="openai", api_style="responses")
+    fake = MagicMock()
+    fake.responses.create.return_value = SimpleNamespace(
+        output_text="",
+        status="incomplete",
+        incomplete_details=SimpleNamespace(reason="max_output_tokens"),
+        usage=SimpleNamespace(
+            input_tokens=11,
+            output_tokens=7,
+            input_tokens_details=SimpleNamespace(cached_tokens=3),
+            cost_in_usd_ticks=50_000_000,
+        ),
+    )
+    p._client = fake
+
+    result = p.chat([{"role": "user", "content": "x"}], model="gpt-5.6")
+
+    assert result.text == ""
+    assert result.response_status == "incomplete"
+    assert result.incomplete_reason == "max_output_tokens"
+    assert result.input_tokens == 11
+    assert result.output_tokens == 7
+    assert result.cached_input_tokens == 3
+    assert result.actual_cost_usd == pytest.approx(0.005)
+    assert p.get_usage() == {
+        "input_tokens": 11,
+        "output_tokens": 7,
+        "cached_input_tokens": 3,
+    }
+
+
+def test_responses_maps_structured_output_and_tools_to_current_shape():
+    p = _make(name="openai", api_style="responses")
+    fake = MagicMock()
+    fake.responses.create.return_value = SimpleNamespace(output_text="{}", usage=None)
+    p._client = fake
+    tools = [{"type": "function", "name": "lookup", "parameters": {"type": "object"}}]
+
+    p.chat(
+        [{"role": "user", "content": "x"}],
+        model="gpt-5.6",
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "answer",
+                "schema": {"type": "object"},
+                "strict": True,
+            },
+        },
+        tools=tools,
+        tool_choice="required",
+        parallel_tool_calls=False,
+    )
+
+    kwargs = fake.responses.create.call_args.kwargs
+    assert kwargs["text"] == {
+        "format": {
+            "type": "json_schema",
+            "name": "answer",
+            "schema": {"type": "object"},
+            "strict": True,
+        }
+    }
+    assert kwargs["tools"] == tools
+    assert kwargs["tool_choice"] == "required"
+    assert kwargs["parallel_tool_calls"] is False
 
 
 def test_none_message_content_returns_empty_string():

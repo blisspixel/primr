@@ -183,3 +183,36 @@ def test_skip_confirm_still_prints_cost_estimate(monkeypatch):
     assert printed[0][0][1] == "ExampleCo"
     assert printed[0][1]["fast_mode"] is True
     assert printed[0][1]["grok_tier"] == "hybrid"
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("PRIMR_LABEL_HONESTY", "1"),
+        ("PRIMR_PDF_LLM_MAX_CALLS", "2"),
+        ("PRIMR_ENABLE_GROK_SURROGATE", "true"),
+    ],
+)
+def test_environment_only_model_opt_ins_fail_before_quote(monkeypatch, name, value):
+    monkeypatch.setenv(name, value)
+    monkeypatch.setattr("primr.utils.cost_display.display_cost_estimate", pytest.fail)
+    monkeypatch.setattr("primr.utils.cost_display.print_cost_estimate", pytest.fail)
+
+    preparation = prepare_research_runtime(
+        mode="complete",
+        display_name="ExampleCo",
+        explicit_fast_mode=True,
+        premium_mode=False,
+        xai_available=True,
+        platform_count=1,
+        ai_strategy=True,
+        strategy_types=None,
+        refresh_vendor_research=False,
+        skip_confirm=True,
+        lite_strategy=False,
+        verify=False,
+        grok_tier="hybrid",
+    )
+
+    assert preparation.status == "invalid"
+    assert name in (preparation.plan.error_message or "")

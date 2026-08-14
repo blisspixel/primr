@@ -58,6 +58,15 @@ class TestGuardDispatchSuccess:
         guard_dispatch(lambda c: 0, _config(command_name="RESEARCH", quiet=True))
         assert calls == []
 
+    def test_no_notify_for_json_research(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            "primr.core.cli_update.notify_if_update_available",
+            lambda: calls.append(True),
+        )
+        guard_dispatch(lambda c: 0, _config(command_name="RESEARCH", json_output=True))
+        assert calls == []
+
     def test_no_notify_for_non_research(self, monkeypatch):
         calls = []
         monkeypatch.setattr(

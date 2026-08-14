@@ -9,11 +9,11 @@ _build_research_dossier_prompt.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from primr.ai.deep_research import DeepResearchOrchestrator
+from primr.ai.deep_research import DeepResearchOrchestrator, ResearchResult, ResearchStatus
 
 
 @pytest.fixture
@@ -176,3 +176,311 @@ class TestBuildResearchDossierPrompt:
             result = orchestrator._build_research_dossier_prompt("Acme", None)
         # Falls back to default which references "Lead Researcher".
         assert "Lead Researcher" in result
+
+    def test_target_pages_reaches_dossier_prompt(self, orchestrator):
+        with patch.object(
+            DeepResearchOrchestrator,
+            "_load_accordion_prompts",
+            return_value={
+                "research_dossier_prompt": "Build for {target_pages} pages: {company_name}",
+                "section_writing_prompt": "",
+                "position_guidance": {},
+            },
+        ):
+            result = orchestrator._build_research_dossier_prompt("Acme", None, target_pages=42)
+
+        assert "42 pages" in result
+
+
+@pytest.mark.asyncio
+async def test_comprehensive_report_uploads_files_and_applies_length_target(
+    orchestrator, monkeypatch
+):
+    sections = [
+        {
+            "id": "one",
+            "title": "One",
+            "instructions": "Analyze one.",
+            "part": 1,
+            "position": "opening",
+        },
+        {
+            "id": "two",
+            "title": "Two",
+            "instructions": "Analyze two.",
+            "part": 1,
+            "position": "closing",
+        },
+    ]
+    monkeypatch.setattr(DeepResearchOrchestrator, "_sections_cache", sections)
+    orchestrator._store_manager = MagicMock()
+    orchestrator._store_manager.create_store.return_value = "stores/context"
+    orchestrator.SECTION_WRITE_DELAY = 0
+
+    dossier = ResearchResult(content="grounded dossier", interaction_id="job-1")
+    section = ResearchResult(content=" ".join(["analysis"] * 600))
+    orchestrator._execute_with_retry = AsyncMock(return_value=dossier)
+    orchestrator._execute_direct_generation = AsyncMock(return_value=section)
+
+    result = await orchestrator.generate_comprehensive_report(
+        company_name="Acme",
+        stage1_context="website evidence",
+        context_files=["brief.pdf", "notes.md"],
+        target_pages=2,
+    )
+
+    assert result.success is True
+    assert result.target_pages == 2
+    assert result.target_attained is True
+    orchestrator._store_manager.upload_context.assert_called_once()
+    assert [call.args for call in orchestrator._store_manager.upload_file.call_args_list] == [
+        ("stores/context", "brief.pdf"),
+        ("stores/context", "notes.md"),
+    ]
+    prompts = [
+        call.kwargs["prompt"] for call in orchestrator._execute_direct_generation.call_args_list
+    ]
+    assert all("at least 500 words" in prompt for prompt in prompts)
+    orchestrator._store_manager.delete_store.assert_called_once_with("stores/context")
+
+
+def _accordion_sections(count: int) -> list[dict[str, object]]:
+    return [
+        {
+            "id": f"section_{index}",
+            "title": f"Section {index}",
+            "instructions": f"Analyze section {index}.",
+            "part": 1,
+            "position": "middle",
+        }
+        for index in range(1, count + 1)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_comprehensive_report_adapts_pacing_after_rate_limit(orchestrator, monkeypatch):
+    monkeypatch.setattr(DeepResearchOrchestrator, "_sections_cache", _accordion_sections(2))
+    orchestrator.SECTION_WRITE_DELAY = 10
+    orchestrator._execute_with_retry = AsyncMock(
+        return_value=ResearchResult(content="grounded dossier", interaction_id="job-1")
+    )
+    substantive = ResearchResult(content=" ".join(["analysis"] * 300))
+    orchestrator._execute_direct_generation = AsyncMock(
+        side_effect=[
+            ResearchResult(content="", error="429 quota exceeded"),
+            substantive,
+            substantive,
+        ]
+    )
+    sleep = AsyncMock()
+    monkeypatch.setattr("primr.ai.deep_research.asyncio.sleep", sleep)
+    progress: list[str] = []
+
+    result = await orchestrator.generate_comprehensive_report(
+        company_name="Acme",
+        target_pages=1,
+        on_progress=progress.append,
+    )
+
+    assert result.success is True
+    assert result.sections_written == 2
+    assert [call.args[0] for call in sleep.await_args_list] == [30, 23]
+    assert "  Rate limited. Delay now 25s" in progress
+
+
+@pytest.mark.asyncio
+async def test_comprehensive_report_stops_after_three_consecutive_section_failures(
+    orchestrator, monkeypatch
+):
+    monkeypatch.setattr(DeepResearchOrchestrator, "_sections_cache", _accordion_sections(4))
+    orchestrator._execute_with_retry = AsyncMock(
+        return_value=ResearchResult(content="grounded dossier", interaction_id="job-1")
+    )
+    orchestrator._execute_direct_generation = AsyncMock(
+        return_value=ResearchResult(content="", error="provider unavailable")
+    )
+    monkeypatch.setattr("primr.ai.deep_research.asyncio.sleep", AsyncMock())
+    progress: list[str] = []
+
+    result = await orchestrator.generate_comprehensive_report(
+        company_name="Acme",
+        target_pages=1,
+        on_progress=progress.append,
+    )
+
+    assert result.success is False
+    assert result.sections_written == 0
+    assert orchestrator._execute_direct_generation.await_count == 9
+    assert "Stopping: 3 consecutive failures" in progress
+
+
+@pytest.mark.asyncio
+async def test_comprehensive_report_surfaces_usable_result_below_page_target(
+    orchestrator, monkeypatch
+):
+    monkeypatch.setattr(DeepResearchOrchestrator, "_sections_cache", _accordion_sections(3))
+    orchestrator.SECTION_WRITE_DELAY = 0
+    orchestrator._execute_with_retry = AsyncMock(
+        return_value=ResearchResult(content="grounded dossier", interaction_id="job-1")
+    )
+    # Each response clears the half-share retry floor, but the assembled report
+    # remains far below the advertised 30-page contract.
+    orchestrator._execute_direct_generation = AsyncMock(
+        return_value=ResearchResult(content=" ".join(["analysis"] * 2_500))
+    )
+
+    result = await orchestrator.generate_comprehensive_report(company_name="Acme", target_pages=30)
+
+    assert result.sections_written == 3
+    assert result.actual_pages < result.target_pages
+    assert result.target_attained is False
+    assert result.success is True
+    assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_comprehensive_report_preserves_short_evidence_limited_sections(
+    orchestrator, monkeypatch
+):
+    monkeypatch.setattr(DeepResearchOrchestrator, "_sections_cache", _accordion_sections(3))
+    orchestrator.SECTION_WRITE_DELAY = 0
+    orchestrator._execute_with_retry = AsyncMock(
+        return_value=ResearchResult(content="grounded dossier", interaction_id="job-1")
+    )
+    orchestrator._execute_direct_generation = AsyncMock(
+        return_value=ResearchResult(content=" ".join(["evidence"] * 100))
+    )
+    monkeypatch.setattr("primr.ai.deep_research.asyncio.sleep", AsyncMock())
+
+    result = await orchestrator.generate_comprehensive_report(company_name="Acme", target_pages=30)
+
+    assert result.success is True
+    assert result.sections_written == 3
+    assert result.target_attained is False
+    assert "Section 1" in result.content
+    assert orchestrator._execute_direct_generation.await_count == 9
+
+
+@pytest.mark.asyncio
+async def test_comprehensive_report_returns_partial_and_cleans_store_on_exception(
+    orchestrator, monkeypatch
+):
+    monkeypatch.setattr(DeepResearchOrchestrator, "_sections_cache", _accordion_sections(3))
+    orchestrator._store_manager = MagicMock()
+    orchestrator._store_manager.create_store.return_value = "stores/context"
+    orchestrator.SECTION_WRITE_DELAY = 0
+    orchestrator._execute_with_retry = AsyncMock(
+        return_value=ResearchResult(content="grounded dossier", interaction_id="job-1")
+    )
+    orchestrator._execute_direct_generation = AsyncMock(
+        return_value=ResearchResult(content=" ".join(["analysis"] * 200))
+    )
+    build_prompt = MagicMock(side_effect=["first prompt", RuntimeError("prompt failure")])
+    monkeypatch.setattr(orchestrator, "_build_section_prompt", build_prompt)
+    monkeypatch.setattr("primr.ai.deep_research.asyncio.sleep", AsyncMock())
+
+    result = await orchestrator.generate_comprehensive_report(
+        company_name="Acme",
+        stage1_context="website evidence",
+        target_pages=1,
+    )
+
+    assert result.success is False
+    assert result.sections_written == 1
+    assert "Section 1" in result.content
+    assert result.error == "prompt failure"
+    orchestrator._store_manager.delete_store.assert_called_once_with("stores/context")
+
+
+@pytest.mark.asyncio
+async def test_comprehensive_report_rejects_empty_section_structure(orchestrator, monkeypatch):
+    monkeypatch.setattr(DeepResearchOrchestrator, "_sections_cache", [])
+    orchestrator._execute_with_retry = AsyncMock(
+        return_value=ResearchResult(content="grounded dossier", interaction_id="job-1")
+    )
+
+    result = await orchestrator.generate_comprehensive_report(company_name="Acme", target_pages=1)
+
+    assert result.success is False
+    assert result.sections_written == 0
+    assert result.error == "Accordion report structure contains no sections"
+
+
+@pytest.mark.asyncio
+async def test_comprehensive_report_preserves_store_while_dossier_job_is_pending(
+    orchestrator, monkeypatch
+):
+    monkeypatch.setattr(DeepResearchOrchestrator, "_sections_cache", _accordion_sections(2))
+    orchestrator._store_manager = MagicMock()
+    orchestrator._store_manager.create_store.return_value = "stores/context"
+    orchestrator._execute_with_retry = AsyncMock(
+        return_value=ResearchResult(
+            content="",
+            interaction_id="interaction-123",
+            status=ResearchStatus.IN_PROGRESS,
+            error="polling state uncertain",
+        )
+    )
+    orchestrator._execute_direct_generation = AsyncMock()
+
+    result = await orchestrator.generate_comprehensive_report(
+        company_name="Acme",
+        stage1_context="website evidence",
+    )
+
+    assert result.success is False
+    assert result.interaction_id == "interaction-123"
+    orchestrator._execute_direct_generation.assert_not_awaited()
+    orchestrator._store_manager.delete_store.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_comprehensive_report_cancellation_after_acceptance_preserves_store(
+    orchestrator, monkeypatch
+):
+    import asyncio
+
+    monkeypatch.setattr(DeepResearchOrchestrator, "_sections_cache", _accordion_sections(2))
+    orchestrator._store_manager = MagicMock()
+    orchestrator._store_manager.create_store.return_value = "stores/context"
+    cancelled = asyncio.CancelledError()
+    cancelled.interaction_id = "interaction-123"  # type: ignore[attr-defined]
+    orchestrator._execute_with_retry = AsyncMock(side_effect=cancelled)
+
+    with pytest.raises(asyncio.CancelledError):
+        await orchestrator.generate_comprehensive_report(
+            company_name="Acme",
+            stage1_context="website evidence",
+        )
+
+    orchestrator._store_manager.delete_store.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_comprehensive_report_preserves_paid_dossier_id_during_stage1_fallback(
+    orchestrator, monkeypatch
+):
+    monkeypatch.setattr(DeepResearchOrchestrator, "_sections_cache", _accordion_sections(1))
+    orchestrator.SECTION_WRITE_DELAY = 0
+    orchestrator._store_manager = MagicMock()
+    orchestrator._store_manager.create_store.return_value = "stores/context"
+    orchestrator._execute_with_retry = AsyncMock(
+        return_value=ResearchResult(
+            content="",
+            interaction_id="interaction-paid",
+            status=ResearchStatus.FAILED,
+            error="provider response incomplete",
+        )
+    )
+    orchestrator._execute_direct_generation = AsyncMock(
+        return_value=ResearchResult(content=" ".join(["analysis"] * 500))
+    )
+
+    result = await orchestrator.generate_comprehensive_report(
+        company_name="Acme",
+        stage1_context="trusted stage one evidence",
+        target_pages=1,
+    )
+
+    assert result.success is True
+    assert result.interaction_id == "interaction-paid"

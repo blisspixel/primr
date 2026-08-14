@@ -104,6 +104,39 @@ async def test_orchestrator_fails_closed_when_route_unavailable(monkeypatch, tmp
 
 
 @pytest.mark.asyncio
+async def test_orchestrator_fails_closed_when_route_resolution_raises(monkeypatch):
+    from primr.core.research_orchestrator import ResearchOrchestrator
+    from primr.core.research_types import ResearchConfig
+
+    monkeypatch.setattr(
+        "primr.ai.stage_routing.resolve_stage_model",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("invalid routing config")),
+    )
+    launched = False
+
+    def launch_would_bill():
+        nonlocal launched
+        launched = True
+        raise AssertionError("provider must not launch after routing failure")
+
+    monkeypatch.setattr(
+        "primr.core.premium_deep_research_stage.get_deep_research_orchestrator",
+        launch_would_bill,
+    )
+
+    result = await ResearchOrchestrator()._run_deep_research_with_context(
+        company_name="ExampleCo",
+        website="https://example.co",
+        config=ResearchConfig(),
+        on_progress=None,
+    )
+
+    assert result.success is False
+    assert result.error == "Deep research routing failed: RuntimeError"
+    assert launched is False
+
+
+@pytest.mark.asyncio
 async def test_research_forwards_folder_path_for_stage_routes(monkeypatch, tmp_path):
     """CLI deep path owns a working folder; research() must pass it through."""
     from primr.core.research_orchestrator import ResearchMode, ResearchOrchestrator

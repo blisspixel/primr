@@ -29,13 +29,23 @@ class _FakeCompletions:
 
 class _FakeClient:
     def __init__(self, sequence):
-        self.chat = SimpleNamespace(completions=_FakeCompletions(sequence))
+        transport = _FakeCompletions(sequence)
+        self.responses = transport
+        self.chat = SimpleNamespace(completions=transport)
 
 
 class _FakeResponse:
-    def __init__(self, text: str):
+    def __init__(self, text: str, cost_ticks: int | None = None):
+        self.output_text = text
         self.choices = [SimpleNamespace(message=SimpleNamespace(content=text))]
-        self.usage = SimpleNamespace(prompt_tokens=11, completion_tokens=7)
+        self.usage = SimpleNamespace(
+            prompt_tokens=11,
+            completion_tokens=7,
+            input_tokens=11,
+            output_tokens=7,
+            input_tokens_details=SimpleNamespace(cached_tokens=0),
+            cost_in_usd_ticks=cost_ticks,
+        )
 
 
 def test_lazy_grok_client_disables_sdk_retries(monkeypatch):
@@ -238,9 +248,15 @@ class _FakeCachedResponse:
     """Response whose usage reports xAI-style top-level cached_tokens."""
 
     def __init__(self, text: str, prompt: int = 20, completion: int = 8, cached: int = 12):
+        self.output_text = text
         self.choices = [SimpleNamespace(message=SimpleNamespace(content=text))]
         self.usage = SimpleNamespace(
-            prompt_tokens=prompt, completion_tokens=completion, cached_tokens=cached
+            prompt_tokens=prompt,
+            completion_tokens=completion,
+            cached_tokens=cached,
+            input_tokens=prompt,
+            output_tokens=completion,
+            input_tokens_details=SimpleNamespace(cached_tokens=cached),
         )
 
 
@@ -271,6 +287,19 @@ def test_session_usage_without_cache_reports_zero_cached(monkeypatch):
 
     usage = grok_client.get_grok_session_usage()
     assert usage["cached_input_tokens"] == 0
+
+
+def test_grok_llm_tracks_exact_provider_cost(monkeypatch):
+    grok_client.reset_grok_session()
+    client = _FakeClient([_FakeResponse("ok", cost_ticks=42_000_000)])
+    monkeypatch.setattr(grok_client, "_get_grok_client", lambda: client)
+
+    grok_client.grok_llm("hello")
+
+    exact = grok_client.get_grok_session_exact_cost()
+    assert exact["actual_cost_usd"] == pytest.approx(0.0042)
+    assert exact["actual_cost_calls"] == 1
+    assert exact["call_count"] == 1
 
 
 def test_reset_grok_session_clears_cached_counter(monkeypatch):
@@ -316,6 +345,27 @@ def test_mirror_session_usage_tolerates_legacy_bucket_shape():
     assert bucket["output_tokens"] == 7
     assert bucket["cached_input_tokens"] == 6
     grok_client.reset_grok_session()
+
+
+def test_browse_mirrors_exact_cost_when_provider_omits_token_counts(monkeypatch):
+    summary = SimpleNamespace(
+        input_tokens=0,
+        output_tokens=0,
+        cached_input_tokens=0,
+        actual_cost_usd=0.125,
+        to_public_dict=lambda: {"text": "accepted", "citations": []},
+    )
+    provider = MagicMock()
+    provider.browse_and_summarize.return_value = summary
+    mirror = MagicMock()
+    monkeypatch.setattr(grok_client, "_get_provider", lambda: provider)
+    monkeypatch.setattr(grok_client, "_mirror_session_usage", mirror)
+
+    assert grok_client.grok_browse_and_summarize("https://example.com") == {
+        "text": "accepted",
+        "citations": [],
+    }
+    assert mirror.call_args.kwargs["actual_cost_usd"] == pytest.approx(0.125)
 
 
 def test_mirror_session_usage_is_thread_safe():

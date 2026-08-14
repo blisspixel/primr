@@ -96,10 +96,10 @@ class TestHandleCleanTemp:
 
 
 class TestHandleCheckQuota:
-    def test_calls_check_quota_and_returns_zero(self, monkeypatch):
-        mock = MagicMock()
+    def test_propagates_check_quota_exit_code(self, monkeypatch):
+        mock = MagicMock(return_value=1)
         monkeypatch.setattr("primr.core.cli.check_api_quota", mock)
-        assert _handle_check_quota(_config()) == 0
+        assert _handle_check_quota(_config()) == 1
         mock.assert_called_once()
 
 
@@ -310,3 +310,23 @@ class TestHandleImprove:
             MagicMock(return_value=None),
         )
         assert _handle_improve(_config(improve_path="/in.md")) == 1
+
+    def test_agentic_dry_run_estimates_without_improvement(self, monkeypatch, tmp_path):
+        from primr.core.cli import _handle_improve
+        from primr.core.cli_errors import guard_dispatch
+
+        mock_improve = MagicMock()
+        monkeypatch.setattr("primr.core.research_agent.improve_output_file", mock_improve)
+        report = tmp_path / "report.md"
+        report.write_text("# Report\n\n## Overview\n\nContent", encoding="utf-8")
+
+        config = _config(
+            command=Command.IMPROVE,
+            improve_path=str(report),
+            improve_agentic=True,
+            dry_run_requested=True,
+        )
+        result = guard_dispatch(_handle_improve, config)
+
+        assert result == 0
+        mock_improve.assert_not_called()

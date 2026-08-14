@@ -403,6 +403,10 @@ class TestFileSearch:
         mock_store = Mock()
         mock_store.name = "test-store-123"
         mock_client.file_search_stores.create.return_value = mock_store
+        mock_client.file_search_stores.upload_to_file_search_store.return_value = Mock(
+            done=True,
+            error=None,
+        )
         client._client = mock_client
 
         result = client._upload_context_files(["/path/to/file.pdf"])

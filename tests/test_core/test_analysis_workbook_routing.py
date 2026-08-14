@@ -142,3 +142,40 @@ def test_workbook_fails_closed_when_agent_unavailable(monkeypatch, tmp_path) -> 
     assert routes
     assert routes[-1]["outcome"] == "fallback"
     assert routes[-1]["failure_class"] == "agent_profile_unavailable"
+
+
+def test_workbook_route_resolution_error_uses_insights_without_llm(monkeypatch, tmp_path) -> None:
+    def fail_route(*a, **k):
+        raise RuntimeError("routing unavailable")
+
+    monkeypatch.setattr(
+        "primr.ai.stage_routing.resolve_stage_model",
+        fail_route,
+    )
+    failover = SimpleNamespace(called=False)
+
+    def forbidden(*a, **k):
+        failover.called = True
+        raise AssertionError("must not call an LLM when route resolution fails")
+
+    monkeypatch.setattr("primr.core.fast_run_workbook.call_with_failover", forbidden)
+    monkeypatch.setattr("primr.pipeline.integration.analysis_with_recovery", forbidden)
+
+    workbook, session = generate_analysis_workbook(
+        company_label="ExampleCo",
+        website=None,
+        raw_corpus="corpus",
+        external_sources_raw="external",
+        combined_insights="insights fallback",
+        grok_reasoning="legacy-reasoning",
+        grok_reasoning_effort=None,
+        continuous_reasoning=False,
+        reasoning_session=None,
+        recovery_executor=object(),
+        folder_path=str(tmp_path),
+        total_phases=6,
+    )
+
+    assert workbook == "insights fallback"
+    assert session is None
+    assert failover.called is False

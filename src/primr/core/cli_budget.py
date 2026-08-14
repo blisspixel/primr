@@ -8,10 +8,10 @@ from math import isfinite
 from typing import TYPE_CHECKING
 
 from primr.core.budget_policy import describe_budget_enforcement
+from primr.core.cli_contract import CLIConfig
 from primr.utils.console import console
 
 if TYPE_CHECKING:
-    from primr.core.cli import CLIConfig
     from primr.utils.cost_estimator import CostEstimate
 
 
@@ -64,9 +64,9 @@ def resolve_batch_modes(config: CLIConfig) -> tuple[bool, bool, str] | str:
     if selection.premium_mode:
         mode_label = "premium (Gemini + Deep Research)"
     elif selection.fast_mode:
-        from primr.core.cli_dryrun import _full_mode_label
+        from primr.core.cli_labels import resolved_full_mode_label
 
-        mode_label = _full_mode_label(config.grok_tier)
+        mode_label = resolved_full_mode_label(config.grok_tier)
     else:
         mode_label = config.mode
     return (selection.fast_mode, selection.premium_mode, mode_label)
@@ -145,16 +145,14 @@ def build_run_estimate(config: CLIConfig, *, fast_mode: bool, premium_mode: bool
     Authorization uses the higher of planning defaults and historical averages
     (same floor as MCP/A2A): cheap samples cannot under-approve a full run.
     """
-    from primr.utils.cost_estimator import estimate_cost
+    from primr.utils.cost_display import estimate_cost_with_planning_floor
 
     num_vendors = _estimate_runtime_vendor_count(config, fast_mode=fast_mode)
     strategy_types = estimate_strategy_types(config)
     vendor_refreshes = estimate_vendor_refresh_count(config, fast_mode=fast_mode)
-    # Planning floor is the approval baseline; historical can only raise it.
-    planning = estimate_cost(
+    estimate = estimate_cost_with_planning_floor(
         config.mode,
         config.ai_strategy,
-        use_historical=False,
         num_vendors=num_vendors,
         lite_strategy=config.lite_strategy,
         fast_mode=fast_mode,
@@ -164,30 +162,6 @@ def build_run_estimate(config: CLIConfig, *, fast_mode: bool, premium_mode: bool
         strategy_types=strategy_types,
         vendor_research_refreshes=vendor_refreshes,
     )
-    historical = estimate_cost(
-        config.mode,
-        config.ai_strategy,
-        use_historical=True,
-        num_vendors=num_vendors,
-        lite_strategy=config.lite_strategy,
-        fast_mode=fast_mode,
-        premium_mode=premium_mode,
-        verify=config.verify,
-        grok_tier=config.grok_tier,
-        strategy_types=strategy_types,
-        vendor_research_refreshes=vendor_refreshes,
-    )
-    if historical.total_cost > planning.total_cost:
-        estimate = historical
-        notes = list(estimate.notes or [])
-        if "Based on" not in " ".join(notes):
-            notes.append(
-                f"Authorization floor raised by historical average "
-                f"(planning was ${planning.total_cost:.2f})"
-            )
-            estimate.notes = notes
-    else:
-        estimate = planning
     from primr.core.cli_inference import append_inference_estimate_note
 
     append_inference_estimate_note(config, estimate)

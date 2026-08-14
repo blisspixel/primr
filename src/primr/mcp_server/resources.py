@@ -687,10 +687,10 @@ def _read_agent_governance() -> list[ReadResourceContents]:
             "Call estimate tools before any cost-incurring tool",
             "Tell the user that research and strategy generation incur real API cost",
             "Get explicit user approval before execution",
-            "Pass max_estimated_cost_usd into cost-incurring tools when enforcement is enabled",
-            "Pass the approval_token returned by the matching estimate tool when enforcement is enabled",
+            "Pass max_estimated_cost_usd into every cost-incurring tool",
+            "Pass the approval_token returned by the matching estimate tool",
             "Treat Primr as a long-running async job system, not a synchronous request",
-            "If PRIMR_ENFORCE_MCP_COST_CAPS is enabled, cost-governed execution tools require max_estimated_cost_usd and approval_token",
+            "Cost-governed MCP tools require max_estimated_cost_usd and approval_token by default",
         ],
         "research_flow": {
             "estimate_tool": "estimate_run",

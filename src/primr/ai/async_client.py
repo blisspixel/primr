@@ -13,7 +13,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
-from primr.ai.genai_factory import default_genai_http_options
+from primr.ai.genai_factory import (
+    accepts_sampling_parameters,
+    default_genai_http_options,
+    supported_thinking_levels,
+)
 
 try:
     from google import genai as _google_genai
@@ -34,8 +38,8 @@ except Exception as import_error:
 
     @dataclass
     class _FallbackGenerateContentConfig:
-        temperature: float
         thinking_config: _FallbackThinkingConfig
+        temperature: float | None = None
 
     class _FallbackTypes:
         GenerateContentConfig = _FallbackGenerateContentConfig
@@ -209,7 +213,7 @@ class AsyncAIClient:
             prompt: The prompt to send
             model_type: "research" or "report"
             temperature: Sampling temperature
-            thinking_level: "low" or "high"
+            thinking_level: "minimal", "low", "medium", or "high"
             max_retries: Override default retry count
             timeout: Request timeout in seconds (across retries)
 
@@ -222,12 +226,22 @@ class AsyncAIClient:
         self._ensure_initialized()
 
         model = self._get_model(model_type)
+        allowed_thinking_levels = supported_thinking_levels(model)
+        if thinking_level not in allowed_thinking_levels:
+            raise ValueError(
+                "thinking_level must be one of "
+                f"{', '.join(allowed_thinking_levels)}, got {thinking_level}"
+            )
+        thinking_level_value = types.ThinkingLevel(thinking_level.upper())
+
         retries = max_retries if max_retries is not None else self._settings.max_retries
 
-        config = types.GenerateContentConfig(
-            temperature=temperature,
-            thinking_config=types.ThinkingConfig(thinking_level=thinking_level),  # type: ignore[arg-type]
-        )
+        config_kwargs: dict[str, Any] = {
+            "thinking_config": types.ThinkingConfig(thinking_level=thinking_level_value),
+        }
+        if accepts_sampling_parameters(model):
+            config_kwargs["temperature"] = temperature
+        config = types.GenerateContentConfig(**config_kwargs)
 
         last_error = None
         loop = asyncio.get_running_loop()
@@ -308,7 +322,7 @@ class AsyncAIClient:
             prompts: List of prompts to process
             model_type: "research" or "report"
             temperature: Sampling temperature
-            thinking_level: "low" or "high"
+            thinking_level: Model-supported reasoning depth
             on_progress: Optional callback(completed, total)
 
         Returns:

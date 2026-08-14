@@ -234,6 +234,7 @@ def llm(
             cross_response.input_tokens,
             cross_response.output_tokens,
             cached_input_tokens=cross_response.cached_input_tokens,
+            actual_cost_usd=cross_response.actual_cost_usd,
         )
         return cross_response.text
 
@@ -293,6 +294,11 @@ def get_llm_provider_usage_by_model() -> dict[str, dict[str, int]]:
         return {}
     usage = provider.get_usage_by_model()
     return {str(model): dict(values) for model, values in usage.items()}
+
+
+def record_gemini_response_usage(model: str, response: object) -> None:
+    """Account for a direct Gemini SDK response in the shared run counters."""
+    _get_gemini_provider().record_external_response_usage(model, response)
 
 
 def llm_fast(prompt, model_type="fast"):

@@ -499,7 +499,7 @@ sections:
 # =============================================================================
 # These prompts are used by the Accordion Method for generating comprehensive reports.
 # Phase 1: Research Dossier - Deep Research gathers raw facts
-# Phase 2: Section Writing - Gemini Pro writes each section with context continuity
+# Phase 2: Section Writing - Gemini Flash writes each section with context continuity
 
 accordion_method:
   # Phase 1: Research Dossier prompt
@@ -507,7 +507,7 @@ accordion_method:
   research_dossier_prompt: |
     You are a Lead Researcher compiling a research dossier on {company_name}{website_context}.
 
-    I am writing a 30-page strategic company overview. I do NOT want the final report yet.
+    I am writing an approximately {target_pages}-page strategic company overview. I do NOT want the final report yet.
     I want a comprehensive Research Dossier containing raw facts and data.
 
     You have access to initial research findings uploaded to File Search Store.
@@ -592,6 +592,9 @@ accordion_method:
 
     Instructions:
     {section_instructions}
+
+    LENGTH CONTRACT:
+    {target_length_guidance}
 
     ## EPISTEMIC DISCIPLINE REMINDERS
     

@@ -192,6 +192,16 @@ class TestCostConfirmationGate:
         assert kwargs["strategy_types"] == ["customer_experience"]
 
 
+class TestDeepDispatch:
+    def test_verify_is_forwarded_to_deep_pipeline(self, seams, monkeypatch):
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+
+        result = _run(mode="deep-research", premium_mode=True, verify=True)
+
+        assert result == str(seams["out_dir"] / "deep.docx")
+        assert seams["deep"].call_args.kwargs["verify"] is True
+
+
 class TestReconPreflight:
     def _recon(self, monkeypatch, slugs=("aws",), detected=("aws",)):
         info = SimpleNamespace(slugs=list(slugs), services=["s1", "s2"], insights=["i1"])

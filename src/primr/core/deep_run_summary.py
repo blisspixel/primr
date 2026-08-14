@@ -17,12 +17,58 @@ without pressing that file against its architecture line ceiling.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
 
 from primr.core.strategy_outcome import StrategyOutcome
 from primr.core.vendor_refresh_outcome import VendorRefreshOutcome
 from primr.utils.console import console
 from primr.utils.observability import JobSummary, log_job_summary
+
+
+def publish_partial_deep_report(
+    result: Any,
+    company_name: str,
+    output_dir: str | Path,
+    diagnostics_dir: str | Path | None,
+    write_txt: bool,
+) -> str | None:
+    """Publish a paid partial result and close its persisted provider job."""
+    from primr.output.output_utils import save_incomplete_markdown_report
+
+    report_path = save_incomplete_markdown_report(
+        result.raw_content,
+        company_name,
+        output_dir,
+        diagnostics_dir,
+        write_txt,
+    )
+    interaction_id = getattr(result, "pending_interaction_id", "")
+    if report_path and isinstance(interaction_id, str) and interaction_id:
+        from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
+
+        if not acknowledge_pending_job_after_outputs(interaction_id, [report_path]):
+            console.warn("The completed provider job remains recoverable.")
+    return report_path
+
+
+def resolve_deep_report_artifacts(
+    docx_path: str | None,
+    durable_paths: list[Path],
+) -> tuple[str | None, list[Path], str | None]:
+    """Choose the shipped, acknowledgment, and verification artifacts."""
+    report_path = docx_path
+    if report_path is None and durable_paths:
+        markdown = next((path for path in durable_paths if path.suffix.lower() == ".md"), None)
+        report_path = str(markdown or durable_paths[0])
+    acknowledgment_paths = list(durable_paths)
+    if not acknowledgment_paths and report_path:
+        acknowledgment_paths.append(Path(report_path))
+    verification_path = next(
+        (str(path) for path in durable_paths if path.suffix.lower() == ".txt"),
+        report_path,
+    )
+    return report_path, acknowledgment_paths, verification_path
 
 
 def finalize_deep_run(
@@ -124,6 +170,18 @@ def finalize_deep_run(
         ("Est. Cost", f"${pre_estimate.total_cost:.2f}"),
         ("Actual Cost", f"~${actual_cost:.2f}"),
     ]
+    target_pages = getattr(result, "target_pages", 0)
+    if target_pages:
+        summary_items.extend(
+            [
+                ("Length Target", f"~{target_pages} pages"),
+                ("Length Produced", f"~{getattr(result, 'actual_pages', 0)} pages"),
+                (
+                    "Length Target Attained",
+                    "Yes" if getattr(result, "target_attained", False) else "No",
+                ),
+            ]
+        )
     if any(target.startswith("ai:") for target in strategy_outcome.expected_targets):
         summary_items.append(("AI Strategy", "Yes"))
     if vendor_refresh_tasks_started:

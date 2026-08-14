@@ -34,6 +34,37 @@ logger = get_logger("ai.genai_factory")
 DEFAULT_GENAI_HTTP_TIMEOUT_MS = 300_000
 
 
+def accepts_sampling_parameters(model: str) -> bool:
+    """Whether ``model`` still accepts explicit sampling controls.
+
+    Google removed ``temperature``, ``top_p``, and ``top_k`` beginning with
+    Gemini 3.6 Flash and Gemini 3.5 Flash-Lite. Gemini 3.7 and later reject
+    them. Older production models retain their existing request shape.
+    """
+    normalized = model.lower()
+    unsupported_prefixes = (
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-",
+        "gemini-3.7-",
+    )
+    return not normalized.startswith(unsupported_prefixes)
+
+
+def supported_thinking_levels(model: str) -> tuple[str, ...]:
+    """Return the published thinking-level contract for a Gemini model."""
+    normalized = model.lower()
+    all_levels = ("minimal", "low", "medium", "high")
+    if normalized.startswith(
+        ("gemini-3.6-", "gemini-3.5-", "gemini-3.1-flash-lite", "gemini-3-flash")
+    ):
+        return all_levels
+    if normalized.startswith("gemini-3-pro"):
+        return ("low", "high")
+    if normalized.startswith(("gemini-3.7-", "gemini-3.1-pro", "gemini-2.5-")):
+        return ("low", "medium", "high")
+    return ("low", "high")
+
+
 def get_genai_http_timeout_ms() -> int:
     """Resolve the genai HTTP timeout (ms), env-overridable, always finite."""
     raw = os.environ.get("PRIMR_GEMINI_HTTP_TIMEOUT_MS", "").strip()

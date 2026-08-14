@@ -130,6 +130,23 @@ class TestMainHandlerRouting:
         assert payload["error_type"] == "configuration_invalid"
         assert payload["hints"] == ["provider key missing"]
 
+    def test_research_json_requires_approval_as_one_object(
+        self, passing_validation, stub_logging, monkeypatch, capsys
+    ):
+        from primr.utils.console import get_console, set_console
+
+        original_console = get_console()
+        monkeypatch.setattr("primr.utils.banner.maybe_show_startup_banner", lambda **kw: None)
+        try:
+            result = main(["Acme Corp", "https://acme.example", "--json"])
+        finally:
+            set_console(original_console)
+
+        payload = json.loads(capsys.readouterr().out)
+        assert result == 1
+        assert payload["operation"] == "research"
+        assert payload["error_type"] == "approval_required"
+
     @pytest.mark.parametrize(
         ("gemini_key", "expected_hint"),
         [

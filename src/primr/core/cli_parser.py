@@ -59,7 +59,7 @@ Examples:
   primr --qa "Acme Corp"                             # Show detailed QA analysis
   primr --qa-recent 5                                # Show QA summary for recent reports
   primr improve "output/Company_Strategic_Overview_03-06-2026.md"   # Improve one output
-  primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic
+  primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic --dry-run
   primr refine "Acme Corp"                           # QA loop: regenerate weak sections until grade >= 90
   primr refine "Acme Corp" --target-grade 85 --in-place
   primr calibrate "Acme Corp"                        # Audit confidence-label traceability (writes sidecar JSON)

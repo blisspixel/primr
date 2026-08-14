@@ -39,6 +39,7 @@ from mcp.types import (
 from primr.mcp_server import research_validation
 from primr.mcp_server.agentic_tools import handle_agentic_tool, register_agentic_tools
 from primr.mcp_server.approval_tokens import (
+    approval_token_audit,
     enforce_approval_token,
     issue_approval_token,
     research_approval_args,
@@ -440,6 +441,23 @@ async def _handle_research_company(
                 text=json.dumps(payload),
             )
         ]
+
+    token_audit = approval_token_audit(arguments.get("approval_token"))
+    approved_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    job.governance_audit = {
+        "estimate": {
+            "cost_usd": float(estimate["estimated_cost_usd"]),
+            "time_minutes": int(estimate["estimated_time_minutes"]),
+            "estimated_at": token_audit["estimated_at"] if token_audit else approved_at,
+        },
+        "approval": {
+            "approval_token_id": token_audit["approval_token_id"] if token_audit else None,
+            "approved_at": approved_at,
+            "bound_to_estimate": token_audit is not None,
+        },
+        "approved_ceiling_usd": budget_usd,
+    }
+    mcp_server.job_store.update(job)
 
     # Start a supervised worker process for the research pipeline.
     # Skip if _skip_background_tasks is set (for testing)
