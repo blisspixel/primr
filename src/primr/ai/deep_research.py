@@ -205,6 +205,7 @@ class ResearchResult:
 import contextlib
 import os
 
+from primr.ai import file_search_resources as _file_search_resources
 from primr.ai.citation_resolution import (
     _extract_domain_from_redirect as _extract_domain_from_redirect,
 )
@@ -217,16 +218,6 @@ from primr.ai.citation_resolution import (
 from primr.ai.citation_resolution import (
     resolve_redirect_url as resolve_redirect_url,
 )
-from primr.ai.file_search_resources import (
-    _DEFAULT_STALE_AGE_SECONDS as _DEFAULT_STALE_AGE_SECONDS,
-)
-from primr.ai.file_search_resources import _PRIMR_RESOURCE_PREFIX as _PRIMR_RESOURCE_PREFIX
-from primr.ai.file_search_resources import _is_primr_owned as _is_primr_owned
-from primr.ai.file_search_resources import _resource_age_seconds as _resource_age_seconds
-from primr.ai.file_search_resources import (
-    cleanup_orphaned_resources as cleanup_orphaned_resources,
-)
-from primr.ai.file_search_resources import wait_for_file_search_operation
 from primr.ai.job_persistence import (
     _get_jobs_file_path as _get_jobs_file_path,
 )
@@ -242,6 +233,15 @@ from primr.ai.job_persistence import (
 from primr.ai.job_persistence import (
     save_pending_job,
 )
+
+# Preserve the legacy deep_research module exports while their implementation
+# lives in the focused file_search_resources module.
+_DEFAULT_STALE_AGE_SECONDS = _file_search_resources._DEFAULT_STALE_AGE_SECONDS
+_PRIMR_RESOURCE_PREFIX = _file_search_resources._PRIMR_RESOURCE_PREFIX
+_is_primr_owned = _file_search_resources._is_primr_owned
+_resource_age_seconds = _file_search_resources._resource_age_seconds
+cleanup_orphaned_resources = _file_search_resources.cleanup_orphaned_resources
+wait_for_file_search_operation = _file_search_resources.wait_for_file_search_operation
 
 
 class DeepResearchClient:

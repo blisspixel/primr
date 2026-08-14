@@ -46,31 +46,40 @@ _ACCEPTANCE_JUDGES_PER_ITERATION = (
 
 class _ImprovementConfig(Protocol):
     @property
-    def improve_path(self) -> str | None: ...
+    def improve_path(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def improve_in_place(self) -> bool: ...
+    def improve_in_place(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def improve_agentic(self) -> bool: ...
+    def improve_agentic(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def refine_company(self) -> str | None: ...
+    def refine_company(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def refine_target_grade(self) -> float: ...
+    def refine_target_grade(self) -> float:
+        raise NotImplementedError
 
     @property
-    def dry_run_requested(self) -> bool: ...
+    def dry_run_requested(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def json_output(self) -> bool: ...
+    def json_output(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def skip_confirm(self) -> bool: ...
+    def skip_confirm(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def budget_usd(self) -> float | None: ...
+    def budget_usd(self) -> float | None:
+        raise NotImplementedError
 
 
 class _RefineResult(Protocol):

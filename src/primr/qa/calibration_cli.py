@@ -41,76 +41,100 @@ from primr.utils.console import prompt_yes_no
 
 class CalibrateConfig(Protocol):
     @property
-    def skip_confirm(self) -> bool: ...
+    def skip_confirm(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def calibrate_target(self) -> str | None: ...
+    def calibrate_target(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_recent(self) -> int | None: ...
+    def calibrate_recent(self) -> int | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_max_per_label(self) -> int: ...
+    def calibrate_max_per_label(self) -> int:
+        raise NotImplementedError
 
     @property
-    def calibrate_dry_run(self) -> bool: ...
+    def calibrate_dry_run(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def calibrate_judge(self) -> str: ...
+    def calibrate_judge(self) -> str:
+        raise NotImplementedError
 
     @property
-    def calibrate_judge_model(self) -> str | None: ...
+    def calibrate_judge_model(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_judge_compare(self) -> bool: ...
+    def calibrate_judge_compare(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def calibrate_pack_manifest(self) -> str | None: ...
+    def calibrate_pack_manifest(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_pack_selection(self) -> str | None: ...
+    def calibrate_pack_selection(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_pack_selection_template(self) -> str | None: ...
+    def calibrate_pack_selection_template(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_inspect_selection(self) -> str | None: ...
+    def calibrate_inspect_selection(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_from(self) -> str | None: ...
+    def calibrate_baseline_from(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_out(self) -> str | None: ...
+    def calibrate_baseline_out(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_md(self) -> str | None: ...
+    def calibrate_baseline_md(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_min_reports(self) -> int: ...
+    def calibrate_baseline_min_reports(self) -> int:
+        raise NotImplementedError
 
     @property
-    def calibrate_inspect_baseline(self) -> str | None: ...
+    def calibrate_inspect_baseline(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_inspect_baseline_decision(self) -> str | None: ...
+    def calibrate_inspect_baseline_decision(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_decision_from(self) -> str | None: ...
+    def calibrate_baseline_decision_from(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_decision_out(self) -> str | None: ...
+    def calibrate_baseline_decision_out(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_decision(self) -> str | None: ...
+    def calibrate_baseline_decision(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_decision_reviewer(self) -> str | None: ...
+    def calibrate_baseline_decision_reviewer(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_decision_rationale(self) -> str | None: ...
+    def calibrate_baseline_decision_rationale(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_decision_notes(self) -> tuple[str, ...]: ...
+    def calibrate_baseline_decision_notes(self) -> tuple[str, ...]:
+        raise NotImplementedError
 
 
 class ConsoleSink(Protocol):
