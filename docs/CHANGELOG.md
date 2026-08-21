@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   authenticate forever. Static admin tokens remain the documented no-exp path.
 - **Outbound URL logs redact userinfo and query strings.** Blocked/failed
   `safe_http` requests no longer print credentials or signed-query tokens.
+- **pip 26.2.1** for PYSEC-2026-3721 (lockfile floor).
 
 ### Added
 
