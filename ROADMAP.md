@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.2
+Current State: v1.39.3
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -2050,6 +2050,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.3 | Aug 2026 | **Hardening: SSRF pinning, scrape-cost honesty, artifact classification, JWT exp.** MCP/A2A share the central SSRF guard (mapped IPv6/NAT64), remaining fetch seams pin DNS, scrape mode no longer runs structured writing, QA files are not the Strategic Overview, HTTP job resources are owner-gated. |
 | 1.39.2 | Aug 2026 | **README as front door only.** Root README shortened to pitch, start-here paths, install, command table, and links; operator detail stays in `docs/` (RUN_MODES, ZERO_COST, ARTIFACTS, AGENT_INTEGRATION). |
 | 1.39.1 | Aug 2026 | **Front door and docs polish.** README re-centered on agentic structured research with a placeholder ExampleCo CLI demo; docs site home and RUN_MODES guidance updated; deep-research runs forward `folder_path` for stage_routes. |
 | 1.39.0 | Aug 2026 | **Native MCP 2026-07-28 plus full capability-router production wiring.** Migrated the MCP server to MCP Python SDK v2 (`mcp>=2.0.0,<3`) with dual-era clients, cache hints, resource templates, and `-32602` unknown-name errors. Wired the remaining fast-pipeline stages and `premium.deep_research` through the capability router with body-free `stage_routes` and fail-closed agent/local behavior. Shipped the standing `source_relevance_standing_v1` offline scorecard corpus (report-only, not a promotion gate). |

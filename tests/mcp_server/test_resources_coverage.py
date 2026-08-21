@@ -45,17 +45,23 @@ class TestLatestOutput:
         data = await _read(server, "primr://output/latest")
         assert data["report_path"] is None
 
+    def _attach_latest_report(self, server, report: Path, *, owner: str | None = None):
+        job = server.job_store.create("Acme", "full", owner_client_id=owner)
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+        return job
+
     @pytest.mark.asyncio
     async def test_latest_report_preview(self, server, monkeypatch, tmp_path):
         monkeypatch.chdir(tmp_path)
         out = tmp_path / "output" / "acme"
         out.mkdir(parents=True)
-        report = out / "report.md"
+        report = out / "Acme_Strategic_Overview_01-01-2026.md"
         report.write_text("# Hello world", encoding="utf-8")
+        self._attach_latest_report(server, report)
         data = await _read(server, "primr://output/latest")
-        # The resource uses a relative "output" Path, so the returned path is
-        # relative to cwd.
-        assert data["report_path"].endswith("report.md")
+        assert data["report_path"].endswith("Acme_Strategic_Overview_01-01-2026.md")
         assert data["content_preview"].startswith("# Hello")
         assert data["report_type"] == "markdown"
         assert "full_content" not in data
@@ -65,8 +71,9 @@ class TestLatestOutput:
         monkeypatch.chdir(tmp_path)
         out = tmp_path / "output" / "acme"
         out.mkdir(parents=True)
-        report = out / "report.md"
+        report = out / "Acme_Strategic_Overview_01-01-2026.md"
         report.write_text("# Full body", encoding="utf-8")
+        self._attach_latest_report(server, report)
         data = await _read(server, "primr://output/latest?full_content=true")
         assert data["full_content"] == "# Full body"
 
@@ -77,13 +84,14 @@ class TestLatestOutput:
         monkeypatch.chdir(tmp_path)
         out = tmp_path / "output" / "acme"
         out.mkdir(parents=True)
-        report = out / "report.md"
+        report = out / "Acme_Strategic_Overview_01-01-2026.md"
         report.write_text("# SECRET latest body", encoding="utf-8")
         server._auth_context = SimpleNamespace(
             client_id="client-a",
             scopes=["read"],
             is_authenticated=True,
         )
+        self._attach_latest_report(server, report, owner="client-a")
 
         data = await _read(server, "primr://output/latest?full_content=true")
         assert "SECRET latest body" not in json.dumps(data)
@@ -100,13 +108,14 @@ class TestLatestOutput:
         monkeypatch.chdir(tmp_path)
         out = tmp_path / "output" / "acme"
         out.mkdir(parents=True)
-        report = out / "report.md"
+        report = out / "Acme_Strategic_Overview_01-01-2026.md"
         report.write_text("# SECRET latest body", encoding="utf-8")
         server._auth_context = SimpleNamespace(
             client_id="client-a",
             scopes=["read", "report"],
             is_authenticated=True,
         )
+        self._attach_latest_report(server, report, owner="client-a")
 
         data = await _read(server, "primr://output/latest?full_content=true")
         assert "SECRET latest body" not in json.dumps(data)
@@ -129,17 +138,14 @@ class TestArtifacts:
         monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(tmp_path))
         job = server.job_store.create("Acme Corp", "full")
         job.advance_stage(ResearchStage.COMPLETED)
+        overview = tmp_path / "Acme_Corp_Strategic_Overview_01-01-2026.md"
+        overview.write_text("report data", encoding="utf-8")
+        job.output_paths = [str(overview)]
         server.job_store.update(job)
-
-        workspace = tmp_path / "acme_corp"
-        workspace.mkdir(parents=True)
-        (workspace / "insights.txt").write_text("insight data", encoding="utf-8")
-        (workspace / "report.md").write_text("report data", encoding="utf-8")
 
         data = await _read(server, "primr://output/artifacts")
         types = {a["artifact_type"] for a in data["artifacts"]}
-        assert "insights" in types
-        assert "report" in types
+        assert "strategic_overview" in types
         for a in data["artifacts"]:
             assert "content_hash" in a
             assert a["size_bytes"] > 0

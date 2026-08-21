@@ -89,6 +89,7 @@ def make_request(
         ValueError: If URL fails SSRF validation on the initial URL or any
             redirect hop.
     """
+    from primr.data.pinned_requests import create_pinned_session
     from primr.utils.validators import validate_url_for_request
 
     default_headers = get_default_headers(profile)
@@ -97,37 +98,42 @@ def make_request(
         default_headers.update(headers)
 
     current_url = url
-    for redirect_count in range(_MAX_REDIRECTS + 1):
-        is_valid, normalized_url, error = validate_url_for_request(current_url)
-        if not is_valid:
-            raise ValueError(f"Invalid URL: {error}")
+    with create_pinned_session() as session:
+        for redirect_count in range(_MAX_REDIRECTS + 1):
+            is_valid, normalized_url, error = validate_url_for_request(current_url)
+            if not is_valid:
+                raise ValueError(f"Invalid URL: {error}")
 
-        response = requests.request(
-            method=method,
-            url=normalized_url,
-            headers=default_headers,
-            timeout=timeout,
-            allow_redirects=False,
-            cookies=cookies,
-        )
+            response = session.request(
+                method=method,
+                url=normalized_url,
+                headers=default_headers,
+                timeout=timeout,
+                allow_redirects=False,
+                cookies=cookies,
+            )
 
-        if not allow_redirects:
-            return response
+            if not allow_redirects:
+                return response
 
-        headers_obj = getattr(response, "headers", {}) or {}
-        location = None
-        if isinstance(headers_obj, Mapping):
-            location = headers_obj.get("Location") or headers_obj.get("location")
+            headers_obj = getattr(response, "headers", {}) or {}
+            location = None
+            if isinstance(headers_obj, Mapping):
+                location = headers_obj.get("Location") or headers_obj.get("location")
 
-        status_code = getattr(response, "status_code", None)
-        if status_code not in _REDIRECT_STATUSES or not isinstance(location, str) or not location:
-            return response
+            status_code = getattr(response, "status_code", None)
+            if (
+                status_code not in _REDIRECT_STATUSES
+                or not isinstance(location, str)
+                or not location
+            ):
+                return response
 
-        response_url = getattr(response, "url", normalized_url)
-        current_url = urljoin(str(response_url), location)
+            response_url = getattr(response, "url", normalized_url)
+            current_url = urljoin(str(response_url), location)
 
-        if redirect_count == _MAX_REDIRECTS:
-            raise requests.TooManyRedirects(f"Exceeded {_MAX_REDIRECTS} redirects for {url}")
+            if redirect_count == _MAX_REDIRECTS:
+                raise requests.TooManyRedirects(f"Exceeded {_MAX_REDIRECTS} redirects for {url}")
 
     raise requests.TooManyRedirects(f"Exceeded {_MAX_REDIRECTS} redirects for {url}")
 

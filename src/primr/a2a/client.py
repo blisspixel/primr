@@ -78,11 +78,19 @@ class A2AClient:
     @staticmethod
     def _validate_url(url: str) -> None:
         """Raise A2AError if the URL fails the central SSRF check."""
-        from primr.utils.security import is_safe_url
+        A2AClient._resolve_url(url)
 
-        safe, reason = is_safe_url(url)
-        if not safe:
-            raise A2AError(f"A2A request blocked by SSRF guard: {reason} ({url})")
+    @staticmethod
+    def _resolve_url(url: str):
+        """Resolve and pin the connection target through the shared SSRF guard."""
+        from primr.utils.security import redact_url_for_log, resolve_safe_url_for_connect
+
+        resolution, reason = resolve_safe_url_for_connect(url)
+        if resolution is None:
+            raise A2AError(
+                f"A2A request blocked by SSRF guard: {reason} ({redact_url_for_log(url)})"
+            )
+        return resolution
 
     async def _follow_redirects_safely(
         self,
@@ -97,16 +105,30 @@ class A2AClient:
 
         Used for non-streaming requests. Streaming (SSE) requests reject any
         redirect outright; a streaming endpoint should not be relocating
-        mid-handshake under normal A2A use.
+        mid-handshake under normal A2A use. Connects to the resolved IP so a
+        DNS rebind between check and connect cannot reach loopback/metadata.
         """
         client = await self._get_client()
         current_url = url
         for _ in range(max_redirects + 1):
-            self._validate_url(current_url)
+            resolution = self._resolve_url(current_url)
+            headers = {"Host": resolution.host_header}
+            extensions = (
+                {"sni_hostname": resolution.sni_hostname} if resolution.sni_hostname else None
+            )
             if method.upper() == "GET":
-                resp = await client.get(current_url)
+                resp = await client.get(
+                    resolution.request_url,
+                    headers=headers,
+                    extensions=extensions,
+                )
             else:
-                resp = await client.post(current_url, json=json_body)
+                resp = await client.post(
+                    resolution.request_url,
+                    json=json_body,
+                    headers=headers,
+                    extensions=extensions,
+                )
             if resp.status_code not in (301, 302, 303, 307, 308):
                 return resp
             location = resp.headers.get("location")
@@ -241,9 +263,20 @@ class A2AClient:
 
         # Streaming requests don't get a manual redirect chain — an SSE
         # handshake redirecting to a different host mid-stream is not part
-        # of normal A2A flows, so we just SSRF-check the target and post.
-        self._validate_url(self.agent_url)
-        async with client.stream("POST", self.agent_url, json=payload) as response:
+        # of normal A2A flows. Pin the connect IP after the SSRF check so a
+        # DNS rebind cannot send the stream to loopback or metadata.
+        resolution = self._resolve_url(self.agent_url)
+        stream_headers = {"Host": resolution.host_header}
+        stream_extensions = (
+            {"sni_hostname": resolution.sni_hostname} if resolution.sni_hostname else None
+        )
+        async with client.stream(
+            "POST",
+            resolution.request_url,
+            json=payload,
+            headers=stream_headers,
+            extensions=stream_extensions,
+        ) as response:
             response.raise_for_status()
             buffer = ""
             async for chunk in response.aiter_text():

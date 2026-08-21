@@ -127,7 +127,6 @@ class PipelineRunner:
             from primr.core.research_orchestrator import ResearchMode, ResearchOrchestrator
 
             mode_map = {
-                "scrape": ResearchMode.STRUCTURED,
                 "deep": ResearchMode.DEEP_RESEARCH,
                 "full": ResearchMode.COMPLETE,
                 "premium": ResearchMode.COMPLETE,
@@ -160,78 +159,19 @@ class PipelineRunner:
                 self.mcp_server.job_store.update(job)
                 on_progress("Starting website scraping...")
 
-            if use_fast:
-                # Fast pipeline: Grok 4.3 hybrid
-                import time
-
-                from primr.core.research_agent import perform_fast_research
-
-                # Start heartbeat task
-                heartbeat_task = asyncio.create_task(self._heartbeat_loop(job, HEARTBEAT_INTERVAL))
-                try:
-                    result_path = await asyncio.to_thread(
-                        perform_fast_research,
-                        job.company_name,
-                        company_url,
-                        time.time(),
-                        ai_strategy=platform is not None,
-                        platforms=(platform,) if platform else ("agnostic",),
-                        output_dir=job_output_dir,
-                        diagnostics_dir=job_output_dir / "_diagnostics",
-                        write_txt=True,
-                    )
-                finally:
-                    heartbeat_task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await heartbeat_task
-
-                if not result_path:
-                    job.advance_stage(ResearchStage.FAILED)
-                    job.error_type = "research_failed"
-                    job.error_message = "Fast mode pipeline failed"
-                    self.mcp_server.job_store.update(job)
-                    return
-
-                # Fast mode produces final output directly — collect all artifacts
-                # (report + strategy files) from the output directory
-                all_artifacts = _collect_run_artifacts(result_path, job.company_name)
-                _require_ai_strategy_artifact(
-                    all_artifacts,
-                    required=platform is not None,
-                )
-
-                if verify:
-                    on_progress("Running claim verification...")
-                    try:
-                        from primr.core.research_agent import _run_verification
-
-                        await asyncio.to_thread(
-                            _run_verification,
-                            company_name=job.company_name,
-                            company_url=company_url,
-                            report_path=result_path,
-                        )
-                        all_artifacts = _with_verification_artifacts(all_artifacts)
-                    except Exception as e:
-                        logger.warning(f"Verification failed (non-blocking): {e}")
-
-                # If a destination was specified, copy artifacts there
-                if destination:
-                    all_artifacts = _copy_artifacts_to_destination(
-                        all_artifacts, str(Path(destination) / job.job_id)
-                    )
-
-                all_artifacts = _with_trace_artifacts(all_artifacts, job)
-                job.output_paths = all_artifacts
-                job.actual_cost_usd = _reconcile_actual_cost(usage_baseline)
-                await self._complete_with_manifest(
-                    job,
-                    company_url,
-                    mode,
-                    budget_usd=budget_usd,
-                    fast_mode=True,
-                    premium_mode=False,
-                )
+            if await self._run_direct_collection_mode(
+                job,
+                company_url,
+                mode=mode,
+                use_fast=bool(use_fast),
+                platform=platform,
+                verify=verify,
+                destination=destination,
+                job_output_dir=job_output_dir,
+                usage_baseline=usage_baseline,
+                budget_usd=budget_usd,
+                on_progress=on_progress,
+            ):
                 return
 
             # Standard orchestrator pipeline (premium or non-fast full)
@@ -398,6 +338,157 @@ class PipelineRunner:
                 clear_run_budget()
             if self._running_task is current_task:
                 self._running_task = None
+
+    async def _run_direct_collection_mode(
+        self,
+        job: ResearchJobState,
+        company_url: str,
+        *,
+        mode: str,
+        use_fast: bool,
+        platform: str | None,
+        verify: bool,
+        destination: str | None,
+        job_output_dir: Path,
+        usage_baseline: dict[str, dict[str, int | float]],
+        budget_usd: float | None,
+        on_progress: Any,
+    ) -> bool:
+        """Run scrape-only or fast collection. Return False for orchestrator modes."""
+        if mode == "scrape":
+            await self._run_scrape_only(
+                job,
+                company_url,
+                job_output_dir=job_output_dir,
+                destination=destination,
+                usage_baseline=usage_baseline,
+                budget_usd=budget_usd,
+            )
+            return True
+        if not use_fast:
+            return False
+
+        import time
+
+        from primr.core.research_agent import perform_fast_research
+
+        heartbeat_task = asyncio.create_task(self._heartbeat_loop(job, HEARTBEAT_INTERVAL))
+        try:
+            result_path = await asyncio.to_thread(
+                perform_fast_research,
+                job.company_name,
+                company_url,
+                time.time(),
+                ai_strategy=platform is not None,
+                platforms=(platform,) if platform else ("agnostic",),
+                output_dir=job_output_dir,
+                diagnostics_dir=job_output_dir / "_diagnostics",
+                write_txt=True,
+            )
+        finally:
+            heartbeat_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await heartbeat_task
+
+        if not result_path:
+            job.advance_stage(ResearchStage.FAILED)
+            job.error_type = "research_failed"
+            job.error_message = "Fast mode pipeline failed"
+            self.mcp_server.job_store.update(job)
+            return True
+
+        all_artifacts = _collect_run_artifacts(result_path, job.company_name)
+        _require_ai_strategy_artifact(
+            all_artifacts,
+            required=platform is not None,
+        )
+
+        if verify:
+            on_progress("Running claim verification...")
+            try:
+                from primr.core.research_agent import _run_verification
+
+                await asyncio.to_thread(
+                    _run_verification,
+                    company_name=job.company_name,
+                    company_url=company_url,
+                    report_path=result_path,
+                )
+                all_artifacts = _with_verification_artifacts(all_artifacts)
+            except Exception as e:
+                logger.warning(f"Verification failed (non-blocking): {e}")
+
+        if destination:
+            all_artifacts = _copy_artifacts_to_destination(
+                all_artifacts, str(Path(destination) / job.job_id)
+            )
+
+        all_artifacts = _with_trace_artifacts(all_artifacts, job)
+        job.output_paths = all_artifacts
+        job.actual_cost_usd = _reconcile_actual_cost(usage_baseline)
+        await self._complete_with_manifest(
+            job,
+            company_url,
+            mode,
+            budget_usd=budget_usd,
+            fast_mode=True,
+            premium_mode=False,
+        )
+        return True
+
+    async def _run_scrape_only(
+        self,
+        job: ResearchJobState,
+        company_url: str,
+        *,
+        job_output_dir: Path,
+        destination: str | None,
+        usage_baseline: dict[str, dict[str, int | float]],
+        budget_usd: float | None,
+    ) -> None:
+        """Run the priced scrape-only path, not structured section writing."""
+        import time
+
+        from primr.core.research_agent import perform_scrape_only
+
+        job_output_dir.mkdir(parents=True, exist_ok=True)
+        heartbeat_task = asyncio.create_task(self._heartbeat_loop(job, HEARTBEAT_INTERVAL))
+        try:
+            result_path = await asyncio.to_thread(
+                perform_scrape_only,
+                job.company_name,
+                company_url,
+                time.time(),
+                folder_path=str(job_output_dir),
+            )
+        finally:
+            heartbeat_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await heartbeat_task
+
+        if not result_path:
+            job.advance_stage(ResearchStage.FAILED)
+            job.error_type = "research_failed"
+            job.error_message = "Scrape-only pipeline failed"
+            self.mcp_server.job_store.update(job)
+            return
+
+        all_artifacts = _collect_run_artifacts(result_path, job.company_name)
+        if destination:
+            all_artifacts = _copy_artifacts_to_destination(
+                all_artifacts, str(Path(destination) / job.job_id)
+            )
+        all_artifacts = _with_trace_artifacts(all_artifacts, job)
+        job.output_paths = all_artifacts
+        job.actual_cost_usd = _reconcile_actual_cost(usage_baseline)
+        await self._complete_with_manifest(
+            job,
+            company_url,
+            "scrape",
+            budget_usd=budget_usd,
+            fast_mode=False,
+            premium_mode=False,
+        )
 
     async def _heartbeat_loop(
         self,
