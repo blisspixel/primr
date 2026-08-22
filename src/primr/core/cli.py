@@ -47,27 +47,16 @@ from primr.core.cli_dispatch import (
     run_skills,
     run_update_cli,
 )
-from primr.core.cli_doctor import _check_api_connectivity as _check_api_connectivity
-from primr.core.cli_doctor import _check_api_keys as _check_api_keys
-from primr.core.cli_doctor import _check_dependencies as _check_dependencies
-from primr.core.cli_doctor import _check_filesystem as _check_filesystem
-from primr.core.cli_doctor import _check_gemini_resources as _check_gemini_resources
-from primr.core.cli_doctor import _check_providers as _check_providers
 from primr.core.cli_doctor import run_doctor
 from primr.core.cli_dryrun import run_dry_run
 from primr.core.cli_errors import guard_dispatch
 from primr.core.cli_eval_args import add_eval_arguments
 from primr.core.cli_inference import prepare_batch_inference_runtime
-from primr.core.cli_init import _ensure_project_env_file as _ensure_project_env_file
-from primr.core.cli_init import _install_playwright_browsers as _install_playwright_browsers
-from primr.core.cli_init import _key_looks_configured as _key_looks_configured
-from primr.core.cli_init import _playwright_browsers_ready as _playwright_browsers_ready
 from primr.core.cli_init import (
     _prompt_yes_no,
     _run_init_flow,
     _should_offer_interactive_key_setup,
 )
-from primr.core.cli_init import _validate_key_live as _validate_key_live
 from primr.core.cli_job_cleanup import run_clear_pending_jobs
 from primr.core.cli_keys import run_keys
 from primr.core.cli_memory import (

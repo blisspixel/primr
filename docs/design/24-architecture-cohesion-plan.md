@@ -171,11 +171,12 @@ module. Ten modules left the broad component, reducing it from 22 members to
 The batch removed implementation back edges rather than hiding imports:
 `cli` now injects doctor and update callbacks at its composition boundary;
 plan, refinement, regeneration, source relevance, workspace allocation, and
-session-spend reads call their existing behavior owners directly. Legacy
-imports through `core.cli` and `core.research_agent` remain available. Direct
-owner tests, composition tests, and both fresh-interpreter import orders cover
-each removed pair. The production-module delta is zero, `cli.py` fell from
-2,478 to 2,460 lines, and `research_agent.py` fell from 4,276 to 4,262 lines.
+session-spend reads call their existing behavior owners directly. Required
+public compatibility imports remain available, while tests now import private
+doctor and init helpers from their owning modules. Direct owner tests,
+composition tests, and both fresh-interpreter import orders cover each removed
+pair. The production-module delta is zero, `cli.py` fell from 2,478 to 2,449
+lines, and `research_agent.py` fell from 4,276 to 4,262 lines.
 
 Before this batch, the component contained `primr`, `cli`, `cli_dispatch`,
 `cli_doctor`, `cli_errors`, `cli_init`, `cli_plan`, `cli_update`, `cli_vendor`,

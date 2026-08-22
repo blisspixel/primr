@@ -20,13 +20,13 @@ from primr.core.cli import (
     CLIConfig,
     Command,
     _create_parser,
-    _ensure_project_env_file,
     _handle_research,
     _resolve_local_judge_models,
     main,
     parse_args,
     run_doctor,
 )
+from primr.core.cli_init import _ensure_project_env_file
 
 # =============================================================================
 # Command Enum Tests
