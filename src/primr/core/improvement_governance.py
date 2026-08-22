@@ -635,6 +635,18 @@ def handle_refine(
             message="Company name is required for refine.",
             hints=('Usage: primr refine "Company Name" [--target-grade 90]',),
         )
+    from primr.utils.validators import InputValidationError, validate_company_name
+
+    try:
+        company = validate_company_name(company)
+    except InputValidationError:
+        return _report_error(
+            config,
+            None,
+            error_type="invalid_company",
+            message="Company name cannot contain path separators or traversal sequences.",
+            hints=('Usage: primr refine "Company Name" [--target-grade 90]',),
+        )
     report_path, website, workbook, working_folder = find_inputs(company)
     if not report_path:
         return _report_error(

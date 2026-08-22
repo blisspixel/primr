@@ -203,6 +203,13 @@ def _resolved_ip_block_reason(ip_str: str) -> str | None:
     six_to_four = getattr(ip, "sixtofour", None)
     if six_to_four is not None:
         ips_to_check.append(six_to_four)
+    if ip.version == 6:
+        try:
+            nat64 = ipaddress.ip_network("64:ff9b::/96")
+        except ValueError:
+            nat64 = None
+        if nat64 is not None and ip in nat64:
+            ips_to_check.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
 
     for candidate in ips_to_check:
         if str(candidate) in _METADATA_HOSTS:
@@ -385,6 +392,31 @@ def is_safe_url(url: str) -> tuple[bool, str | None]:
         return False, error
 
     return True, None
+
+
+def redact_url_for_log(url: str) -> str:
+    """Return a URL suitable for logs without credentials or query secrets."""
+    from urllib.parse import urlparse, urlunparse
+
+    try:
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            return "<unparseable-url>"
+        host = parsed.hostname
+        if not host:
+            return "<unparseable-url>"
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+        netloc = host
+        try:
+            if parsed.port is not None:
+                netloc = f"{netloc}:{parsed.port}"
+        except ValueError:
+            # urllib raises ValueError for out-of-range ports; omit the port.
+            pass
+        return urlunparse((parsed.scheme, netloc, parsed.path, "", "", ""))
+    except Exception:
+        return "<unparseable-url>"
 
 
 def validate_redirect_url(url: str, allowed_hosts: set[str] | None = None) -> bool:

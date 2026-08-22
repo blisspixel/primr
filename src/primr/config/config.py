@@ -21,7 +21,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from primr.config.env import load_primr_env
+from primr.config.env import env_float, env_int, load_primr_env
 from primr.types import ConfigurationError
 
 # Load environment variables (safe, no validation)
@@ -204,13 +204,13 @@ XAI_API_KEY = _xai_api_key
 NUM_SEARCH_RESULTS = 10
 PARALLEL_SEARCH_LIMIT = 2
 INITIAL_RETRY_DELAY = 5
-MAX_EXTERNAL_SEARCH_QUERIES = int(os.getenv("MAX_EXTERNAL_SEARCH_QUERIES", "5"))
-MAX_EXTERNAL_SOURCES = int(os.getenv("MAX_EXTERNAL_SOURCES", "8"))
-MIN_SCRAPED_PAGES = int(os.getenv("MIN_SCRAPED_PAGES", "3"))
-MIN_SCRAPED_CHARS = int(os.getenv("MIN_SCRAPED_CHARS", "6000"))
-SCRAPE_PILOT_COUNT = int(os.getenv("SCRAPE_PILOT_COUNT", "10"))
-SCRAPE_PILOT_MIN_SUCCESS_RATE = float(os.getenv("SCRAPE_PILOT_MIN_SUCCESS_RATE", "0.70"))
-SCRAPE_PILOT_MIN_CHARS = int(os.getenv("SCRAPE_PILOT_MIN_CHARS", "700"))
+MAX_EXTERNAL_SEARCH_QUERIES = env_int("MAX_EXTERNAL_SEARCH_QUERIES", 5)
+MAX_EXTERNAL_SOURCES = env_int("MAX_EXTERNAL_SOURCES", 8)
+MIN_SCRAPED_PAGES = env_int("MIN_SCRAPED_PAGES", 3)
+MIN_SCRAPED_CHARS = env_int("MIN_SCRAPED_CHARS", 6000)
+SCRAPE_PILOT_COUNT = env_int("SCRAPE_PILOT_COUNT", 10)
+SCRAPE_PILOT_MIN_SUCCESS_RATE = env_float("SCRAPE_PILOT_MIN_SUCCESS_RATE", 0.70)
+SCRAPE_PILOT_MIN_CHARS = env_int("SCRAPE_PILOT_MIN_CHARS", 700)
 
 # Scraping Settings
 MAX_SCRAPE_RETRIES = 2

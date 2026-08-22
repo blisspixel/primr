@@ -357,6 +357,11 @@ def _read_research_next_actions(mcp_server: MCPServerContext) -> list[ReadResour
         job = mcp_server.job_store.get_latest_terminal()
         source = "latest_terminal"
 
+    client_id = caller_client_id(mcp_server)
+    if job is not None and not caller_owns_job_resource(mcp_server, job, client_id):
+        job = None
+        source = None
+
     if job is None:
         data = {
             "job_source": None,
@@ -459,6 +464,10 @@ def _read_research_status(mcp_server: MCPServerContext) -> list[ReadResourceCont
         # Check for latest terminal job
         job = mcp_server.job_store.get_latest_terminal()
 
+    client_id = caller_client_id(mcp_server)
+    if job is not None and not caller_owns_job_resource(mcp_server, job, client_id):
+        job = None
+
     if job is None:
         # No job at all
         status = ResearchStatus(status=JobStatus.IDLE)
@@ -557,6 +566,10 @@ def _read_artifacts(mcp_server: MCPServerContext) -> list[ReadResourceContents]:
     else:
         job = mcp_server.job_store.get_latest_terminal()
 
+    client_id = caller_client_id(mcp_server)
+    if job is not None and not caller_owns_job_resource(mcp_server, job, client_id):
+        job = None
+
     artifacts = []
     job_id = job.job_id if job else None
     job_status = job.get_status() if job else None
@@ -566,53 +579,33 @@ def _read_artifacts(mcp_server: MCPServerContext) -> list[ReadResourceContents]:
         # as the writer does (pipeline_runner._save_report): absolute OUTPUT_DIR
         # (not relative "output", which only matches when cwd == project root)
         # and the same slug, including the "/" -> "_" replacement.
-        from primr.config.config import OUTPUT_DIR
+        from primr.mcp_server.job_responses import classify_output_artifact
 
-        safe_name = job.company_name.replace(" ", "_").replace("/", "_").lower()
-        workspace_dir = Path(OUTPUT_DIR) / safe_name
-
-        if workspace_dir.exists():
-            for artifact_type, filename in ARTIFACT_FILES.items():
-                artifact_path = workspace_dir / filename
-                if artifact_path.exists():
-                    try:
-                        content = artifact_path.read_text(encoding="utf-8")
-                        size = artifact_path.stat().st_size
-
-                        # Calculate hash
-                        content_hash = hashlib.sha256(content.encode()).hexdigest()
-
-                        artifacts.append(
-                            ArtifactInfo(
-                                artifact_type=artifact_type,
-                                file_path=str(artifact_path),
-                                size_bytes=size,
-                                preview=content[:500],
-                                content_hash=content_hash,
-                            )
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to read artifact {artifact_path}: {e}")
-
-            # Add report files
-            for report_file in workspace_dir.glob("report*"):
-                if report_file.is_file() and not report_file.name.startswith("_raw"):
-                    try:
-                        content = report_file.read_text(encoding="utf-8")
-                        size = report_file.stat().st_size
-                        content_hash = hashlib.sha256(content.encode()).hexdigest()
-
-                        artifacts.append(
-                            ArtifactInfo(
-                                artifact_type="report",
-                                file_path=str(report_file),
-                                size_bytes=size,
-                                preview=content[:500],
-                                content_hash=content_hash,
-                            )
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to read report {report_file}: {e}")
+        may_inline = caller_is_local_stdio(mcp_server) and caller_can_read_report(mcp_server)
+        for output_path in job.output_paths or []:
+            artifact_path = Path(output_path)
+            if not artifact_path.is_file():
+                continue
+            try:
+                size = artifact_path.stat().st_size
+                preview = ""
+                if may_inline:
+                    content = artifact_path.read_text(encoding="utf-8")
+                    preview = content[:500]
+                    content_hash = hashlib.sha256(content.encode()).hexdigest()
+                else:
+                    content_hash = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+                artifacts.append(
+                    ArtifactInfo(
+                        artifact_type=classify_output_artifact(artifact_path),
+                        file_path=str(artifact_path),
+                        size_bytes=size,
+                        preview=preview,
+                        content_hash=content_hash,
+                    )
+                )
+            except Exception as e:
+                logger.warning("Failed to read artifact %s: %s", artifact_path, e)
 
     response = ArtifactsResponse(
         job_id=job_id,

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.3] - 2026-08-21
+
+### Security
+
+- **MCP/A2A URL validation uses the shared SSRF guard.** The parallel
+  `URLValidator` implementation missed IPv4-mapped IPv6, unspecified `::`,
+  and NAT64 (`64:ff9b::/96`) embeddings of loopback and metadata addresses.
+- **Connect-time DNS pinning on remaining fetch seams.** A2A client requests
+  and sitemap `make_request` now pin the resolved IP (Host/SNI preserved) so
+  a rebind between check and connect cannot reach loopback or cloud metadata.
+- **Remote JWTs require `exp`.** Tokens without an expiry can no longer
+  authenticate forever. Static admin tokens remain the documented no-exp path.
+- **Outbound URL logs redact userinfo and query strings.** Blocked/failed
+  `safe_http` requests no longer print credentials or signed-query tokens.
+- **pip 26.2.1** for PYSEC-2026-3721 (lockfile floor).
+
 ### Added
 
 - **Portable Agent Plugins v1 package.** `agent-plugin/` now provides an
@@ -32,6 +48,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **MCP `mode=scrape` runs scrape-only.** It was estimated as scrape-only
+  (~$0.10) then executed as structured research (section writing).
+- **QA reports are not the Strategic Overview.** `classify_output_artifact`
+  no longer treats any filename containing `"report"` as the primary brief.
+  `primr://output/latest`, `by_job`, and `artifacts` read job output paths
+  and prefer `*_Strategic_Overview_*`.
+- **HTTP MCP status/next-actions/artifacts are owner-gated.** Callers who
+  do not own the active/latest job see idle instead of another tenant's
+  `output_paths`.
+- **Refine rejects path-traversal company names** before it globs working
+  directories.
+- **Garbage numeric env values no longer crash import.** `MAX_EXTERNAL_*`,
+  scrape-pilot, Playwright lazy-scroll, and banner duration fall back to
+  defaults (same class as the earlier PDF-LLM env fix).
+- **MCP rate limiter check-and-record is atomic**, and non-positive env
+  overrides keep the default instead of disabling the limiter.
+- **Anthropic keys redact as Anthropic**, not as OpenAI.
 - **Accordion and eval no longer launch billed work from a flag or dry-run.**
   `--test-accordion` prints a Deep Research estimate, supports `--dry-run`,
   and requires `--skip-confirm` or an explicit yes. `--eval --eval-run-missing`

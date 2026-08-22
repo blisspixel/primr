@@ -285,6 +285,13 @@ class TestPrimrTokenVerifier:
         assert await verifier.verify_token(token) is None
 
     @pytest.mark.asyncio
+    async def test_reject_jwt_missing_exp(self, verifier):
+        """Remote JWTs without exp must not authenticate forever."""
+        token = create_signed_jwt({"sub": "user-123", "role": "user"})
+
+        assert await verifier.verify_token(token) is None
+
+    @pytest.mark.asyncio
     async def test_verify_expired_jwt(self, verifier):
         """Expired JWT tokens are rejected."""
         token = create_signed_jwt(
