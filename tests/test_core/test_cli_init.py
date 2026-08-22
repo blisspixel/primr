@@ -523,21 +523,36 @@ class TestRunInitFlow:
         )
         assert result == 1
 
-    def test_run_doctor_after_dispatches_to_cli(self, tmp_path, monkeypatch):
+    def test_run_doctor_after_uses_injected_runner(self, tmp_path, monkeypatch):
         self._setup_fake_env(monkeypatch, tmp_path)
-        from primr.core import cli, cli_init
+        from primr.core import cli_init
 
         # Make stdin/stdout look like a TTY so the interactive branch runs.
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
         monkeypatch.setattr("sys.stdout.isatty", lambda: True)
         run_doctor_mock = MagicMock(return_value=42)
-        monkeypatch.setattr(cli, "run_doctor", run_doctor_mock)
 
         result = cli_init._run_init_flow(
             non_interactive=False,
             assume_yes=True,
             skip_browsers=True,
             run_doctor_after=True,
+            doctor_runner=run_doctor_mock,
         )
         run_doctor_mock.assert_called_once_with(fix=False)
         assert result == 42
+
+    def test_run_doctor_after_requires_injected_runner(self, tmp_path, monkeypatch):
+        self._setup_fake_env(monkeypatch, tmp_path)
+        from primr.core import cli_init
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+        with pytest.raises(RuntimeError, match="doctor_runner is required"):
+            cli_init._run_init_flow(
+                non_interactive=False,
+                assume_yes=True,
+                skip_browsers=True,
+                run_doctor_after=True,
+            )

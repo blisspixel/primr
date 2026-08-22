@@ -49,23 +49,11 @@ from primr.core.cli_dispatch import (
 )
 from primr.core.cli_doctor import (
     _check_api_connectivity as _check_api_connectivity,
-)
-from primr.core.cli_doctor import (
     _check_api_keys as _check_api_keys,
-)
-from primr.core.cli_doctor import (
     _check_dependencies as _check_dependencies,
-)
-from primr.core.cli_doctor import (
     _check_filesystem as _check_filesystem,
-)
-from primr.core.cli_doctor import (
     _check_gemini_resources as _check_gemini_resources,
-)
-from primr.core.cli_doctor import (
     _check_providers as _check_providers,
-)
-from primr.core.cli_doctor import (
     run_doctor,
 )
 from primr.core.cli_dryrun import run_dry_run
@@ -1039,6 +1027,7 @@ def _handle_init(config: CLIConfig) -> int:
         assume_yes=config.init_yes,
         skip_browsers=config.init_skip_browsers,
         run_doctor_after=not config.init_no_doctor,
+        doctor_runner=run_doctor,
     )
 
 

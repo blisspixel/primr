@@ -57,7 +57,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     # research_agent.py and cli.py remain below their committed-main baselines.
     # These ceilings track the current measured sizes and may only shrink.
     "core/research_agent.py": 4276,
-    "core/cli.py": 2478,
+    "core/cli.py": 2467,
     "ai/deep_research.py": 3812,
     "data/scraping/browsers.py": 1835,
     "data/hiring_signals.py": 1577,
@@ -147,10 +147,8 @@ EXPECTED_IMPORT_CYCLES = {
             "primr.core.cli_dispatch",
             "primr.core.cli_doctor",
             "primr.core.cli_errors",
-            "primr.core.cli_init",
             "primr.core.cli_plan",
             "primr.core.cli_update",
-            "primr.core.cli_vendor",
             "primr.core.deep_research_runner",
             "primr.core.fast_run_collection",
             "primr.core.fast_run_gaps",

@@ -9,7 +9,7 @@ Tests cover:
 """
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from hypothesis import given, settings
@@ -632,6 +632,7 @@ class TestMain:
                 assume_yes=False,
                 skip_browsers=True,
                 run_doctor_after=False,
+                doctor_runner=ANY,
             )
 
     def test_ensure_project_env_file_creates_safe_template(self, tmp_path, monkeypatch):
