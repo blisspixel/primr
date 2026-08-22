@@ -610,16 +610,18 @@ _client_lock = threading.Lock()
 
 
 def reset_run_usage_accounting() -> None:
-    """Reset every per-run LLM usage counter (Gemini client + Grok session).
+    """Reset the shared run-level LLM counters used by budgets and summaries.
 
     Call at run start. A long-lived process (MCP server, A2A, batch evals)
     runs sequential jobs; without this, job N's cost checkpoints and usage
     records include prior jobs' spend - checkpoints trip early (skipping
     stages the operator paid for) and persisted per-run costs inflate.
     """
+    from primr.ai.gemini_usage import reset_usage as reset_gemini_compatibility_usage
     from primr.ai.grok_client import reset_grok_session
 
     reset_grok_session()
+    reset_gemini_compatibility_usage()
     with _client_lock:
         if _client is not None:
             _client.reset_usage()

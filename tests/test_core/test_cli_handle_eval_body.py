@@ -144,6 +144,42 @@ class TestEvalBody:
         )
         assert result == 1
 
+    @pytest.mark.parametrize("cap", [float("nan"), float("inf")])
+    def test_run_missing_nonfinite_max_cost_returns_1(self, stub_eval_deps, tmp_path, cap):
+        manifest = tmp_path / "manifest.csv"
+        manifest.write_text("company,website\nExampleCo,https://x.example\n")
+
+        result = _handle_eval(
+            _config(
+                eval_id="eval-r1",
+                eval_baseline="full",
+                eval_profiles=("full",),
+                eval_run_missing=True,
+                eval_max_new_runs=5,
+                eval_max_estimated_cost=cap,
+                eval_root=str(tmp_path),
+                eval_manifest=str(manifest),
+            )
+        )
+
+        assert result == 1
+
+    @pytest.mark.parametrize("cap", [float("nan"), float("inf")])
+    def test_grok_judge_nonfinite_max_cost_returns_1(self, stub_eval_deps, tmp_path, cap):
+        result = _handle_eval(
+            _config(
+                eval_id="eval-r1",
+                eval_baseline="full",
+                eval_profiles=("full",),
+                eval_llm_judge=True,
+                eval_judge_provider="grok",
+                eval_judge_max_cost=cap,
+                eval_root=str(tmp_path),
+            )
+        )
+
+        assert result == 1
+
     def test_company_creates_manifest(self, stub_eval_deps, tmp_path):
         _handle_eval(
             _config(

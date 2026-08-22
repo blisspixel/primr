@@ -136,7 +136,12 @@ class A2AClient:
                 return resp
             # Resolve relative redirects against the current URL.
             current_url = str(httpx.URL(current_url).join(location))
-        raise A2AError(f"A2A request exceeded {max_redirects} redirects (last: {current_url})")
+        from primr.utils.security import redact_url_for_log
+
+        raise A2AError(
+            f"A2A request exceeded {max_redirects} redirects "
+            f"(last: {redact_url_for_log(current_url)})"
+        )
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""
@@ -162,14 +167,17 @@ class A2AClient:
         """Send a JSON-RPC request and return the result."""
         payload = self._build_jsonrpc(method, params)
 
-        logger.debug("A2A RPC %s → %s", method, self.agent_url)
+        from primr.utils.security import redact_url_for_log
+
+        logged_url = redact_url_for_log(self.agent_url)
+        logger.debug("A2A RPC %s to %s", method, logged_url)
         response = await self._follow_redirects_safely("POST", self.agent_url, json_body=payload)
         response.raise_for_status()
 
         try:
             data = response.json()
         except (ValueError, TypeError) as exc:
-            raise A2AError(f"Invalid JSON response from {self.agent_url}: {exc}") from exc
+            raise A2AError(f"Invalid JSON response from {logged_url}: {exc}") from exc
         if "error" in data:
             err = data["error"]
             raise A2AError(
@@ -186,13 +194,16 @@ class A2AClient:
             Agent card as a dictionary.
         """
         url = f"{self.agent_url}{_AGENT_CARD_PATH}"
-        logger.info("Discovering agent at %s", url)
+        from primr.utils.security import redact_url_for_log
+
+        logged_url = redact_url_for_log(url)
+        logger.info("Discovering agent at %s", logged_url)
         response = await self._follow_redirects_safely("GET", url)
         response.raise_for_status()
         try:
             card = response.json()
         except (ValueError, TypeError) as exc:
-            raise A2AError(f"Invalid JSON in agent card from {url}: {exc}") from exc
+            raise A2AError(f"Invalid JSON in agent card from {logged_url}: {exc}") from exc
         logger.info("Discovered agent: %s (v%s)", card.get("name"), card.get("version"))
         return card
 

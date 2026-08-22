@@ -5,22 +5,19 @@ This is Primr's canonical execution brief. It answers what to implement next.
 rationale and contracts; `docs/CHANGELOG.md` owns completed implementation
 history.
 
-Last reviewed: 2026-08-13.
+Last reviewed: 2026-08-22.
 
 ## Current release objective
 
-Complete paid-run governance and the audit trail before expanding backends,
-memory, or billable evaluation. Approval, provider lifecycle, partial recovery,
-and API currency foundations are complete for research. Run-scoped actual-cost
-persistence for MCP/A2A completion and paid Premium partial returns is now
-complete. Estimate, approval, and cap enforcement for the
-model-backed `primr refine` and `primr improve --improve-agentic` commands is
-complete. Accepted provider jobs now retain a minimal fsynced recovery receipt
-when the primary registry write fails, so process restart and orphan cleanup do
-not lose the interaction or its File Search Store. This objective uses
-hermetic tests only. No report run or cloud judge is required. Architecture
-cleanup remains a parallel maintenance lane and does not redefine product
-priority.
+Keep billable execution and network egress fail closed while architecture
+ownership work proceeds. The residual v1.39.5 audit closed cumulative eval
+budgeting across per-run counter resets, direct Gemini compatibility-call
+accounting, Accordion response/current-budget handling, the agentic
+orchestrator's SSRF hook input, and URL-secret redaction on browser and A2A
+logs. Approval, provider lifecycle, partial recovery, run-scoped cost
+persistence, and model-backed improvement governance remain complete. The next
+executable product-neutral slice is the architecture ownership work below.
+It stays hermetic and requires no report run or cloud judge.
 
 ## Completed foundation: report contract correctness
 

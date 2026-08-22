@@ -14,6 +14,7 @@ from typing import Any
 
 from primr.agentic.hooks import Hook, HookContext, HookResponse, HookResult, HookType
 from primr.mcp_server.security import URLValidator
+from primr.utils.security import redact_url_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +74,8 @@ class A2AExternalAgentHook(Hook):
         url_result = validator.validate(agent_url)
         if not url_result.valid:
             logger.warning(
-                "A2A delegation blocked — SSRF: %s → %s",
-                agent_url,
+                "A2A delegation blocked by SSRF guard: %s (%s)",
+                redact_url_for_log(agent_url),
                 url_result.error_message,
             )
             return HookResponse(
@@ -97,7 +98,7 @@ class A2AExternalAgentHook(Hook):
                 ),
             )
 
-        logger.debug("A2A delegation allowed: %s", agent_url)
+        logger.debug("A2A delegation allowed: %s", redact_url_for_log(agent_url))
         return HookResponse(result=HookResult.ALLOW)
 
 

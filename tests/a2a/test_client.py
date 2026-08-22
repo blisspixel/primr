@@ -207,6 +207,19 @@ class TestA2AClientJsonDecodeError:
                 await client.send_message("Test")
 
     @pytest.mark.asyncio
+    async def test_invalid_json_error_redacts_agent_url_query(self, httpx_mock):
+        httpx_mock.add_response(
+            url="http://example.com?token=secret",
+            raw_text="Server Error",
+        )
+
+        async with A2AClient(agent_url="http://example.com?token=secret") as client:
+            with pytest.raises(A2AError) as exc_info:
+                await client.send_message("Test")
+
+        assert "token=secret" not in str(exc_info.value)
+
+    @pytest.mark.asyncio
     async def test_send_message_empty_result(self, httpx_mock):
         """RPC call with no result key returns empty dict."""
         httpx_mock.add_response(
