@@ -412,6 +412,7 @@ def redact_url_for_log(url: str) -> str:
             if parsed.port is not None:
                 netloc = f"{netloc}:{parsed.port}"
         except ValueError:
+            # urllib raises ValueError for out-of-range ports; omit the port.
             pass
         return urlunparse((parsed.scheme, netloc, parsed.path, "", "", ""))
     except Exception:

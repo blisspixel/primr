@@ -387,8 +387,11 @@ class PipelineRunner:
             )
         finally:
             heartbeat_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
+            try:
                 await heartbeat_task
+            except asyncio.CancelledError:
+                # Drain the cancelled heartbeat so it is not left pending.
+                pass
 
         if not result_path:
             job.advance_stage(ResearchStage.FAILED)
@@ -463,8 +466,11 @@ class PipelineRunner:
             )
         finally:
             heartbeat_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
+            try:
                 await heartbeat_task
+            except asyncio.CancelledError:
+                # Drain the cancelled heartbeat so it is not left pending.
+                pass
 
         if not result_path:
             job.advance_stage(ResearchStage.FAILED)
