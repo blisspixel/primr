@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from primr.utils.url_helpers import normalized_hostname
+
 if TYPE_CHECKING:
     from recon_tool.models import TenantInfo
 
@@ -20,7 +22,19 @@ __all__ = [
     "SECTION_SIGNAL_INTELLIGENCE",
     "SECTION_STACK_COVERAGE",
     "format_recon_context",
+    "validated_recon_domain",
 ]
+
+
+def validated_recon_domain(url: str) -> str | None:
+    """Return the normalized domain accepted by the recon resolver."""
+    try:
+        from recon_tool.validator import validate_domain
+
+        return validate_domain(normalized_hostname(url))
+    except Exception:
+        return None
+
 
 # Section headers used in the formatted output
 SECTION_DETECTED_SERVICES = "Detected Services"
