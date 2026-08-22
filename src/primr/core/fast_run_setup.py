@@ -51,7 +51,7 @@ def resolve_fast_run_setup(
 ) -> FastRunSetup:
     """Resolve models, routing, flags, and run identity for a fast run."""
     from primr.ai.client import reset_run_usage_accounting
-    from primr.core.research_agent import create_working_folder
+    from primr.core.workspace import create_working_folder
 
     # Resets the Grok session AND the Gemini client so a long-lived process
     # (MCP/A2A server) never bleeds a prior job's spend into this run's
