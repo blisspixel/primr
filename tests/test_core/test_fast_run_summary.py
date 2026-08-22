@@ -26,7 +26,7 @@ def env(monkeypatch, tmp_path):
         "primr.ai.grok_client.get_grok_session_usage",
         lambda: {"input_tokens": 1000, "output_tokens": 200, "cached_input_tokens": 400},
     )
-    monkeypatch.setattr("primr.core.research_agent._compute_session_llm_cost", lambda: 0.79)
+    monkeypatch.setattr("primr.utils.run_budget.observed_session_spend", lambda: 0.79)
 
     def fake_update_run_state(folder_path, **updates):
         captured["run_state"] = updates

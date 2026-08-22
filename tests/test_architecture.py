@@ -149,11 +149,9 @@ EXPECTED_IMPORT_CYCLES = {
             "primr.core.cli_update",
             "primr.core.deep_research_runner",
             "primr.core.fast_run_collection",
-            "primr.core.fast_run_gaps",
             "primr.core.fast_run_sections",
             "primr.core.fast_run_setup",
             "primr.core.fast_run_strategy",
-            "primr.core.fast_run_summary",
             "primr.core.fast_run_trust",
             "primr.core.fast_run_validation",
             "primr.core.refine",
@@ -289,6 +287,10 @@ def test_first_party_import_cycles_match_burndown_baseline():
         ("primr.core.research_agent", "primr.core.section_regeneration"),
         ("primr.core.cli_plan", "primr.core.research_agent"),
         ("primr.core.research_agent", "primr.core.cli_plan"),
+        ("primr.core.fast_run_gaps", "primr.core.research_agent"),
+        ("primr.core.research_agent", "primr.core.fast_run_gaps"),
+        ("primr.core.fast_run_summary", "primr.core.research_agent"),
+        ("primr.core.research_agent", "primr.core.fast_run_summary"),
     ],
 )
 def test_removed_cycle_pairs_import_cleanly_in_fresh_interpreters(modules):
