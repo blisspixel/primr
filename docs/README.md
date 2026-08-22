@@ -20,7 +20,7 @@ target. Regenerate via [`CONTRIBUTING.md`](CONTRIBUTING.md).*
 The root README is a **front door** only. Operator detail lives in the guides
 below (Diataxis: learning, doing, looking up, understanding).
 
-> **Index currency:** reviewed against primr **1.39.5** on **2026-08-22**. The
+> **Index currency:** reviewed against primr **1.39.6** on **2026-08-22**. The
 > *Updated* column is each document's last substantive revision (git
 > `last-commit` date). `tests/test_docs_index.py` fails CI if a doc under
 > `docs/` is missing from this map or an index link does not resolve, so the

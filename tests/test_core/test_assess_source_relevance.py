@@ -132,6 +132,36 @@ class TestAssessSourceRelevance:
         # Only indices 1-3 are valid -> 3 sources; >= 3 threshold met
         assert len(result) == 3
 
+    def test_malformed_scalar_indices_are_rejected(self, monkeypatch):
+        sources = _ten_sources()
+        monkeypatch.setattr(
+            "primr.core.source_relevance.llm",
+            MagicMock(return_value="[true, 2.6, 1, 4, 5]"),
+        )
+
+        result = _assess_source_relevance("Acme", sources)
+
+        assert list(result) == [
+            "https://s0.example",
+            "https://s3.example",
+            "https://s4.example",
+        ]
+
+    def test_selected_sources_preserve_input_order(self, monkeypatch):
+        sources = _ten_sources()
+        monkeypatch.setattr(
+            "primr.core.source_relevance.llm",
+            MagicMock(return_value="[7, 1, 5]"),
+        )
+
+        result = _assess_source_relevance("Acme", sources)
+
+        assert list(result) == [
+            "https://s0.example",
+            "https://s4.example",
+            "https://s6.example",
+        ]
+
     def test_routed_model_is_passed_to_llm(self, monkeypatch):
         sources = _ten_sources()
         route = SimpleNamespace(

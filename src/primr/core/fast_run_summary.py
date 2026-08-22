@@ -68,7 +68,7 @@ def finalize_fast_run(
     else the DOCX path) — the value ``perform_fast_research`` returns.
     """
     from primr.ai.grok_client import get_grok_session_usage
-    from primr.core.research_agent import _compute_session_llm_cost
+    from primr.utils.run_budget import observed_session_spend
 
     elapsed = time.time() - start_time
     mins = int(elapsed // 60)
@@ -94,7 +94,7 @@ def finalize_fast_run(
 
     # Cost summary from Grok session usage (per-model, cache-aware pricing)
     grok_usage = get_grok_session_usage()
-    pipeline_cost = _compute_session_llm_cost()
+    pipeline_cost = observed_session_spend()
     from primr.core.deep_budget import deep_research_flat_cost
 
     vendor_refresh_cost = deep_research_flat_cost(vendor_refresh_tasks_started)

@@ -196,3 +196,15 @@ def test_notify_swallows_errors(monkeypatch):
     monkeypatch.setattr(cli_update, "check_for_update", boom)
     # Must not raise.
     cli_update.notify_if_update_available()
+
+
+def test_notify_swallows_output_errors_after_success(monkeypatch):
+    monkeypatch.setattr(cli_update, "check_for_update", lambda _v: "9.9.9")
+
+    def output_broken(_message):
+        raise BrokenPipeError
+
+    monkeypatch.setattr(cli_update.console, "info", output_broken)
+
+    # A passive notice must not reverse a successful research exit.
+    cli_update.notify_if_update_available()

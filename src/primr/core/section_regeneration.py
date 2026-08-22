@@ -14,6 +14,7 @@ enters the prompt.
 
 from __future__ import annotations
 
+from primr.ai.routing import Role, pick_model_for_role
 from primr.qa.report_analyzer import SCAFFOLDING_PROHIBITION_GUIDANCE
 from primr.utils.content_sanitizer import fence_untrusted
 from primr.utils.observability import log_structured
@@ -37,7 +38,6 @@ def _fast_regenerate_section(
     Uses the same system prompt style as Phase 4 report writing.
     Returns the re-generated section content (starting with ## heading).
     """
-    from primr.core.research_agent import _default_writing_model
     from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     # ``new_evidence`` is freshly scraped external page text - the T1
@@ -81,7 +81,7 @@ RULES:
         "to make the section analytically stronger. Be conservative on financial inferences."
     )
 
-    writing_model = model or _default_writing_model()
+    writing_model = model or pick_model_for_role(Role.WRITING)
     try:
         result = call_with_failover(
             LLMRole.WRITING,
@@ -131,7 +131,6 @@ def _strategy_regenerate_section(
 
     Returns the re-generated section content (starting with ## heading).
     """
-    from primr.core.research_agent import _default_writing_model
     from primr.core.strategy_enrichment_contract import strategy_document_context
     from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
@@ -174,7 +173,7 @@ RULES:
         "Be conservative on cost estimates."
     )
 
-    writing_model = model or _default_writing_model()
+    writing_model = model or pick_model_for_role(Role.WRITING)
     try:
         result = call_with_failover(
             LLMRole.WRITING,

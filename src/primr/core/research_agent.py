@@ -50,6 +50,7 @@ from primr.core.fast_run_validation import cross_validate_and_enrich
 from primr.core.fast_run_workbook import build_day1_hypothesis_tree, generate_analysis_workbook
 from primr.core.insights_assembly import build_combined_insights, build_external_sources_raw
 from primr.core.platform_mapper import restore_strategy_platforms
+from primr.core.recon_context import validated_recon_domain as _extract_domain
 from primr.core.report_cleanup import (
     _INTERNAL_REFERENCE_TERMS as _INTERNAL_REFERENCE_TERMS,
 )
@@ -2556,21 +2557,6 @@ def _save_strategy_output(
         return str(docx_path)
     except Exception as e:
         logger.error(f"Failed to save strategy output: {e}")
-        return None
-
-
-def _extract_domain(url: str) -> str | None:
-    """Extract domain from a URL for recon lookup.
-
-    Uses recon's own validator for normalization.
-    Returns None if the URL cannot be parsed into a valid domain.
-    """
-    try:
-        from recon_tool.validator import validate_domain
-
-        raw = normalized_hostname(url)
-        return validate_domain(raw)
-    except (ValueError, Exception):
         return None
 
 

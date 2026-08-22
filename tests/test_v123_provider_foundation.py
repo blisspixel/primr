@@ -634,7 +634,7 @@ class TestDoctorDiagnostics:
 
     def test_check_providers_lists_all_five(self, monkeypatch, capsys) -> None:
         """With every key set and every SDK present, all providers are usable."""
-        from primr.core.cli import _check_providers
+        from primr.core.cli_doctor import _check_providers
 
         # Set all keys so all providers show as configured
         monkeypatch.setenv("XAI_API_KEY", "test")
@@ -649,7 +649,7 @@ class TestDoctorDiagnostics:
 
     def test_check_providers_shows_not_configured(self, monkeypatch, capsys) -> None:
         """_check_providers shows 'not configured' for providers without keys."""
-        from primr.core.cli import _check_providers
+        from primr.core.cli_doctor import _check_providers
 
         # Only set XAI key, leave others unset
         monkeypatch.setenv("XAI_API_KEY", "test")
@@ -665,7 +665,7 @@ class TestDoctorDiagnostics:
 
     def test_check_providers_warns_when_key_set_but_sdk_missing(self, monkeypatch) -> None:
         """A configured key whose SDK can't be imported is a warning, not silence."""
-        from primr.core.cli import _check_providers
+        from primr.core.cli_doctor import _check_providers
 
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
         monkeypatch.delenv("XAI_API_KEY", raising=False)
@@ -680,7 +680,7 @@ class TestDoctorDiagnostics:
 
     def test_check_providers_no_crash_when_none_configured(self, monkeypatch) -> None:
         """_check_providers doesn't crash when no providers are configured."""
-        from primr.core.cli import _check_providers
+        from primr.core.cli_doctor import _check_providers
 
         monkeypatch.delenv("XAI_API_KEY", raising=False)
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)

@@ -7,6 +7,7 @@ pool, and the recovery-executor handoff to later stages.
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -62,7 +63,7 @@ def seams(monkeypatch, tmp_path):
     monkeypatch.setattr("primr.pipeline.integration.scrape_page_with_recovery", fake_recovery)
 
     relevance = MagicMock(side_effect=lambda company, data, folder_path=None: data)
-    monkeypatch.setattr("primr.core.research_agent._assess_source_relevance", relevance)
+    monkeypatch.setattr("primr.core.source_relevance._assess_source_relevance", relevance)
 
     captured.update(
         {
@@ -214,3 +215,24 @@ class TestCollectionResumeCache:
         _call(seams, resume_local=True)
         seams["fetch"].assert_called()
         seams["summarize"].assert_called()
+
+    @pytest.mark.parametrize(
+        ("metric", "invalid_value"),
+        [
+            ("pages_scraped", "not-a-number"),
+            ("total_scraped_chars", -1),
+            ("external_query_count", True),
+        ],
+    )
+    def test_invalid_cache_metrics_trigger_fresh_collection(self, seams, metric, invalid_value):
+        _call(seams)
+        cache_path = seams["tmp"] / "_collection_cache.json"
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+        payload[metric] = invalid_value
+        cache_path.write_text(json.dumps(payload), encoding="utf-8")
+        seams["fetch"].reset_mock()
+
+        result = _call(seams, resume_local=True)
+
+        seams["fetch"].assert_called_once()
+        assert result.pages_scraped == 1
