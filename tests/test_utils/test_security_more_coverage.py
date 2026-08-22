@@ -297,18 +297,14 @@ class TestIsSafeUrlResolution:
         assert safe is False
         assert err is not None
 
-    def test_unparseable_resolved_ip_is_skipped(self, monkeypatch):
-        # If the resolver returns a non-IP string, ip_address() raises
-        # ValueError and that entry is skipped (continue). A single garbage
-        # entry must not crash and (with no real IP) leaves the URL "safe".
+    def test_unparseable_resolved_ip_is_blocked(self, monkeypatch):
         def fake_getaddrinfo(host, port, *a, **k):
             return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("not-an-ip", 0))]
 
         monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
         safe, err = is_safe_url("http://example.com/")
-        # No parseable IP resolved -> nothing to block on -> reports safe.
-        assert safe is True
-        assert err is None
+        assert safe is False
+        assert err is not None
 
     def test_ipv4_mapped_metadata_candidate_blocked(self, resolve_to):
         # ::ffff:169.254.170.2 -> ECS metadata IPv4 wrapped in IPv6. Blocked

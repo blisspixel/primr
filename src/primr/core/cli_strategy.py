@@ -25,6 +25,13 @@ from primr.core.trusted_report import (
 from primr.core.trusted_report import stable_report_snapshot, validate_trusted_report
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
+from primr.utils.run_budget import (
+    clear_run_budget,
+    get_run_budget,
+    observed_session_spend,
+    set_run_budget,
+    skip_stage_if_over_budget,
+)
 
 logger = get_logger(__name__)
 
@@ -226,12 +233,17 @@ def _generate_strategy_targets(
     display_name: str,
     generate_strategy: Callable[..., str | None],
     lite_strategy: bool,
+    estimated_cost_per_target: float = 0.0,
 ) -> tuple[list[dict[str, str]], list[str]]:
     artifacts: list[dict[str, str]] = []
     failed_targets: list[str] = []
     diagnostics_dir = Path(config.output_dir) / "_diagnostics" if config.output_dir else None
+    spent = 0.0
     for platform in platforms:
         target = strategy_target(runtime_strategy_type, platform)
+        if skip_stage_if_over_budget(spent, f"{display_name} ({target})"):
+            failed_targets.append(target)
+            continue
         arguments: dict[str, object] = {
             "strategy_name": runtime_strategy_type,
             "company_name": company_name,
@@ -268,6 +280,15 @@ def _generate_strategy_targets(
             failed_targets.append(target)
             if not config.json_output:
                 console.error(f"{display_name} target {target} failed")
+        spent += max(0.0, estimated_cost_per_target)
+        if get_run_budget() is not None:
+            try:
+                spent = max(spent, observed_session_spend())
+            except Exception:
+                logger.debug(
+                    "Could not fold session LLM spend into strategy budget",
+                    exc_info=True,
+                )
     return artifacts, failed_targets
 
 
@@ -426,7 +447,12 @@ def handle_ai_strategy_only(
         company_run_lease_for_target,
     )
 
+    per_target = estimate.estimated_cost_usd / max(estimate.strategy_calls, 1)
+    budget_active = False
     try:
+        if config.budget_usd is not None:
+            set_run_budget(config.budget_usd)
+            budget_active = True
         with (
             company_run_lease_for_target(
                 company_name,
@@ -444,6 +470,7 @@ def handle_ai_strategy_only(
                 display_name=display_name,
                 generate_strategy=generate_strategy,
                 lite_strategy=effective_lite,
+                estimated_cost_per_target=per_target,
             )
     except ActiveRunLeaseError:
         return _report_error(
@@ -480,6 +507,9 @@ def handle_ai_strategy_only(
             error_type="execution_failed",
             message="Strategy generation failed before a complete result could be reported.",
         )
+    finally:
+        if budget_active:
+            clear_run_budget()
 
     if config.json_output:
         _emit_strategy_result(

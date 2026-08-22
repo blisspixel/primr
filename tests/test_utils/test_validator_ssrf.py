@@ -68,6 +68,18 @@ class TestDnsFailureFailsClosed:
         assert ok is False
         assert error is not None
 
+    def test_unparseable_resolved_address_rejected(self, monkeypatch) -> None:
+        import socket
+
+        def fake_getaddrinfo(host, port, *a, **k):
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("not-an-ip", 0))]
+
+        monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+        ok, _, error = validate_url_for_request("https://example.com/")
+        assert ok is False
+        assert error is not None
+        assert "unparseable" in error.lower()
+
 
 class TestInvalidPortFailsClosed:
     def test_out_of_range_port_rejected_before_request_layer(self) -> None:

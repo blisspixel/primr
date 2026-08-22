@@ -90,8 +90,14 @@ class TestOrchestrateCostGate:
                 hooks_holder["hooks"] = self.hooks
 
         orchestrator = MagicMock()
+        seen_budget = {}
 
         async def fake_research(**kwargs):
+            from primr.utils.run_budget import get_run_budget
+
+            budget = get_run_budget()
+            seen_budget["max"] = None if budget is None else budget.max_cost
+            seen_budget["hook"] = None if budget is None else budget.as_hook()
             return result_obj
 
         orchestrator.research = fake_research
@@ -107,9 +113,14 @@ class TestOrchestrateCostGate:
             lambda *a, **k: _estimate(0.76),
         )
 
+        from primr.utils.run_budget import get_run_budget
+
         code = handle_orchestrate(_config(orchestrate_max_cost=5.0))
         assert code == 0
-        assert any(type(h).__name__ == "CostGuardHook" for h in hooks_holder.get("hooks", []))
+        assert seen_budget["max"] == 5.0
+        assert seen_budget["hook"] is not None
+        assert any(h is seen_budget["hook"] for h in hooks_holder.get("hooks", []))
+        assert get_run_budget() is None
 
     def test_interactive_decline_cancels(self, monkeypatch, estimate_seam):
         monkeypatch.setattr(

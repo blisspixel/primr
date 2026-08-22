@@ -8,8 +8,12 @@ from typing import Any
 
 from mcp.types import TextContent
 
-from primr.mcp_server.approval_tokens import enforce_approval_token, strategy_approval_args
-from primr.mcp_server.research_policy import enforce_cost_cap
+from primr.mcp_server.approval_tokens import (
+    bind_runtime_budget,
+    enforce_approval_token,
+    strategy_approval_args,
+)
+from primr.mcp_server.research_policy import coerce_budget_usd, enforce_cost_cap
 from primr.mcp_server.server_context import MCPServerContext
 from primr.mcp_server.strategy_responses import (
     run_strategy_tool,
@@ -87,12 +91,27 @@ async def handle_generate_strategy(
     if approval_error is not None:
         return _text(approval_error)
 
-    return await run_strategy_tool(
-        strategy_runner,
-        trusted_report=trusted_report,
-        strategy_type=strategy_type,
-        platform=platform,
+    from primr.utils.run_budget import clear_run_budget, set_run_budget
+
+    budget_usd = bind_runtime_budget(
+        coerce_budget_usd(arguments.get("max_estimated_cost_usd")),
+        arguments.get("approval_token"),
     )
+    budget_active = False
+    clear_run_budget()
+    try:
+        if budget_usd is not None and budget_usd > 0:
+            set_run_budget(budget_usd)
+            budget_active = True
+        return await run_strategy_tool(
+            strategy_runner,
+            trusted_report=trusted_report,
+            strategy_type=strategy_type,
+            platform=platform,
+        )
+    finally:
+        if budget_active:
+            clear_run_budget()
 
 
 __all__ = ["handle_generate_strategy"]

@@ -425,9 +425,9 @@ def _fallback_estimate(
     grok_tier: str,
     strategies: list[str] | None,
 ) -> CostEstimate:
-    from primr.utils.cost_estimator import estimate_cost
+    from primr.utils.cost_display import estimate_cost_with_planning_floor
 
-    return estimate_cost(
+    return estimate_cost_with_planning_floor(
         mode,
         ai_strategy,
         num_vendors=max(len(platforms or ("agnostic",)), 1),
@@ -557,7 +557,7 @@ def process_batch(
     platforms: tuple[str, ...] | None = None,
     industry: str | None = None,
     limit: int | None = None,
-    skip_confirm: bool = True,
+    skip_confirm: bool = False,
     *,
     dry_run: bool = False,
     json_output: bool = False,

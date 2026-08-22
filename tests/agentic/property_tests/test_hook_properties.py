@@ -335,7 +335,8 @@ def test_cost_guard_budget_enforcement(max_cost: float, spent: float, requested:
     CostGuardHook blocks when budget would be exceeded.
 
     For any combination of max_cost, spent, and requested amounts,
-    the hook should block if spent + requested > max_cost.
+    the hook should block if remaining is already exhausted or
+    spent + requested > max_cost.
 
     Validates: Requirements 4.5
     """
@@ -349,7 +350,7 @@ def test_cost_guard_budget_enforcement(max_cost: float, spent: float, requested:
 
     response = asyncio.run(hook.execute(context))
 
-    if spent + requested > max_cost:
+    if spent >= max_cost or spent + requested > max_cost:
         assert response.result == HookResult.BLOCK
         assert "Budget exceeded" in (response.message or "")
     else:

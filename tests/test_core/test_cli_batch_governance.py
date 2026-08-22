@@ -86,6 +86,37 @@ def test_batch_json_dry_run_is_one_local_plan(monkeypatch, tmp_path):
     assert emitted[0]["approval_required"] is True
 
 
+def test_process_batch_default_requires_confirm(monkeypatch, tmp_path):
+    import inspect
+
+    from primr.core.cli import process_batch as cli_process_batch
+    from primr.core.cli_batch_runtime import process_batch as runtime_process_batch
+
+    assert inspect.signature(runtime_process_batch).parameters["skip_confirm"].default is False
+    assert inspect.signature(cli_process_batch).parameters["skip_confirm"].default is False
+
+    research = MagicMock()
+    preflight = MagicMock(return_value=(True, []))
+    monkeypatch.setattr(
+        "primr.core.cli_batch_runtime.build_batch_plan",
+        MagicMock(return_value=_plan(_company())),
+    )
+    monkeypatch.setattr("primr.core.research_agent.perform_research", research)
+    monkeypatch.setattr("builtins.input", MagicMock(return_value="n"))
+
+    result = process_batch(
+        str(tmp_path / "batch.csv"),
+        per_company_estimate=_estimate(),
+        ai_strategy=False,
+        execution_preflight=preflight,
+        research_runner=research,
+    )
+
+    assert result == 0
+    preflight.assert_not_called()
+    research.assert_not_called()
+
+
 def test_declined_batch_starts_no_research(monkeypatch, tmp_path):
     research = MagicMock()
     preflight = MagicMock(return_value=(True, []))
@@ -120,6 +151,7 @@ def test_approved_batch_preflight_failure_starts_no_research(monkeypatch, tmp_pa
 
     result = process_batch(
         str(tmp_path / "batch.csv"),
+        skip_confirm=True,
         per_company_estimate=_estimate(),
         ai_strategy=False,
         execution_preflight=preflight,
@@ -289,6 +321,7 @@ def test_failed_company_is_not_retried(monkeypatch, tmp_path):
 
     result = process_batch(
         str(tmp_path / "batch.csv"),
+        skip_confirm=True,
         per_company_estimate=_estimate(),
         ai_strategy=False,
         research_runner=research,

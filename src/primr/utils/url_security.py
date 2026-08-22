@@ -194,7 +194,7 @@ def _resolved_ip_block_reason(ip_str: str) -> str | None:
     try:
         ip = ipaddress.ip_address(ip_str)
     except ValueError:
-        return None
+        return "Unparseable resolved address"
 
     ips_to_check: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = [ip]
     mapped = getattr(ip, "ipv4_mapped", None)
@@ -210,6 +210,13 @@ def _resolved_ip_block_reason(ip_str: str) -> str | None:
             nat64 = None
         if nat64 is not None and ip in nat64:
             ips_to_check.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
+        for prefix in ("::ffff:0:0:0/96", "::/96"):
+            try:
+                embedding = ipaddress.ip_network(prefix)
+            except ValueError:
+                continue
+            if ip in embedding and not ip.is_loopback and not ip.is_unspecified:
+                ips_to_check.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
 
     for candidate in ips_to_check:
         if str(candidate) in _METADATA_HOSTS:
@@ -276,7 +283,7 @@ def non_public_host_block_reason(host: str) -> str | None:
         return "Single-label hostnames are blocked"
     if hostname.endswith(_LOCAL_HOST_SUFFIXES):
         return "Local and special-use hostnames are blocked"
-    return _resolved_ip_block_reason(hostname)
+    return None
 
 
 def _resolve_public_ips(hostname: str, port: int) -> tuple[list[str], str | None]:

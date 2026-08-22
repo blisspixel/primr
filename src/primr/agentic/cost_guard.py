@@ -85,7 +85,9 @@ class CostGuardHook(Hook):
 
         with self._lock:
             spent_snapshot = self._spent
-            if spent_snapshot + estimated_cost > self._max_cost:
+            # Exhausted remaining (spent >= max) blocks even a $0 estimate;
+            # otherwise a paper ceiling lets later stages proceed forever.
+            if spent_snapshot >= self._max_cost or spent_snapshot + estimated_cost > self._max_cost:
                 return HookResponse(
                     result=HookResult.BLOCK,
                     message=(
