@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.6] - 2026-08-22
+
+### Changed
+
+- **The main orchestration import cycle is nearly halved.** Ten modules now
+  depend directly on their doctor, update, recon, workspace, model-routing,
+  source-relevance, spend-accounting, regeneration, and report-cleanup owners.
+  The package-inclusive component falls from 22 modules to 12 without adding
+  a production module or changing CLI, MCP, A2A, or report behavior.
+- **Composition dependencies are explicit.** CLI initialization receives its
+  doctor runner, and guarded dispatch receives its passive update callback,
+  instead of generic helpers importing their high-level callers.
+- **Architecture regressions are pinned.** Direct owner tests and
+  fresh-interpreter tests cover both import orders for every removed pair;
+  `cli.py` and `research_agent.py` also receive tighter line ceilings.
+
 ## [1.39.5] - 2026-08-22
 
 ### Security

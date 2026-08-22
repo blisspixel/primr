@@ -1,6 +1,6 @@
 # Architecture Cohesion and Agent-Maintainability Plan
 
-Status: P0 complete, P1 in progress, evidence refreshed 2026-08-13
+Status: P0 complete, P1 in progress, evidence refreshed 2026-08-22
 
 ## Goal
 
@@ -20,8 +20,8 @@ The current package-inclusive AST graph and repository inventory show:
   fragmentation and local concentration at the same time.
 - `core/` remains the clearest navigation problem: 105 non-`__init__` modules,
   a 223-line median, and the largest resolved import-cycle component.
-- Three first-party import-cycle components remain after P0 and the first P1
-  batch: a 22-module CLI/research orchestration component, a five-module
+- Three first-party import-cycle components remain after P0 and the current P1
+  batches: a 12-module CLI/research orchestration component, a five-module
   model-routing component, and a three-module first-party extraction
   component. CI pins their exact memberships and permits only shrinkage.
 - Ten low-blast, single-consumer modules under 80 lines have no directly mapped
@@ -162,10 +162,35 @@ removing the reciprocal budget/dry-run label dependency reduced the largest
 component from 24 modules to 22 and lowered `cli.py` from 2,774 to 2,573 lines.
 It added one substantive contract module, not a forwarding shim.
 
-The next P1 batch should remove one verified orchestration back edge from the
-22-module component. Record the before/after membership, direct tests, public
-compatibility result, and module-count delta. Do not alter report generation
-behavior or create an interface file solely to make the graph look cleaner.
+The second P1 batch completed on 2026-08-22 without adding a production
+module. Ten modules left the broad component, reducing it from 22 members to
+12. The detached members are `cli_init`, `cli_vendor`, `cli_errors`,
+`cli_plan`, `section_regeneration`, `fast_run_collection`, `fast_run_gaps`,
+`fast_run_setup`, `fast_run_summary`, and `refine`.
+
+The batch removed implementation back edges rather than hiding imports:
+`cli` now injects doctor and update callbacks at its composition boundary;
+plan, refinement, regeneration, source relevance, workspace allocation, and
+session-spend reads call their existing behavior owners directly. Legacy
+imports through `core.cli` and `core.research_agent` remain available. Direct
+owner tests, composition tests, and both fresh-interpreter import orders cover
+each removed pair. The production-module delta is zero, `cli.py` fell from
+2,478 to 2,460 lines, and `research_agent.py` fell from 4,276 to 4,262 lines.
+
+Before this batch, the component contained `primr`, `cli`, `cli_dispatch`,
+`cli_doctor`, `cli_errors`, `cli_init`, `cli_plan`, `cli_update`, `cli_vendor`,
+`deep_research_runner`, the eight `fast_run_*` stage modules, `refine`,
+`research_agent`, `research_orchestrator`, and `section_regeneration`. It now
+contains only `primr`, `cli`, `cli_dispatch`, `cli_doctor`, `cli_update`,
+`deep_research_runner`, `fast_run_sections`, `fast_run_strategy`,
+`fast_run_trust`, `fast_run_validation`, `research_agent`, and
+`research_orchestrator`.
+
+The next P1 batch should extract one behavior-owned seam from the remaining
+12-module component, with `fast_run_validation` or `fast_run_sections` as the
+lowest-risk candidates. The later P3 `ai/deep_research.py` split remains
+binding and must preserve its public facade and provider lifecycle behavior.
+Do not create an interface file solely to make the graph look cleaner.
 
 ### Safety-boundary cohesion addendum
 

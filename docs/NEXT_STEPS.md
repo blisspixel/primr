@@ -10,7 +10,9 @@ Last reviewed: 2026-08-22.
 ## Current release objective
 
 Keep billable execution and network egress fail closed while architecture
-ownership work proceeds. The residual v1.39.5 audit closed cumulative eval
+ownership work proceeds. The v1.39.6 ownership batch removes residual
+orchestration back edges without changing report behavior. The prior v1.39.5
+audit closed cumulative eval
 budgeting across per-run counter resets, direct Gemini compatibility-call
 accounting, Accordion response/current-budget handling, the agentic
 orchestrator's SSRF hook input, and URL-secret redaction on browser and A2A
@@ -161,15 +163,16 @@ inconclusive.
 
 ## Next executable slice: architecture ownership without behavior drift
 
-**Status:** in progress; hermetic and zero-spend work is authorized. The first
-P1 batch moved the shared CLI command/configuration contract out of the
-operational coordinator, reducing the largest import-cycle component from 24
-modules to 22 without changing public imports or runtime behavior.
+**Status:** current v1.39.6 batch implemented; full release validation is in
+progress. The first P1 batch reduced the largest import-cycle component from
+24 modules to 22. The current batch reduces it from 22 to 12 with zero new
+production modules, unchanged public compatibility imports, and direct owner
+plus fresh-interpreter import-order tests.
 
-**Deliverable:** first finish the exact compatibility inventory, contract
-fixtures, and import-cycle burndown described in
+**Deliverable:** finish release validation for the recorded ownership batch in
 [`design/24-architecture-cohesion-plan.md`](design/24-architecture-cohesion-plan.md).
-Then reduce `ai/deep_research.py` into a few one-way, behavior-owned
+The next behavior-owned extraction should remove one remaining fast-stage back
+edge. Then reduce `ai/deep_research.py` into a few one-way, behavior-owned
 boundaries:
 
 1. public compatibility facade;
