@@ -73,6 +73,10 @@ def classify_output_artifact(path: Path) -> str:
     name_lower = path.stem.lower()
     if "working_brief" in name_lower:
         return "working_brief"
+    if "qa_report" in name_lower:
+        return "qa_summary"
+    if "incomplete_overview" in name_lower:
+        return "incomplete_overview"
     if "ai_strategy" in name_lower or "ai-strategy" in name_lower:
         return "ai_strategy"
     if "customer_experience" in name_lower:
@@ -81,9 +85,28 @@ def classify_output_artifact(path: Path) -> str:
         return "security_strategy"
     if "data_fabric" in name_lower:
         return "data_fabric_strategy"
-    if "strategic_overview" in name_lower or "report" in name_lower:
+    if "strategic_overview" in name_lower or "company_overview" in name_lower:
         return "strategic_overview"
     return "report"
+
+
+def select_primary_report_path(output_paths: list[str] | None) -> str | None:
+    """Pick the Strategic Overview path, never a QA or working-brief file."""
+    from primr.output.artifact_inventory import infer_artifact_role
+
+    paths = [str(path) for path in (output_paths or []) if path]
+    if not paths:
+        return None
+    for path in paths:
+        if infer_artifact_role(Path(path)) == "primary_report":
+            return path
+    for path in paths:
+        if classify_output_artifact(Path(path)) == "strategic_overview":
+            return path
+    for path in paths:
+        if classify_output_artifact(Path(path)) == "report":
+            return path
+    return None
 
 
 def artifact_matches_filter(artifact_type: str, artifact_filter: str) -> bool:

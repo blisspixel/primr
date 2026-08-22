@@ -204,32 +204,35 @@ def read_latest_output_resource(
     may_inline_legacy = may_read_report and caller_can_inline_legacy_report_content(mcp_server)
 
     job = mcp_server.job_store.get_latest_terminal()
+    resolved_client_id = caller_client_id(mcp_server)
+    if job is not None and not caller_owns_job_resource(mcp_server, job, resolved_client_id):
+        job = None
     job_id = job.job_id if job else None
 
-    output_dir = Path("output")
-    if not output_dir.exists():
+    from primr.mcp_server.job_responses import select_primary_report_path
+
+    report_path = select_primary_report_path(job.output_paths if job else None)
+    if not report_path:
         return _json_contents(
             {"message": "No reports available", "report_path": None, "job_id": job_id}
         )
 
-    report_files = list(output_dir.glob("**/report*.md")) + list(output_dir.glob("**/report*.txt"))
-    if not report_files:
-        return _json_contents(
-            {"message": "No reports available", "report_path": None, "job_id": job_id}
-        )
-
-    latest_report = max(report_files, key=lambda p: p.stat().st_mtime)
+    latest_report = Path(report_path)
     try:
         content = latest_report.read_text(encoding="utf-8")
     except Exception as exc:
         logger.warning("Failed to read report: %s", exc)
         content = ""
 
-    company_name = latest_report.parent.name if latest_report.parent != output_dir else None
+    timestamp = None
+    try:
+        timestamp = datetime.fromtimestamp(latest_report.stat().st_mtime)
+    except OSError:
+        timestamp = None
     output = LatestOutput(
         report_path=str(latest_report),
-        company_name=company_name,
-        generation_timestamp=datetime.fromtimestamp(latest_report.stat().st_mtime),
+        company_name=job.company_name if job else None,
+        generation_timestamp=timestamp,
         report_type="markdown" if latest_report.suffix == ".md" else "text",
         content_preview=content[:DEFAULT_PREVIEW_CHARS] if content and may_inline_legacy else None,
         full_content=content if full_content and may_inline_legacy else None,
@@ -292,9 +295,9 @@ def read_output_by_job_resource(
             }
         )
 
-    report_path = next((path for path in job.output_paths if "report" in path.lower()), None)
-    if not report_path and job.output_paths:
-        report_path = job.output_paths[0]
+    from primr.mcp_server.job_responses import select_primary_report_path
+
+    report_path = select_primary_report_path(job.output_paths)
 
     content_preview = None
     if report_path and may_inline_legacy:

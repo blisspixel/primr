@@ -7,11 +7,9 @@ and rate limiting for the MCP server.
 Requirements: 11.1-11.10, 12.1-12.6, 17.1-17.10
 """
 
-import ipaddress
 import logging
 import os
 import re
-import socket
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -25,9 +23,8 @@ def _utcnow() -> datetime:
 
 
 import contextlib
-from urllib.parse import urlparse, urlunparse
 
-from primr.utils.security import numeric_host_block_reason
+from primr.utils.url_security import redact_url_for_log, resolve_safe_url_for_connect
 
 logger = logging.getLogger(__name__)
 
@@ -67,52 +64,28 @@ SYSTEM_DIRECTORIES = [
     "C:\\Program Files (x86)\\",
 ]
 
-# Private/reserved IP ranges for SSRF protection
-PRIVATE_IP_RANGES = [
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("127.0.0.0/8"),
-    ipaddress.ip_network("169.254.0.0/16"),
-    ipaddress.ip_network("0.0.0.0/8"),
-    ipaddress.ip_network("100.64.0.0/10"),
-    ipaddress.ip_network("192.0.0.0/24"),
-    ipaddress.ip_network("::1/128"),  # IPv6 loopback
-    ipaddress.ip_network("fc00::/7"),  # IPv6 private
-    ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
-]
+_INVALID_URL_ERROR_PREFIXES = (
+    "Failed to parse URL",
+    "Invalid scheme:",
+    "URL has no hostname",
+    "Invalid port",
+    "Invalid internationalized hostname",
+    "Invalid hostname syntax",
+)
 
-# Cloud metadata endpoints
-METADATA_HOSTS = {
-    "169.254.169.254",  # AWS/GCP/Azure
-    "169.254.170.2",  # ECS task metadata
-    "metadata.google.internal",
-    "metadata.goog",
-}
+
+def _classify_url_validation_error(error: str) -> str:
+    """Map the shared SSRF guard's reason onto MCP URLValidationResult types."""
+    if error.startswith("DNS resolution failed"):
+        return "url_unreachable"
+    if error.startswith(_INVALID_URL_ERROR_PREFIXES):
+        return "invalid_url"
+    return "ssrf_blocked"
 
 
 def _redact_url_for_log(url: str) -> str:
-    """Return a URL suitable for security logs without credentials or query secrets."""
-    try:
-        parsed = urlparse(url)
-        if not parsed.scheme or not parsed.netloc:
-            return "<unparseable-url>"
-
-        host = parsed.hostname
-        if not host:
-            return "<unparseable-url>"
-
-        if ":" in host and not host.startswith("["):
-            host = f"[{host}]"
-
-        netloc = host
-        with contextlib.suppress(ValueError):
-            if parsed.port is not None:
-                netloc = f"{netloc}:{parsed.port}"
-
-        return urlunparse((parsed.scheme, netloc, parsed.path, "", "", ""))
-    except Exception:
-        return "<unparseable-url>"
+    """Compatibility alias for the shared URL log redaction seam."""
+    return redact_url_for_log(url)
 
 
 @dataclass
@@ -366,113 +339,19 @@ class URLValidator:
                 error_message="URL is missing or not a string",
             )
 
-        # Parse URL
-        try:
-            parsed = urlparse(url)
-        except Exception:
+        # Single SSRF seam: MCP/A2A must not reimplement is_safe_url.
+        resolution, error = resolve_safe_url_for_connect(url)
+        if error:
+            error_type = _classify_url_validation_error(error)
+            if error_type == "ssrf_blocked":
+                self._log_rejection(client_id, url, None, error_type)
             return URLValidationResult(
                 valid=False,
-                error_type="invalid_url",
-                error_message="Failed to parse URL",
+                error_type=error_type,
+                error_message=error,
             )
-
-        # Check scheme (HTTP/HTTPS only)
-        if parsed.scheme.lower() not in ("http", "https"):
-            self._log_rejection(client_id, url, None, "invalid_scheme")
-            return URLValidationResult(
-                valid=False,
-                error_type="invalid_url",
-                error_message=f"Invalid scheme: {parsed.scheme}. Only HTTP/HTTPS allowed.",
-            )
-
-        # Check for empty host
-        if not parsed.hostname:
-            return URLValidationResult(
-                valid=False,
-                error_type="invalid_url",
-                error_message="URL has no hostname",
-            )
-
-        hostname = parsed.hostname.lower()
-        try:
-            port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        except ValueError:
-            return URLValidationResult(
-                valid=False,
-                error_type="invalid_url",
-                error_message="URL has an invalid port",
-            )
-
-        # Check metadata endpoints by hostname
-        if hostname in METADATA_HOSTS:
-            self._log_rejection(client_id, url, None, "metadata_hostname")
-            return URLValidationResult(
-                valid=False,
-                error_type="ssrf_blocked",
-                error_message="Cloud metadata endpoints are blocked",
-            )
-
-        # Platform-independent obfuscated-numeric-IP backstop: octal/hex/decimal/
-        # short IPv4 literals pointing at non-public ranges are blocked here,
-        # without depending on the OS resolver (which decodes them inconsistently
-        # across platforms).
-        numeric_block = numeric_host_block_reason(hostname)
-        if numeric_block:
-            self._log_rejection(client_id, url, None, "numeric_ip_obfuscation")
-            return URLValidationResult(
-                valid=False,
-                error_type="ssrf_blocked",
-                error_message=numeric_block,
-            )
-
-        # Resolve hostname to IP
-        try:
-            ip_addresses = socket.getaddrinfo(hostname, port)
-            resolved_ips: set[str] = set()
-            for _family, _type, _proto, _canonname, sockaddr in ip_addresses:
-                ip = str(sockaddr[0])  # Ensure string type
-                resolved_ips.add(ip)
-        except socket.gaierror:
-            return URLValidationResult(
-                valid=False,
-                error_type="url_unreachable",
-                error_message="DNS resolution failed. Try mode=deep which doesn't require site access.",
-            )
-
-        # Check each resolved IP
-        for ip_str in resolved_ips:
-            try:
-                ip = ipaddress.ip_address(ip_str)
-
-                # Check metadata IP
-                if ip_str in METADATA_HOSTS:
-                    self._log_rejection(client_id, url, ip_str, "metadata_ip")
-                    return URLValidationResult(
-                        valid=False,
-                        error_type="ssrf_blocked",
-                        error_message="Cloud metadata endpoints are blocked",
-                        resolved_ip=ip_str,
-                    )
-
-                # Check private/reserved ranges
-                for network in PRIVATE_IP_RANGES:
-                    if ip in network:
-                        self._log_rejection(client_id, url, ip_str, "private_ip")
-                        return URLValidationResult(
-                            valid=False,
-                            error_type="ssrf_blocked",
-                            error_message="Private/reserved IP addresses are blocked",
-                            resolved_ip=ip_str,
-                        )
-            except ValueError:
-                # Invalid IP format, skip
-                continue
-
-        # URL is valid
-        return URLValidationResult(
-            valid=True,
-            resolved_ip=next(iter(resolved_ips)) if resolved_ips else None,
-        )
+        assert resolution is not None
+        return URLValidationResult(valid=True, resolved_ip=resolution.resolved_ip)
 
     def _log_rejection(
         self,
@@ -562,7 +441,9 @@ class RateLimiter:
             env_var = f"MCP_RATE_LIMIT_{tool_name.upper()}"
             if env_var in os.environ:
                 with contextlib.suppress(ValueError):
-                    limits[tool_name] = int(os.environ[env_var])
+                    parsed_limit = int(os.environ[env_var])
+                    if parsed_limit > 0:
+                        limits[tool_name] = parsed_limit
 
         return limits
 
@@ -583,24 +464,8 @@ class RateLimiter:
 
         Requirements: 12.1, 12.2, 12.3
         """
-        limit = self.get_limit(tool_name)
-
         with self._lock:
-            state = self._clients[client_id][tool_name]
-            count = state.count_in_window(self._window)
-
-            if count >= limit:
-                # Calculate retry time
-                if state.requests:
-                    oldest = min(state.requests)
-                    retry_after = int((oldest + self._window - _utcnow()).total_seconds())
-                    return RateLimitResult(
-                        allowed=False,
-                        retry_after_seconds=max(1, retry_after),
-                    )
-                return RateLimitResult(allowed=False, retry_after_seconds=60)
-
-            return RateLimitResult(allowed=True)
+            return self._check_unlocked(client_id, tool_name)
 
     def record(self, client_id: str, tool_name: str) -> None:
         """
@@ -617,17 +482,31 @@ class RateLimiter:
         """
         Check if client can make request and record it if allowed.
 
-        Args:
-            client_id: Client identifier
-            tool_name: Name of the tool being called
-
-        Returns:
-            RateLimitResult with allowed status and retry_after if blocked
+        Check and record share one lock acquisition so concurrent callers cannot
+        both observe "under limit" and both record, exceeding the cap.
         """
-        result = self.check(client_id, tool_name)
-        if result.allowed:
-            self.record(client_id, tool_name)
-        return result
+        with self._lock:
+            result = self._check_unlocked(client_id, tool_name)
+            if result.allowed:
+                self._clients[client_id][tool_name].add_request()
+            return result
+
+    def _check_unlocked(self, client_id: str, tool_name: str) -> RateLimitResult:
+        limit = self.get_limit(tool_name)
+        state = self._clients[client_id][tool_name]
+        count = state.count_in_window(self._window)
+
+        if count >= limit:
+            if state.requests:
+                oldest = min(state.requests)
+                retry_after = int((oldest + self._window - _utcnow()).total_seconds())
+                return RateLimitResult(
+                    allowed=False,
+                    retry_after_seconds=max(1, retry_after),
+                )
+            return RateLimitResult(allowed=False, retry_after_seconds=60)
+
+        return RateLimitResult(allowed=True)
 
     def reset(self, client_id: str | None = None) -> None:
         """Reset rate limit state (for testing)."""

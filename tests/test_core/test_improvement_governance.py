@@ -247,3 +247,21 @@ def test_refine_json_requires_approval_without_execution(
     assert result == 1
     assert payload["error_type"] == "approval_required"
     refine.assert_not_called()
+
+
+def test_refine_rejects_path_traversal_company(tmp_path, capsys):
+    find_inputs = MagicMock(return_value=("report.md", None, "", None))
+    refine = MagicMock()
+
+    result = governance.handle_refine(
+        _config(refine_company="../etc", json_output=True),
+        find_inputs=find_inputs,
+        refine_report=refine,
+        output_dir=str(tmp_path),
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert result == 1
+    assert payload["error_type"] == "invalid_company"
+    find_inputs.assert_not_called()
+    refine.assert_not_called()

@@ -203,13 +203,29 @@ class TestURLValidator:
 
     def test_invalid_port_returns_validation_error_without_dns(self, validator):
         """URL with invalid port is rejected instead of raising ValueError."""
-        with patch("primr.mcp_server.security.socket.getaddrinfo") as getaddrinfo:
+        with patch("socket.getaddrinfo") as getaddrinfo:
             result = validator.validate("http://example.com:99999/path")
 
         assert not result.valid
         assert result.error_type == "invalid_url"
         assert "port" in (result.error_message or "").lower()
         getaddrinfo.assert_not_called()
+
+    def test_ipv4_mapped_loopback_blocked(self, validator):
+        """IPv4-mapped loopback must use the shared SSRF guard, not the MCP copy."""
+        result = validator.validate("http://[::ffff:127.0.0.1]/")
+        assert not result.valid
+        assert result.error_type == "ssrf_blocked"
+
+    def test_unspecified_ipv6_blocked(self, validator):
+        result = validator.validate("http://[::]/")
+        assert not result.valid
+        assert result.error_type == "ssrf_blocked"
+
+    def test_localhost_hostname_blocked(self, validator):
+        result = validator.validate("http://localhost/")
+        assert not result.valid
+        assert result.error_type == "ssrf_blocked"
 
     def test_rejected_url_log_redaction_removes_userinfo_query_and_fragment(self):
         """Security logs keep host/path context without preserving URL secrets."""
@@ -304,6 +320,15 @@ class TestRateLimiter:
             limiter = RateLimiter()
 
             assert limiter.get_limit("doctor") == 5
+
+    def test_non_positive_env_override_keeps_default(self):
+        """Zero/negative overrides must not disable or invert the limiter."""
+        with patch.dict(os.environ, {"MCP_RATE_LIMIT_DOCTOR": "0"}):
+            limiter = RateLimiter()
+            assert limiter.get_limit("doctor") == RateLimiter.DEFAULT_LIMITS["doctor"]
+        with patch.dict(os.environ, {"MCP_RATE_LIMIT_DOCTOR": "-5"}):
+            limiter = RateLimiter()
+            assert limiter.get_limit("doctor") == RateLimiter.DEFAULT_LIMITS["doctor"]
 
     def test_reset_clears_state(self, limiter):
         """reset() clears rate limit state."""

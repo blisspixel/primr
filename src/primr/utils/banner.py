@@ -410,7 +410,10 @@ def maybe_show_startup_banner(
 
     resolved = resolve_banner_mode(mode, explicit=explicit, ctx=ctx)
     if resolved == "animated":
-        duration = int(os.environ.get("PRIMR_BANNER_DURATION_MS", "1500"))
+        try:
+            duration = int(os.environ.get("PRIMR_BANNER_DURATION_MS", "1500"))
+        except (TypeError, ValueError):
+            duration = 1500
         duration = max(250, min(duration, 3000))
         render_animated_banner(ctx, duration_ms=duration)
     else:

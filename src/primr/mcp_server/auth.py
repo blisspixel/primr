@@ -491,6 +491,10 @@ class PrimrTokenVerifier:
         if subject.casefold() in RESERVED_CLIENT_IDS:
             return "Reserved subject claim"
 
+        # Remote JWTs must expire. Static admin tokens are the no-exp path.
+        if "exp" not in payload:
+            return "Missing exp claim"
+
         # Check expiration
         if "exp" in payload:
             exp = payload["exp"]

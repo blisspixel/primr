@@ -107,8 +107,13 @@ def safe_http_get(
             for _hop in range(max_redirects + 1):
                 resolution, reason = resolve_safe_url_for_connect(current)
                 if resolution is None:
+                    from primr.utils.security import redact_url_for_log
+
                     logger.info(
-                        "%s: blocked outbound request to %s (%s)", log_prefix, current, reason
+                        "%s: blocked outbound request to %s (%s)",
+                        log_prefix,
+                        redact_url_for_log(current),
+                        reason,
                     )
                     return None, None, None
                 # ``params`` belong to the caller's URL only; a redirect target
@@ -126,7 +131,9 @@ def safe_http_get(
         logger.info("%s: too many redirects starting from %s", log_prefix, url)
         return None, None, None
     except Exception as exc:
-        logger.debug("%s HTTP GET failed for %s: %s", log_prefix, url, exc)
+        from primr.utils.security import redact_url_for_log
+
+        logger.debug("%s HTTP GET failed for %s: %s", log_prefix, redact_url_for_log(url), exc)
         return None, None, None
 
 

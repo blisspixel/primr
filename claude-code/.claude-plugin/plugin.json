@@ -1,6 +1,6 @@
 {
   "name": "primr",
-  "version": "1.39.2",
+  "version": "1.39.3",
   "_version_note": "Kept in sync with pyproject.toml; bump together",
   "description": "Strategic intelligence briefs from any company URL through keyless evidence collection, host-assisted research, or the full metered Primr pipeline. Bundles the Primr MCP server and three skills: 'primr', 'primr-zero', and 'company-brief'.",
   "author": {

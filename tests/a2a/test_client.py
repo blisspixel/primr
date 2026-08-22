@@ -304,6 +304,18 @@ class HttpxMock:
 
     def _setup(self):
         mock_self = self
+        from primr.utils.url_security import SafeUrlResolution
+
+        def fake_resolve(url: str) -> SafeUrlResolution:
+            return SafeUrlResolution(
+                original_url=url,
+                request_url=url,
+                host_header="example.com",
+                sni_hostname=None,
+                resolved_ip="93.184.216.34",
+            )
+
+        self._monkeypatch.setattr(A2AClient, "_resolve_url", staticmethod(fake_resolve))
 
         class MockResponse:
             def __init__(self, status_code, json_data, raw_text=None):

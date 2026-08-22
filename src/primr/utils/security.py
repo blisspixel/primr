@@ -128,6 +128,9 @@ SENSITIVE_PATTERNS = [
     (re.compile(r'(authorization\s*[=:]\s*)["\']?([^\s"\']+)["\']?', re.I), r"\1[REDACTED]"),
     # API key patterns
     (re.compile(r"\b(AIza[a-zA-Z0-9_-]{35})\b"), "[GOOGLE_API_KEY]"),
+    # Specific prefixes before the generic sk- rule so Anthropic keys are not
+    # labelled as OpenAI.
+    (re.compile(r"\b(sk-ant-[a-zA-Z0-9-]+)\b"), "[ANTHROPIC_API_KEY]"),
     # Covers both the classic 48-char form (sk-<48 alnum>) and the modern
     # prefixed/variable-length forms (sk-proj-, sk-svcacct-, sk-admin-, ...),
     # which contain hyphens/underscores and would slip past a fixed [a-zA-Z0-9]{48}.
@@ -137,7 +140,6 @@ SENSITIVE_PATTERNS = [
     (re.compile(r"\b(gho_[a-zA-Z0-9]{36})\b"), "[GITHUB_OAUTH_TOKEN]"),
     (re.compile(r"\b(github_pat_[a-zA-Z0-9_]{22,})\b"), "[GITHUB_PAT]"),
     (re.compile(r"\b(xox[baprs]-[a-zA-Z0-9-]+)\b"), "[SLACK_TOKEN]"),
-    (re.compile(r"\b(sk-ant-[a-zA-Z0-9-]+)\b"), "[ANTHROPIC_API_KEY]"),
     # xAI / Grok keys (primr's primary provider) — format: xai-<alphanumeric>
     (re.compile(r"\b(xai-[a-zA-Z0-9]{16,})\b"), "[XAI_API_KEY]"),
     (re.compile(r"\b(AKIA[A-Z0-9]{16})\b"), "[AWS_ACCESS_KEY]"),
@@ -478,6 +480,7 @@ canonicalize_numeric_host = _url_security.canonicalize_numeric_host
 is_safe_url = _url_security.is_safe_url
 non_public_host_block_reason = _url_security.non_public_host_block_reason
 numeric_host_block_reason = _url_security.numeric_host_block_reason
+redact_url_for_log = _url_security.redact_url_for_log
 resolve_safe_url_for_connect = _url_security.resolve_safe_url_for_connect
 validate_final_url_after_redirect = _url_security.validate_final_url_after_redirect
 validate_redirect_url = _url_security.validate_redirect_url

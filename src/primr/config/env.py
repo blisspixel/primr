@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 import sys
@@ -11,6 +12,36 @@ from pathlib import Path
 from dotenv import dotenv_values, find_dotenv
 
 logger = logging.getLogger(__name__)
+
+
+def env_int(name: str, default: int) -> int:
+    """Parse an integer environment variable, falling back on garbage values.
+
+    Invalid, empty, or missing values return *default* so a typo in an env
+    file cannot crash import of config or scraping modules.
+    """
+    raw = os.environ.get(name)
+    if raw is None or not str(raw).strip():
+        return default
+    try:
+        return int(str(raw).strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def env_float(name: str, default: float) -> float:
+    """Parse a float environment variable, falling back on garbage or non-finite values."""
+    raw = os.environ.get(name)
+    if raw is None or not str(raw).strip():
+        return default
+    try:
+        value = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+
 
 # Provider aliases mirror the wired providers in `ai.providers` (the registry is
 # the source of truth for which providers exist; this map is the CLI convenience

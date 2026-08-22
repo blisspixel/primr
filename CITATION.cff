@@ -16,8 +16,8 @@ license: Apache-2.0
 # NOTE: `version` is pinned to the single source of version truth by
 # tests/test_release_integrity.py - bump it together with pyproject.toml,
 # primr.__version__, and the ROADMAP "Current State" line.
-version: 1.39.2
-date-released: "2026-08-02"
+version: 1.39.3
+date-released: "2026-08-21"
 keywords:
   - company-research
   - strategic-analysis

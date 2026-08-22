@@ -100,7 +100,7 @@ class TestMakeRequest:
         mock_response.status_code = 200
         mock_response.url = "https://example.com"
 
-        with patch("requests.request", return_value=mock_response) as mock_req:
+        with patch("requests.Session.request", return_value=mock_response) as mock_req:
             make_request("https://example.com")
 
         mock_req.assert_called_once()
@@ -112,7 +112,7 @@ class TestMakeRequest:
         mock_response.status_code = 200
         mock_response.url = "https://example.com"
 
-        with patch("requests.request", return_value=mock_response) as mock_req:
+        with patch("requests.Session.request", return_value=mock_response) as mock_req:
             make_request("https://example.com", method="HEAD")
 
         assert mock_req.call_args[1]["method"] == "HEAD"
@@ -123,7 +123,7 @@ class TestMakeRequest:
         mock_response.status_code = 200
         mock_response.url = "https://example.com"
 
-        with patch("requests.request", return_value=mock_response) as mock_req:
+        with patch("requests.Session.request", return_value=mock_response) as mock_req:
             make_request("https://example.com", timeout=30)
 
         assert mock_req.call_args[1]["timeout"] == 30
@@ -136,7 +136,7 @@ class TestMakeRequest:
 
         custom_headers = {"X-Custom": "value"}
 
-        with patch("requests.request", return_value=mock_response) as mock_req:
+        with patch("requests.Session.request", return_value=mock_response) as mock_req:
             make_request("https://example.com", headers=custom_headers)
 
         call_headers = mock_req.call_args[1]["headers"]
@@ -151,7 +151,7 @@ class TestMakeRequest:
 
         cookies = {"session": "abc"}
 
-        with patch("requests.request", return_value=mock_response) as mock_req:
+        with patch("requests.Session.request", return_value=mock_response) as mock_req:
             make_request("https://example.com", cookies=cookies)
 
         assert mock_req.call_args[1]["cookies"] == cookies
@@ -160,7 +160,7 @@ class TestMakeRequest:
         redirect = _response(302, "https://example.com/start", "/next")
         final = _response(200, "https://example.com/next")
 
-        with patch("requests.request", side_effect=[redirect, final]) as mock_req:
+        with patch("requests.Session.request", side_effect=[redirect, final]) as mock_req:
             assert make_request("https://example.com/start") is final
 
         assert mock_req.call_count == 2
@@ -173,7 +173,7 @@ class TestMakeRequest:
         redirect = _response(302, "https://example.com/start", "http://127.0.0.1/admin")
 
         with (
-            patch("requests.request", return_value=redirect) as mock_req,
+            patch("requests.Session.request", return_value=redirect) as mock_req,
             pytest.raises(ValueError, match="Invalid URL"),
         ):
             make_request("https://example.com/start")

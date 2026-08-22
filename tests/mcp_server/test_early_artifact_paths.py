@@ -63,6 +63,18 @@ def test_mcp_classifier_does_not_treat_working_brief_as_report():
     assert artifact_matches_filter("working_brief", "all") is True
     overview = Path("ExampleCo_Strategic_Overview_08-14-2026.md")
     assert classify_output_artifact(overview) == "strategic_overview"
+    qa = Path("ExampleCo_QA_Report_08-14-2026.txt")
+    assert classify_output_artifact(qa) == "qa_summary"
+    from primr.mcp_server.job_responses import select_primary_report_path
+
+    chosen = select_primary_report_path(
+        [
+            str(qa),
+            str(overview),
+        ]
+    )
+    assert chosen is not None
+    assert chosen.endswith("ExampleCo_Strategic_Overview_08-14-2026.md")
 
 
 def test_on_disk_artifacts_available_requires_existing_file(tmp_path):
