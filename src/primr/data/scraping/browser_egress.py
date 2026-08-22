@@ -91,8 +91,10 @@ def browser_request_allowed(url: str) -> tuple[bool, str | None]:
 
     parsed = urlparse(url)
     scheme = parsed.scheme.lower()
-    if scheme not in {"http", "https"}:
+    if scheme in {"data", "blob", "about"}:
         return True, None
+    if scheme not in {"http", "https"}:
+        return False, f"Unsupported URL scheme: {scheme or 'missing'}"
     return is_safe_url(url)
 
 

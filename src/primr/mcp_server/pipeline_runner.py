@@ -246,26 +246,39 @@ class PipelineRunner:
             # it inside perform_fast_research; the standard orchestrator path
             # must add the same artifact explicitly.
             if platform is not None:
-                on_progress("Generating AI strategy...")
-                from primr.core.trusted_report import validate_trusted_report
+                from primr.utils.run_budget import get_run_budget, skip_stage_if_over_budget
 
-                trusted_report = validate_trusted_report(
-                    output_path,
-                    allowed_roots=(job_output_dir,),
-                )
-                strategy_result = await run_strategy_generation(
-                    trusted_report,
-                    "ai_strategy",
-                    platform=platform,
-                    on_progress=on_progress,
-                    output_dir=job_output_dir,
-                )
-                strategy_path = strategy_result.get("output_path")
-                if not isinstance(strategy_path, str) or not strategy_path:
-                    raise RuntimeError("AI strategy generation produced no output artifact")
-                job.output_paths.append(strategy_path)
-                deep_research_tasks_started += 1
-                self.mcp_server.job_store.update(job)
+                skip_strategy = False
+                if get_run_budget() is not None:
+                    from primr.ai.client import get_client
+
+                    pipeline_cost = float(
+                        get_client().get_usage_summary().get("total_cost", 0.0) or 0.0
+                    )
+                    skip_strategy = skip_stage_if_over_budget(pipeline_cost, "AI strategy")
+                if skip_strategy:
+                    logger.warning("Skipping AI strategy because the run budget is exhausted")
+                else:
+                    on_progress("Generating AI strategy...")
+                    from primr.core.trusted_report import validate_trusted_report
+
+                    trusted_report = validate_trusted_report(
+                        output_path,
+                        allowed_roots=(job_output_dir,),
+                    )
+                    strategy_result = await run_strategy_generation(
+                        trusted_report,
+                        "ai_strategy",
+                        platform=platform,
+                        on_progress=on_progress,
+                        output_dir=job_output_dir,
+                    )
+                    strategy_path = strategy_result.get("output_path")
+                    if not isinstance(strategy_path, str) or not strategy_path:
+                        raise RuntimeError("AI strategy generation produced no output artifact")
+                    job.output_paths.append(strategy_path)
+                    deep_research_tasks_started += 1
+                    self.mcp_server.job_store.update(job)
 
             # Stage: QA (unless skipped)
             if not skip_qa:

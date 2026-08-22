@@ -92,6 +92,16 @@ class TestActiveBudgetRegistry:
         assert get_run_budget() is budget
         assert budget.max_cost == 3.5
 
+    def test_as_hook_is_the_same_cost_guard_sync_spend_updates(self):
+        from primr.agentic.cost_guard import CostGuardHook
+
+        budget = set_run_budget(4.0)
+        hook = budget.as_hook()
+        assert isinstance(hook, CostGuardHook)
+        budget.sync_spend(1.25)
+        assert hook.spent == 1.25
+        assert hook is budget.as_hook()
+
     def test_clear(self):
         set_run_budget(1.0)
         clear_run_budget()

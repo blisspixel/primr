@@ -18,7 +18,7 @@ from primr.utils.console import console
 
 def handle_orchestrate(config: Any) -> int:
     """Run experimental orchestrated research behind the standard cost gate."""
-    from primr.agentic import CostGuardHook, HookSystem, SSRFGuardHook
+    from primr.agentic import HookSystem, SSRFGuardHook
     from primr.agentic.memory import ResearchMemory
     from primr.agentic.orchestrator import OrchestratorConfig, ResearchOrchestrator
     from primr.core.cli_batch import _ensure_valid_url
@@ -113,9 +113,15 @@ def handle_orchestrate(config: Any) -> int:
         spend_ceiling = round(estimate.total_cost * 1.25, 4)
         console.info(f"Runtime cost guard set to ${spend_ceiling:.2f} (estimate + 25%)")
 
+    from primr.utils.run_budget import clear_run_budget, set_run_budget
+
     memory = ResearchMemory()
     hooks = HookSystem()
-    hooks.register(CostGuardHook(max_cost_usd=spend_ceiling))
+    clear_run_budget()
+    budget = set_run_budget(spend_ceiling)
+    # Same CostGuardHook the run-budget checkpoints write to — a second,
+    # unbound hook would never see recorded spend (paper ceiling).
+    hooks.register(budget.as_hook())
     hooks.register(SSRFGuardHook())
 
     output_path = Path(getattr(config, "output_dir", None) or "./output")
@@ -137,6 +143,8 @@ def handle_orchestrate(config: Any) -> int:
     except Exception as exc:
         console.error(f"Orchestration failed: {exc}")
         return 1
+    finally:
+        clear_run_budget()
 
     console.blank()
     if result.is_success:

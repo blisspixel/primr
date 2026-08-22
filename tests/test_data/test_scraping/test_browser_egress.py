@@ -115,6 +115,16 @@ def test_browser_request_allowed_skips_non_http_schemes():
     safe_url.assert_not_called()
 
 
+def test_browser_request_allowed_blocks_file_and_unknown_schemes():
+    with patch("primr.data.scraping.browser_egress.is_safe_url") as safe_url:
+        allowed, reason = browser_request_allowed("file:///etc/passwd")
+
+    assert allowed is False
+    assert reason is not None
+    assert "scheme" in reason.lower()
+    safe_url.assert_not_called()
+
+
 def test_install_playwright_egress_guard_continues_safe_requests():
     context = MagicMock()
     route = MagicMock()

@@ -378,7 +378,11 @@ def validate_url_for_request(
                 try:
                     ip = ipaddress.ip_address(resolved_ip)
                 except ValueError:
-                    continue
+                    return (
+                        False,
+                        url,
+                        f"Hostname resolved to an unparseable address ({resolved_ip})",
+                    )
                 blocked = _ip_is_blocked(ip)
                 if blocked:
                     return (

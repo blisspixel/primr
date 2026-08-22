@@ -250,6 +250,35 @@ class TestGenerateStrategy:
         assert data["output_path"].endswith("strategy.md")
 
     @pytest.mark.asyncio
+    async def test_binds_and_clears_runtime_budget(self, server, output_report):
+        from primr.utils.run_budget import get_run_budget
+
+        seen: dict[str, float | None] = {}
+
+        async def fake_runner(**_kwargs):
+            budget = get_run_budget()
+            seen["max"] = None if budget is None else budget.max_cost
+            return {
+                "output_path": "output/strategy.md",
+                "strategy_type": "customer_experience",
+                "qa_score": None,
+            }
+
+        with patch("primr.mcp_server.tools.run_strategy_generation", new=fake_runner):
+            data = await _call(
+                server,
+                "generate_strategy",
+                {
+                    "report_path": str(output_report),
+                    "strategy_type": "customer_experience",
+                    "max_estimated_cost_usd": 12.5,
+                },
+            )
+        assert data["success"] is True
+        assert seen["max"] == 12.5
+        assert get_run_budget() is None
+
+    @pytest.mark.asyncio
     async def test_generation_exception(self, server, output_report):
         with patch(
             "primr.mcp_server.tools.run_strategy_generation",

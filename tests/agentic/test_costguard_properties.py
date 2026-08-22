@@ -4,8 +4,9 @@ CostGuard is the agent's spend ceiling. Two invariants must hold for any
 sequence of recorded costs and any probe estimate:
 
   1. `remaining == max(0, max_cost - spent)` — never reports negative headroom.
-  2. The pre-tool check BLOCKs exactly when `spent + max(0, estimate)` would
-     exceed `max_cost`, and ALLOWs otherwise — no spend slips past the gate, and
+  2. The pre-tool check BLOCKs when remaining is already exhausted
+     (`spent >= max_cost`) or when `spent + max(0, estimate)` would exceed
+     `max_cost`, and ALLOWs otherwise — no spend slips past the gate, and
      an affordable call is never wrongly blocked.
 """
 
@@ -50,6 +51,8 @@ class TestCostGuardInvariants:
         )
         resp = asyncio.run(hook.execute(ctx))
 
-        # The hook clamps a negative estimate to 0 before checking.
-        expected_block = spent + max(0.0, probe) > max_cost
+        # Exhausted remaining blocks even a $0 estimate; otherwise the probe
+        # is clamped at 0 and compared with a strict greater-than.
+        estimated = max(0.0, probe)
+        expected_block = spent >= max_cost or spent + estimated > max_cost
         assert (resp.result == HookResult.BLOCK) == expected_block

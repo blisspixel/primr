@@ -9,6 +9,11 @@ from primr.config.models import DEEP_RESEARCH_COST
 from primr.core.cli_contract import CLIConfig
 from primr.utils.console import get_console
 from primr.utils.logging_config import get_logger
+from primr.utils.run_budget import (
+    clear_run_budget,
+    set_run_budget,
+    skip_stage_if_over_budget,
+)
 
 logger = get_logger(__name__)
 
@@ -218,26 +223,40 @@ def run_generate_vendor(config: CLIConfig) -> int:
         get_console().banner("Vendor AI Research Generation")
     artifacts: list[dict[str, str]] = []
     failed_vendors: list[str] = []
-    for vendor in vendors:
-        if not config.json_output:
-            get_console().step(f"Generating {vendor.upper()} research")
-        try:
-            result = generate_vendor_research_sync(
-                vendor,
-                emit_console=not config.json_output,
-            )
-        except Exception as exc:
-            logger.error("Vendor research command failed (%s)", type(exc).__name__)
-            result = None
-        if result:
-            path = str(result)
-            artifacts.append({"vendor": vendor, "path": path})
+    spent = 0.0
+    task_cost = DEEP_RESEARCH_COST.standard_task_cost
+    budget_active = False
+    try:
+        if config.budget_usd is not None:
+            set_run_budget(config.budget_usd)
+            budget_active = True
+        for vendor in vendors:
+            if skip_stage_if_over_budget(spent, f"vendor research ({vendor})"):
+                failed_vendors.append(vendor)
+                continue
             if not config.json_output:
-                get_console().ok(f"Saved: {path}")
-        else:
-            failed_vendors.append(vendor)
-            if not config.json_output:
-                get_console().error(f"Failed to generate {vendor} research")
+                get_console().step(f"Generating {vendor.upper()} research")
+            try:
+                result = generate_vendor_research_sync(
+                    vendor,
+                    emit_console=not config.json_output,
+                )
+            except Exception as exc:
+                logger.error("Vendor research command failed (%s)", type(exc).__name__)
+                result = None
+            if result:
+                path = str(result)
+                artifacts.append({"vendor": vendor, "path": path})
+                if not config.json_output:
+                    get_console().ok(f"Saved: {path}")
+            else:
+                failed_vendors.append(vendor)
+                if not config.json_output:
+                    get_console().error(f"Failed to generate {vendor} research")
+            spent += task_cost
+    finally:
+        if budget_active:
+            clear_run_budget()
 
     if config.json_output:
         from primr.core.cli_command_output import emit_json

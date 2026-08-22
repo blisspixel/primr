@@ -362,6 +362,31 @@ class TestStrategyGeneration:
         # Called once per vendor.
         assert gen_mock.call_count == 3
 
+    def test_runtime_budget_skips_remaining_strategy_targets(
+        self, report_under_output, monkeypatch
+    ):
+        gen_mock = MagicMock(return_value="/output/strategy.docx")
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
+
+        def skip_after_first(spent: float, _label: str) -> bool:
+            return spent > 0
+
+        monkeypatch.setattr(
+            "primr.core.cli_strategy.skip_stage_if_over_budget",
+            skip_after_first,
+        )
+        result = _handle_ai_strategy_only(
+            _config(
+                ai_strategy_only_path=str(report_under_output),
+                strategy_type="ai",
+                platforms=("aws", "azure", "gcp"),
+                skip_confirm=True,
+                budget_usd=100.0,
+            )
+        )
+        assert result == 1
+        assert gen_mock.call_count == 1
+
     def test_generation_uses_private_stable_snapshot(self, report_under_output, monkeypatch):
         captured: dict[str, object] = {}
 

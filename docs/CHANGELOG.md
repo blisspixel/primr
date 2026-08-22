@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.4] - 2026-08-21
+
+### Security
+
+- **Unparseable resolved addresses fail closed.** A `getaddrinfo` result that
+  `ipaddress` cannot parse (scoped IPv6, garbage sockaddr) is blocked instead
+  of treated as public. The parallel DNS check in `validate_url_for_request`
+  does the same.
+- **IPv4-translated and IPv4-compatible embeddings are unwrapped.** SIIT
+  `::ffff:0:0:0/96` and deprecated `::/96` encodings of loopback/metadata
+  no longer bypass the SSRF guard.
+- **Browser egress aborts unknown schemes.** `data:`/`blob:`/`about:` stay
+  local; `file:`, `ftp:`, `ws:`, and other non-HTTP schemes are denied.
+
+### Fixed
+
+- **MCP `generate_strategy` binds the approved ceiling.** After the token
+  check it activates the same `--budget` run-budget the research path uses,
+  then clears it.
+- **`primr orchestrate` CostGuard is no longer a paper ceiling.** It registers
+  the run-budget's hook, syncs session LLM spend after each stage, and blocks
+  further stages once remaining is exhausted — even with a $0 estimate.
+- **Sequential `--budget` stops later platforms and vendors.** Standalone
+  strategy and vendor-research loops skip remaining paid tasks once the
+  ceiling is reached.
+- **Library `process_batch` is fail-closed.** `skip_confirm` defaults to
+  `False` (CLI already passed the parsed flag). The fallback estimate uses
+  the planning floor so cheap historical samples cannot under-approve.
+- **Non-fast MCP strategy generation respects the run budget.** Collection
+  that already exhausted the ceiling no longer starts the priced AI strategy.
+
 ## [1.39.3] - 2026-08-21
 
 ### Security
