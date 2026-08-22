@@ -23,6 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fresh-interpreter tests cover both import orders for every removed pair;
   `cli.py` and `research_agent.py` also receive tighter line ceilings.
 
+### Fixed
+
+- **Passive update notices cannot reverse successful research.** Cache,
+  network, and console-output failures are contained across the complete
+  notice path, including a closed output pipe after a report finishes.
+- **Source relevance accepts only declared integer selections.** Boolean and
+  fractional JSON values no longer select unrelated sources, and the retained
+  evidence keeps its original deterministic order.
+- **Corrupt local collection caches recover cleanly.** Invalid or negative
+  cached metrics now invalidate the resume snapshot and trigger fresh
+  collection instead of terminating the run during cache reconstruction.
+
 ## [1.39.5] - 2026-08-22
 
 ### Security
