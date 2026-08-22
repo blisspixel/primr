@@ -20,7 +20,7 @@ target. Regenerate via [`CONTRIBUTING.md`](CONTRIBUTING.md).*
 The root README is a **front door** only. Operator detail lives in the guides
 below (Diataxis: learning, doing, looking up, understanding).
 
-> **Index currency:** reviewed against primr **1.39.4** on **2026-08-21**. The
+> **Index currency:** reviewed against primr **1.39.5** on **2026-08-22**. The
 > *Updated* column is each document's last substantive revision (git
 > `last-commit` date). `tests/test_docs_index.py` fails CI if a doc under
 > `docs/` is missing from this map or an index link does not resolve, so the
@@ -44,7 +44,7 @@ below (Diataxis: learning, doing, looking up, understanding).
 | [RECOVERY](RECOVERY.md) | Resume after a crash, reboot, or interrupted run | 2026-07-17 |
 | [IMPROVE](IMPROVE.md) | Improve and refine an existing report (`primr improve` / `refine`) | 2026-04-10 |
 | [SKILL_PACK](SKILL_PACK.md) | `primr skills` end to end: planning, curation, artifacts, CLI/MCP | 2026-08-13 |
-| [EVAL](EVAL.md) | Evaluate and compare models with the eval harness | 2026-07-17 |
+| [EVAL](EVAL.md) | Evaluate and compare models with the eval harness | 2026-08-22 |
 | [MODEL_ONBOARDING](MODEL_ONBOARDING.md) | Register and validate a new model | 2026-08-13 |
 | [AGENT_INTEGRATION](AGENT_INTEGRATION.md) | Operate Primr from MCP, A2A, skills, and agent hosts | 2026-08-13 |
 | [OPENCLAW](OPENCLAW.md) | OpenClaw integration and governed workflows | 2026-08-13 |
@@ -61,8 +61,8 @@ below (Diataxis: learning, doing, looking up, understanding).
 | [API](API.md) | MCP server and A2A protocol, programmatic usage | 2026-08-13 |
 | [Job Status](JOB_STATUS.md) | Versioned CLI, MCP, A2A, and API lifecycle contract | 2026-07-10 |
 | [STRATEGY_PORTFOLIO](STRATEGY_PORTFOLIO.md) | Strategy document types and selection | 2026-07-21 |
-| [NEXT_STEPS](NEXT_STEPS.md) | What to build next, why it comes next, and what not to do yet | 2026-08-13 |
-| [CHANGELOG](CHANGELOG.md) | Version history | 2026-08-13 |
+| [NEXT_STEPS](NEXT_STEPS.md) | What to build next, why it comes next, and what not to do yet | 2026-08-22 |
+| [CHANGELOG](CHANGELOG.md) | Version history | 2026-08-22 |
 | [MIGRATION](MIGRATION.md) | Error-hierarchy migration notes | 2026-02-02 |
 | [EVAL_V1_24_0](EVAL_V1_24_0.md) | Historical decision record: the v1.24.0 cross-provider eval plan | 2026-06-26 |
 | [ROADMAP](https://github.com/blisspixel/primr/blob/main/ROADMAP.md) | Ordered development queue and version plan | — |
@@ -76,7 +76,7 @@ below (Diataxis: learning, doing, looking up, understanding).
 | [INTERNALS](INTERNALS.md) | Core algorithms and prompt strategy | 2026-08-13 |
 | [STATE_MACHINES](STATE_MACHINES.md) | Tier escalation and job lifecycle | 2026-02-02 |
 | [CONCURRENCY](CONCURRENCY.md) | Threading and concurrency model | 2026-08-13 |
-| [SECURITY](SECURITY.md) | Security policy and the scoped AI/agent threat model | 2026-08-13 |
+| [SECURITY](SECURITY.md) | Security policy and the scoped AI/agent threat model | 2026-08-22 |
 | [design/](design/README.md) | Per-workstream design docs and decision audits | — |
 
 ## Contributing

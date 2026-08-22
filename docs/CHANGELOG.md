@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.5] - 2026-08-22
+
+### Security
+
+- **Agentic orchestration uses the central SSRF seam.** Every pre-tool hook now
+  receives the company URL, and `SSRFGuardHook` delegates directly to
+  `utils.security.is_safe_url` instead of maintaining a second validator.
+- **Outbound browser and A2A logs redact URL secrets.** Blocked Playwright
+  requests, A2A hook decisions, discovery/RPC errors, redirect failures, and
+  delegation exceptions omit userinfo and query strings.
+
+### Fixed
+
+- **Eval batch caps survive per-run counter resets.** Each started missing-cell
+  run reserves its planning estimate, and the next run receives only the
+  uncommitted remainder as its runtime budget. Failed or partial starts still
+  reserve their quote. Negative and non-finite fixed estimates or caps fail
+  closed before provider work.
+- **Accordion runtime budgets account for its actual call paths.** The accepted
+  Deep Research task contributes its planning cost, direct Gemini section
+  responses enter the shared run ledger, and the next section is checked
+  against a conservative per-call estimate. Non-finite `--budget` values are
+  rejected.
+- **Accordion reads current Deep Research responses.** Completed Interactions
+  use the shared `steps`/`output_text` parser with the deliberate legacy
+  `outputs` fallback. A run with no completed report sections is a failure, not
+  a successful header-only artifact.
+- **Per-run Gemini compatibility usage resets with other counters.** Long-lived
+  and sequential processes no longer carry direct Gemini SDK usage into the
+  next run, while summaries and budget checkpoints share one cost function.
+- **The synchronous Accordion wrapper uses the shared async bridge.** It now
+  follows the repository's single sync/async boundary contract.
+
+### Changed
+
+- Extracted eval execution and staging from `core/cli.py`, lowering the pinned
+  CLI size ceiling while keeping the public command contract unchanged.
+
 ## [1.39.4] - 2026-08-21
 
 ### Security

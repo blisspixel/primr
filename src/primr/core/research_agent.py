@@ -248,7 +248,6 @@ from primr.config.config import (
     WORKING_DIR,
 )
 from primr.config.env import load_primr_env
-from primr.config.models import PrimrModels
 from primr.config.sections_config import SECTION_KEY_MAP
 from primr.core import deep_run_summary
 
@@ -2091,26 +2090,12 @@ def _enrich_strategy_content(
 def _compute_session_llm_cost() -> float:
     """Current actual LLM spend for this run, in USD.
 
-    Per-model xAI/cross-provider session cost plus the Gemini client's
-    accumulated cost. Prefer exact provider-billed xAI cost when every call in
-    the model bucket reported it; otherwise retain conservative token pricing.
-    Used by the end-of-run summary and the ``--budget`` checkpoint, so both
-    report the same number.
+    Delegates to the shared run-budget accounting seam so summaries and
+    checkpoints cannot drift as provider paths are added.
     """
-    from primr.ai.grok_client import get_grok_session_usage_by_model
+    from primr.utils.run_budget import observed_session_spend
 
-    usage_by_model = get_grok_session_usage_by_model()
-    grok_cost = 0.0
-    for model_name, tokens in usage_by_model.items():
-        cost_model = (
-            model_name if PrimrModels.get_model_config(model_name) else PrimrModels.GROK_MODEL
-        )
-        grok_cost += PrimrModels.calculate_recorded_cost(cost_model, tokens)[0]
-
-    from primr.ai.client import get_client
-
-    flash_cost = get_client().get_usage_summary().get("total_cost", 0.0)
-    return grok_cost + flash_cost
+    return observed_session_spend()
 
 
 def perform_fast_research(

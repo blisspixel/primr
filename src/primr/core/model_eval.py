@@ -16,6 +16,7 @@ import re
 import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from math import isfinite
 from typing import TYPE_CHECKING, Any
 
 from primr.config.models import PrimrModels
@@ -149,6 +150,10 @@ def register_eval_profile(slot: EvalProfileSlot, *, replace: bool = False) -> No
     """
     if not slot.name:
         raise ValueError("EvalProfileSlot.name must be non-empty")
+    if slot.estimated_cost_usd is not None and (
+        not isfinite(slot.estimated_cost_usd) or slot.estimated_cost_usd < 0
+    ):
+        raise ValueError("EvalProfileSlot.estimated_cost_usd must be finite and non-negative")
     if not replace and slot.name in _PROFILE_REGISTRY:
         existing = _PROFILE_REGISTRY[slot.name]
         raise ValueError(
@@ -588,18 +593,9 @@ def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics
 def _estimated_profile_cost(profile: str) -> float:
     """Resolve estimated cost for a profile.
 
-    Resolution order:
-      1. If the slot is registered with an explicit estimated_cost_usd, use it.
-      2. Else if the slot has a recipe (cross-provider eval slot), compute cost
-         from the recipe's role models. Today this returns a placeholder using
-         the recipe's writing model rate at default token volumes - sharpen
-         once primr's per-role token estimates are exposed by the cost
-         estimator (v1.24.0 follow-on).
-      3. Else fall back to the legacy mode-based estimator using the well-known
-         names ("fast", "lite", anything else = full).
-
-    The registry-based path is used for v1.24.0 cross-provider eval slots; the
-    legacy fallback keeps existing full/lite/fast eval flows unchanged.
+    Registered fixed estimates take precedence. Slots without one use the
+    matching built-in mode estimate, with unknown names conservatively priced
+    like ``full``.
     """
     slot = _PROFILE_REGISTRY.get(profile)
     if slot is not None and slot.estimated_cost_usd is not None:
