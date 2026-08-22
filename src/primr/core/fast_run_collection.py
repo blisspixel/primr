@@ -224,7 +224,7 @@ def _collect_research_data_fresh(
     public_output_dir: str | None = None,
 ) -> DataCollectionResult:
     """Run paid collection and persist a resume cache."""
-    from primr.core.research_agent import _assess_source_relevance
+    from primr.core.source_relevance import _assess_source_relevance
 
     scan_domain = normalized_hostname(website or "", strip_www=True) or "website"
     console.phase_banner(

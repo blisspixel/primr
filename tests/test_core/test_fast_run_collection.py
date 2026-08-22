@@ -62,7 +62,7 @@ def seams(monkeypatch, tmp_path):
     monkeypatch.setattr("primr.pipeline.integration.scrape_page_with_recovery", fake_recovery)
 
     relevance = MagicMock(side_effect=lambda company, data, folder_path=None: data)
-    monkeypatch.setattr("primr.core.research_agent._assess_source_relevance", relevance)
+    monkeypatch.setattr("primr.core.source_relevance._assess_source_relevance", relevance)
 
     captured.update(
         {
