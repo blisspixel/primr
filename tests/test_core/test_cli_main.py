@@ -57,6 +57,18 @@ class TestMainHandlerRouting:
         assert result == 0
         handler.assert_called_once()
 
+    def test_dispatch_receives_update_notice_callback(
+        self, passing_validation, stub_logging, monkeypatch
+    ):
+        dispatch = MagicMock(return_value=0)
+        notice = MagicMock()
+        monkeypatch.setattr("primr.core.cli.guard_dispatch", dispatch)
+        monkeypatch.setattr("primr.core.cli.notify_if_update_available", notice)
+
+        assert main(["doctor"]) == 0
+
+        assert dispatch.call_args.kwargs["on_research_success"] is notice
+
     def test_init_routes_to_handler(self, passing_validation, stub_logging, monkeypatch):
         handler = MagicMock(return_value=0)
         monkeypatch.setattr("primr.core.cli._handle_init", handler)

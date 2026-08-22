@@ -3,8 +3,8 @@
 Turns an unexpected failure into actionable guidance (route to ``primr doctor``,
 offer ``--verbose`` for the traceback, link the issue tracker) instead of a bare
 stack trace, and makes Ctrl-C exit cleanly. Lives in its own module so
-``cli.py`` (pinned by the file-size ratchet) stays lean: the guarded command
-dispatch and the post-run update notice live here, not inline in ``main``.
+``cli.py`` (pinned by the file-size ratchet) stays lean: guarded dispatch and
+the post-run notification policy live here, not inline in ``main``.
 """
 
 from __future__ import annotations
@@ -37,14 +37,20 @@ def report_unexpected_error(exc: Exception) -> int:
     return 1
 
 
-def guard_dispatch(handler: Callable[[_ConfigT], int], config: _ConfigT) -> int:
+def guard_dispatch(
+    handler: Callable[[_ConfigT], int],
+    config: _ConfigT,
+    *,
+    on_research_success: Callable[[], None] | None = None,
+) -> int:
     """Run a command handler with top-level interrupt + error handling.
 
     - ``KeyboardInterrupt`` (Ctrl-C) exits cleanly with code 130, no traceback.
     - In ``--verbose`` mode an unexpected exception is re-raised so the full
       traceback surfaces for debugging; otherwise it becomes actionable guidance.
-    - On a clean, non-quiet research run, emits the passive update notice (moved
-      here from ``main`` so the success-tail logic lives with the dispatch).
+    - On a clean, non-quiet research run, invokes the injected success callback
+      so the success-tail policy stays with dispatch without importing CLI
+      update implementation details.
     """
     try:
         dry_run_exit = reject_unsupported_dry_run(config)
@@ -87,8 +93,7 @@ def guard_dispatch(handler: Callable[[_ConfigT], int], config: _ConfigT) -> int:
         and getattr(command, "name", "") == "RESEARCH"
         and not getattr(config, "quiet", False)
         and not getattr(config, "json_output", False)
+        and on_research_success is not None
     ):
-        from primr.core.cli_update import notify_if_update_available
-
-        notify_if_update_available()
+        on_research_success()
     return rc

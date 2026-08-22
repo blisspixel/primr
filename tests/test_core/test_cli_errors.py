@@ -40,49 +40,49 @@ class TestGuardDispatchSuccess:
         assert guard_dispatch(lambda c: 0, _config()) == 0
         assert guard_dispatch(lambda c: 7, _config(command_name="DOCTOR")) == 7
 
-    def test_notifies_after_clean_research_run(self, monkeypatch):
+    def test_notifies_after_clean_research_run(self):
         calls = []
-        monkeypatch.setattr(
-            "primr.core.cli_update.notify_if_update_available",
-            lambda: calls.append(True),
+        guard_dispatch(
+            lambda c: 0,
+            _config(command_name="RESEARCH", quiet=False),
+            on_research_success=lambda: calls.append(True),
         )
-        guard_dispatch(lambda c: 0, _config(command_name="RESEARCH", quiet=False))
         assert calls == [True]
 
-    def test_no_notify_when_quiet(self, monkeypatch):
+    def test_no_notify_when_quiet(self):
         calls = []
-        monkeypatch.setattr(
-            "primr.core.cli_update.notify_if_update_available",
-            lambda: calls.append(True),
+        guard_dispatch(
+            lambda c: 0,
+            _config(command_name="RESEARCH", quiet=True),
+            on_research_success=lambda: calls.append(True),
         )
-        guard_dispatch(lambda c: 0, _config(command_name="RESEARCH", quiet=True))
         assert calls == []
 
-    def test_no_notify_for_json_research(self, monkeypatch):
+    def test_no_notify_for_json_research(self):
         calls = []
-        monkeypatch.setattr(
-            "primr.core.cli_update.notify_if_update_available",
-            lambda: calls.append(True),
+        guard_dispatch(
+            lambda c: 0,
+            _config(command_name="RESEARCH", json_output=True),
+            on_research_success=lambda: calls.append(True),
         )
-        guard_dispatch(lambda c: 0, _config(command_name="RESEARCH", json_output=True))
         assert calls == []
 
-    def test_no_notify_for_non_research(self, monkeypatch):
+    def test_no_notify_for_non_research(self):
         calls = []
-        monkeypatch.setattr(
-            "primr.core.cli_update.notify_if_update_available",
-            lambda: calls.append(True),
+        guard_dispatch(
+            lambda c: 0,
+            _config(command_name="DOCTOR"),
+            on_research_success=lambda: calls.append(True),
         )
-        guard_dispatch(lambda c: 0, _config(command_name="DOCTOR"))
         assert calls == []
 
-    def test_no_notify_when_rc_nonzero(self, monkeypatch):
+    def test_no_notify_when_rc_nonzero(self):
         calls = []
-        monkeypatch.setattr(
-            "primr.core.cli_update.notify_if_update_available",
-            lambda: calls.append(True),
+        guard_dispatch(
+            lambda c: 1,
+            _config(command_name="RESEARCH"),
+            on_research_success=lambda: calls.append(True),
         )
-        guard_dispatch(lambda c: 1, _config(command_name="RESEARCH"))
         assert calls == []
 
 
