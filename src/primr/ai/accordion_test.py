@@ -36,6 +36,23 @@ from primr.utils.logging_config import get_logger
 logger = get_logger("ai.accordion_test")
 
 
+def _estimate_accordion_section_cost() -> float:
+    """Return the conservative average cost of one planned Flash section call."""
+
+    from math import ceil
+
+    from primr.config.models import PrimrModels
+    from primr.utils.cost_estimator import ACCORDION_WRITING_OVERHEAD
+
+    overhead = ACCORDION_WRITING_OVERHEAD["deep-research"]
+    calls = max(1, overhead["section_calls"])
+    return PrimrModels.calculate_cost_conservative(
+        PrimrModels.FLASH_MODEL,
+        ceil(overhead["flash_input_tokens"] / calls),
+        ceil(overhead["flash_output_tokens"] / calls),
+    )
+
+
 @dataclass
 class AccordionTestConfig:
     """Configuration for standalone Accordion Method test."""
@@ -337,10 +354,25 @@ class AccordionTestRunner:
 
             consecutive_failures = 0
 
+            from primr.config.models import DEEP_RESEARCH_COST
+            from primr.utils.run_budget import (
+                observed_session_spend,
+                skip_stage_if_cost_would_exceed,
+            )
+
+            deep_research_cost = DEEP_RESEARCH_COST.standard_task_cost
+            section_cost = _estimate_accordion_section_cost()
+
             for i, section in enumerate(RESEARCH_SECTIONS):
                 if consecutive_failures >= config.max_consecutive_failures:
                     if on_progress:
                         on_progress(f"STOPPING: {consecutive_failures} consecutive failures")
+                    break
+                if skip_stage_if_cost_would_exceed(
+                    deep_research_cost + observed_session_spend(),
+                    section_cost,
+                    f"accordion section ({section['title']})",
+                ):
                     break
 
                 section_num = i + 1
@@ -411,6 +443,20 @@ class AccordionTestRunner:
                 on_progress("")
                 on_progress(f"Phase 2 complete: {len(written_sections)} sections written")
                 on_progress("")
+
+            if not written_sections:
+                return AccordionTestResult(
+                    content="",
+                    word_count=0,
+                    page_estimate=0,
+                    sections_completed=0,
+                    sections_total=len(RESEARCH_SECTIONS),
+                    duration_seconds=time.time() - start_time,
+                    output_path="",
+                    success=False,
+                    error="No report sections were completed",
+                    section_details=section_details,
+                )
 
             # ================================================================
             # PHASE 3: Assembly
@@ -649,6 +695,9 @@ Write the **{section["title"]}** section now:"""
                 model=PrimrModels.FLASH_MODEL,
                 contents=prompt,
             )
+            from primr.ai.llm import record_gemini_response_usage
+
+            record_gemini_response_usage(PrimrModels.FLASH_MODEL, response)
 
             content = response.text if hasattr(response, "text") else str(response)
 
@@ -715,11 +764,9 @@ Write the **{section["title"]}** section now:"""
                 status = interaction.status
 
                 if status == "completed":
-                    content = ""
-                    if hasattr(interaction, "outputs") and interaction.outputs:
-                        for output in interaction.outputs:
-                            if hasattr(output, "text") and output.text:
-                                content += str(output.text) + "\n"
+                    from primr.ai.deep_research_parsing import extract_interaction_content
+
+                    content = extract_interaction_content(interaction)
 
                     words = len(content.split())
                     if on_progress:
@@ -800,8 +847,10 @@ async def run_accordion_test_async(
     section_delay: int = 10,
 ) -> AccordionTestResult:
     """Run the Accordion Method test asynchronously."""
+    from primr.ai.client import reset_run_usage_accounting
     from primr.utils.console import console
 
+    reset_run_usage_accounting()
     runner = AccordionTestRunner()
 
     def progress_callback(msg: str) -> None:
@@ -833,4 +882,6 @@ def run_accordion_test(
     Returns:
         AccordionTestResult
     """
-    return asyncio.run(run_accordion_test_async(topic, target_pages, section_delay))
+    from primr.utils.async_utils import run_sync
+
+    return run_sync(run_accordion_test_async(topic, target_pages, section_delay))

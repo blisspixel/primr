@@ -269,6 +269,14 @@ def llm(
         log_chat_interaction(prompt, error_message)
         raise RuntimeError(error_message) from e
 
+    from primr.ai.gemini_usage import record_usage
+
+    record_usage(
+        model_name,
+        result.input_tokens,
+        result.output_tokens,
+        result.cached_input_tokens,
+    )
     log_chat_interaction(prompt, result.text)
     return result.text
 
@@ -289,16 +297,16 @@ def _get_gemini_provider():
 def get_llm_provider_usage_by_model() -> dict[str, dict[str, int]]:
     """Return cumulative usage from provider-backed ``llm()`` calls by model."""
 
-    provider = _gemini_provider
-    if provider is None or not hasattr(provider, "get_usage_by_model"):
-        return {}
-    usage = provider.get_usage_by_model()
-    return {str(model): dict(values) for model, values in usage.items()}
+    from primr.ai.gemini_usage import get_usage_by_model
+
+    return get_usage_by_model()
 
 
 def record_gemini_response_usage(model: str, response: object) -> None:
     """Account for a direct Gemini SDK response in the shared run counters."""
-    _get_gemini_provider().record_external_response_usage(model, response)
+    from primr.ai.gemini_usage import record_response
+
+    record_response(model, response)
 
 
 def llm_fast(prompt, model_type="fast"):

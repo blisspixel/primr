@@ -982,7 +982,9 @@ async def _handle_delegate_to_agent(
             result = await client.send_message(message=message, skill_id=skill_id)
         return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
     except Exception:
-        logger.exception("A2A delegation failed: %s", agent_url)
+        from primr.utils.security import redact_url_for_log
+
+        logger.exception("A2A delegation failed: %s", redact_url_for_log(agent_url))
         return [
             TextContent(
                 type="text",

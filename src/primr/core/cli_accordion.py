@@ -8,6 +8,7 @@ without interactive confirmation or ``--skip-confirm``.
 
 from __future__ import annotations
 
+from math import isfinite
 from typing import Any
 
 from primr.utils.console import console, prompt_yes_no
@@ -51,7 +52,7 @@ def handle_test_accordion(config: Any) -> int:
         except (TypeError, ValueError):
             console.error(f"--budget must be a finite positive number, got {budget}")
             return 1
-        if budget_value <= 0:
+        if not isfinite(budget_value) or budget_value <= 0:
             console.error(f"--budget must be a finite positive number, got {budget}")
             return 1
         if estimate.total_cost > budget_value:
@@ -73,8 +74,17 @@ def handle_test_accordion(config: Any) -> int:
             return 1
 
     from primr.ai.accordion_test import run_accordion_test
+    from primr.utils.run_budget import clear_run_budget, set_run_budget
 
-    result = run_accordion_test(topic=topic, target_pages=target_pages)
+    budget_active = False
+    try:
+        if budget is not None:
+            set_run_budget(float(budget))
+            budget_active = True
+        result = run_accordion_test(topic=topic, target_pages=target_pages)
+    finally:
+        if budget_active:
+            clear_run_budget()
     if result.success:
         console.blank()
         console.success_box(

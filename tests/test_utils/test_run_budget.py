@@ -112,6 +112,26 @@ class TestActiveBudgetRegistry:
             set_run_budget(0.0)
         assert get_run_budget() is None
 
+    def test_observed_spend_includes_direct_gemini_provider_usage(self, monkeypatch):
+        from types import SimpleNamespace
+
+        from primr.config.models import PrimrModels
+        from primr.utils.run_budget import observed_session_spend
+
+        usage = {"input_tokens": 1000, "output_tokens": 250, "cached_input_tokens": 0}
+        monkeypatch.setattr("primr.ai.grok_client.get_grok_session_usage_by_model", dict)
+        monkeypatch.setattr(
+            "primr.ai.client.get_client",
+            lambda: SimpleNamespace(get_usage_summary=lambda: {"total_cost": 0.25}),
+        )
+        monkeypatch.setattr(
+            "primr.ai.gemini_usage.get_usage_by_model",
+            lambda: {PrimrModels.FLASH_MODEL: usage},
+        )
+
+        expected = 0.25 + PrimrModels.calculate_recorded_cost(PrimrModels.FLASH_MODEL, usage)[0]
+        assert observed_session_spend() == pytest.approx(expected)
+
 
 class TestSyncSpendConcurrency:
     """sync_spend is an absolute set and must stay atomic: the per-vendor

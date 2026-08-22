@@ -214,19 +214,11 @@ def test_error_recovery_builds_default_context():
 # =============================================================================
 
 
-def _install_fake_url_validator(monkeypatch, valid: bool, error_message: str = ""):
-    fake_mod = types.ModuleType("primr.mcp_server.security")
-
-    class URLValidator:
-        def validate(self, url):
-            return SimpleNamespace(valid=valid, error_message=error_message)
-
-    fake_mod.URLValidator = URLValidator  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "primr.mcp_server.security", fake_mod)
-
-
 def test_ssrf_guard_allows_valid_url(monkeypatch):
-    _install_fake_url_validator(monkeypatch, valid=True)
+    monkeypatch.setattr(
+        "primr.utils.security.is_safe_url",
+        lambda _url: (True, None),
+    )
     hook = SSRFGuardHook()
     ctx = HookContext(hook_type=HookType.PRE_TOOL_USE, arguments={"url": "https://acme.example"})
     response = asyncio.run(hook.execute(ctx))
@@ -234,7 +226,10 @@ def test_ssrf_guard_allows_valid_url(monkeypatch):
 
 
 def test_ssrf_guard_blocks_invalid_url(monkeypatch):
-    _install_fake_url_validator(monkeypatch, valid=False, error_message="private IP")
+    monkeypatch.setattr(
+        "primr.utils.security.is_safe_url",
+        lambda _url: (False, "private IP"),
+    )
     hook = SSRFGuardHook()
     ctx = HookContext(
         hook_type=HookType.PRE_TOOL_USE, arguments={"company_url": "http://127.0.0.1"}
@@ -244,24 +239,13 @@ def test_ssrf_guard_blocks_invalid_url(monkeypatch):
     assert "private IP" in (response.message or "")
 
 
-def test_ssrf_guard_warns_when_module_missing(monkeypatch):
-    import builtins
-
-    real_import = builtins.__import__
-
-    def fake_import(name, *args, **kwargs):
-        if name == "primr.mcp_server.security":
-            raise ImportError("missing")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-
+def test_ssrf_guard_blocks_loopback_without_a_second_validator():
     hook = SSRFGuardHook()
     ctx = HookContext(
-        hook_type=HookType.PRE_TOOL_USE, arguments={"target_url": "https://acme.example"}
+        hook_type=HookType.PRE_TOOL_USE, arguments={"target_url": "http://127.0.0.1/"}
     )
     response = asyncio.run(hook.execute(ctx))
-    assert response.result == HookResult.WARN
+    assert response.result == HookResult.BLOCK
 
 
 # =============================================================================

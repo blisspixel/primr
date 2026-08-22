@@ -10,11 +10,21 @@ expensive full pipeline tests. Run these first to catch issues early.
 import socket
 import warnings
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 _GEMINI_NETWORK_AVAILABLE: bool | None = None
+
+
+def test_accordion_section_cost_uses_the_shared_planning_floor():
+    from primr.ai.accordion_test import _estimate_accordion_section_cost
+    from primr.utils.cost_estimator import ACCORDION_WRITING_OVERHEAD
+
+    overhead = ACCORDION_WRITING_OVERHEAD["deep-research"]
+    assert _estimate_accordion_section_cost() > 0
+    assert overhead["section_calls"] > 0
 
 
 def _is_network_unavailable(error: Exception | str) -> bool:
@@ -317,6 +327,89 @@ async def test_accordion_write_failure_retains_pending_interaction(tmp_path, mon
 
     assert result.success is False
     acknowledge_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_accordion_parses_current_interaction_steps(monkeypatch):
+    from primr.ai.accordion_test import AccordionTestRunner
+
+    runner = object.__new__(AccordionTestRunner)
+    runner._api_call_count = 0
+    interaction = SimpleNamespace(id="interaction-123")
+    completed = SimpleNamespace(
+        status="completed",
+        steps=[
+            {"type": "user_input", "content": [{"text": "request"}]},
+            {"type": "model_output", "content": [{"text": "Current response text"}]},
+        ],
+    )
+    runner._client = SimpleNamespace(
+        interactions=SimpleNamespace(
+            create=MagicMock(return_value=interaction),
+            get=MagicMock(return_value=completed),
+        )
+    )
+    monkeypatch.setattr("primr.utils.model_policy.require_model_calls_allowed", lambda _label: None)
+    save = MagicMock()
+    monkeypatch.setattr("primr.ai.job_persistence.save_pending_job", save)
+
+    result = await runner._execute_deep_research("Research Example")
+
+    assert result["success"] is True
+    assert result["content"] == "Current response text"
+    save.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_accordion_flash_write_records_shared_usage(monkeypatch):
+    from primr.ai.accordion_test import AccordionTestRunner
+
+    response = SimpleNamespace(text="Section text", usage_metadata=SimpleNamespace())
+    runner = object.__new__(AccordionTestRunner)
+    runner._api_call_count = 0
+    runner._client = SimpleNamespace(
+        models=SimpleNamespace(generate_content=MagicMock(return_value=response))
+    )
+    monkeypatch.setattr("primr.utils.model_policy.require_model_calls_allowed", lambda _label: None)
+    record = MagicMock()
+
+    with patch("primr.ai.llm.record_gemini_response_usage", record):
+        result = await runner._write_section_gemini("Write it")
+
+    assert result == {"success": True, "content": "Section text"}
+    record.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_accordion_budget_counts_accepted_deep_research_task(tmp_path, monkeypatch):
+    from primr.ai.accordion_test import AccordionTestConfig, AccordionTestRunner
+    from primr.config.models import DEEP_RESEARCH_COST
+    from primr.utils.run_budget import clear_run_budget, set_run_budget
+
+    runner = object.__new__(AccordionTestRunner)
+    runner._api_call_count = 0
+    runner._execute_deep_research = AsyncMock(
+        return_value={"success": True, "content": "Dossier", "interaction_id": ""}
+    )
+    runner._write_section_gemini = AsyncMock(
+        return_value={"success": True, "content": "Section content"}
+    )
+    monkeypatch.setattr("primr.ai.accordion_test.OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr("primr.utils.run_budget.observed_session_spend", lambda: 0.0)
+    monkeypatch.setattr("primr.ai.accordion_test._estimate_accordion_section_cost", lambda: 0.1)
+
+    set_run_budget(DEEP_RESEARCH_COST.standard_task_cost + 0.05)
+    try:
+        result = await runner.run_test(
+            AccordionTestConfig(topic="Example", section_delay_seconds=0)
+        )
+    finally:
+        clear_run_budget()
+
+    assert result.success is False
+    assert result.error == "No report sections were completed"
+    assert result.sections_completed == 0
+    runner._write_section_gemini.assert_not_called()
 
 
 class TestOrchestratorConfiguration:

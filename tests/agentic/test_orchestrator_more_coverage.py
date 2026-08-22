@@ -407,6 +407,28 @@ def test_pre_hook_block_produces_failed_stage(fast_subagents):
         assert "Blocked by hook" in (scrape_result.error or "")
 
 
+def test_pre_hooks_receive_company_url(fast_subagents):
+    seen: list[str | None] = []
+
+    class _CaptureUrlHook(Hook):
+        @property
+        def hook_type(self) -> HookType:
+            return HookType.PRE_TOOL_USE
+
+        async def execute(self, context: HookContext) -> HookResponse:
+            seen.append(context.arguments.get("company_url"))
+            return HookResponse(result=HookResult.ALLOW)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        hooks = HookSystem()
+        hooks.register(_CaptureUrlHook())
+        orch = ResearchOrchestrator(config=_config(tmp), hook_system=hooks)
+        asyncio.run(orch.research("Acme", "https://acme.example", mode="scrape"))
+
+    assert seen
+    assert all(url == "https://acme.example" for url in seen)
+
+
 def test_exhausted_run_budget_blocks_later_stages(fast_subagents, monkeypatch):
     from primr.utils.run_budget import clear_run_budget, set_run_budget
 

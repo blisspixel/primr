@@ -69,6 +69,34 @@ class TestAccordionCostGate:
         assert code == 1
         launch.assert_not_called()
 
+    @pytest.mark.parametrize("budget", [float("nan"), float("inf"), float("-inf")])
+    def test_nonfinite_budget_refuses(self, monkeypatch, estimate_seam, budget):
+        launch = MagicMock()
+        monkeypatch.setattr("primr.ai.accordion_test.run_accordion_test", launch)
+
+        assert handle_test_accordion(_config(budget_usd=budget, skip_confirm=True)) == 1
+        launch.assert_not_called()
+
+    def test_budget_activates_runtime_ceiling(self, monkeypatch, estimate_seam):
+        from primr.utils.run_budget import get_run_budget
+
+        seen: dict[str, float | None] = {}
+        result = MagicMock()
+        result.success = True
+        result.page_estimate = 12.0
+        result.output_path = "out.md"
+
+        def launch(**_kwargs):
+            budget = get_run_budget()
+            seen["max"] = None if budget is None else budget.max_cost
+            return result
+
+        monkeypatch.setattr("primr.ai.accordion_test.run_accordion_test", launch)
+        code = handle_test_accordion(_config(budget_usd=5.0, skip_confirm=True))
+        assert code == 0
+        assert seen["max"] == 5.0
+        assert get_run_budget() is None
+
     def test_skip_confirm_launches_after_quote(self, monkeypatch, estimate_seam):
         result = MagicMock()
         result.success = True

@@ -64,6 +64,14 @@ Optional controlled fill-in for missing profile/company pairs (explicit spend ca
 primr --eval --eval-id eval-2026-02-r1 --eval-run-missing --eval-manifest eval_companies.csv --eval-max-new-runs 2 --eval-max-estimated-cost 12
 ```
 
+The maximum estimated cost is a batch-wide ceiling, not approval. Primr quotes
+the selected missing cells and still requires interactive confirmation or
+`--skip-confirm`. Once execution starts, each launched cell reserves its
+planning estimate even if that run fails or returns partially, and only the
+uncommitted remainder is available to later cells. This remains correct when
+individual research runs reset their own usage counters. Negative, infinite,
+and NaN estimates or ceilings are rejected before provider work.
+
 ## LLM Judge Overlays
 
 Optional LLM-judge overlays on staged reports:

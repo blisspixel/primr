@@ -80,6 +80,19 @@ class TestA2AExternalAgentHook:
         assert result.result == HookResult.BLOCK
 
     @pytest.mark.asyncio
+    async def test_block_log_redacts_agent_url_query(self, hook, caplog):
+        ctx = HookContext(
+            hook_type=HookType.PRE_TOOL_USE,
+            tool_name=DELEGATE_TOOL_NAME,
+            arguments={"agent_url": "https://agent.example.com/rpc?token=secret"},
+        )
+        with patch("primr.a2a.hooks.URLValidator") as mock_validator:
+            mock_validator.return_value.validate.return_value = _mock_url_invalid("blocked")
+            await hook.execute(ctx)
+
+        assert "token=secret" not in caplog.text
+
+    @pytest.mark.asyncio
     async def test_blocks_private_ip(self, hook):
         """Private IPs are blocked by SSRF guard."""
         ctx = HookContext(

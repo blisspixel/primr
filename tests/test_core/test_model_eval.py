@@ -794,6 +794,21 @@ class TestProfileSlotRegistry:
         with pytest.raises(ValueError, match="non-empty"):
             register_eval_profile(EvalProfileSlot(name=""))
 
+    @pytest.mark.parametrize("cost", [-0.01, float("nan"), float("inf")])
+    def test_register_rejects_invalid_fixed_cost(self, cost: float) -> None:
+        with pytest.raises(ValueError, match="finite and non-negative"):
+            register_eval_profile(
+                EvalProfileSlot(name="test-invalid-cost", estimated_cost_usd=cost)
+            )
+
+    def test_register_allows_zero_cost_local_profile(self) -> None:
+        slot = EvalProfileSlot(name="test-zero-cost", estimated_cost_usd=0.0)
+        try:
+            register_eval_profile(slot)
+            assert get_eval_profile("test-zero-cost") is slot
+        finally:
+            unregister_eval_profile("test-zero-cost")
+
     def test_unregister_builtin_raises(self) -> None:
         """Built-in slots cannot be removed - they're load-bearing for back-compat."""
         with pytest.raises(ValueError, match="built-in"):

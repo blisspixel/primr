@@ -504,27 +504,15 @@ class SSRFGuardHook(Hook):
         if not url:
             return HookResponse(result=HookResult.ALLOW)
 
-        try:
-            # Delegate to existing security module
-            from primr.mcp_server.security import URLValidator
+        from primr.utils.security import is_safe_url
 
-            validator = URLValidator()
-            result = validator.validate(url)
-
-            if result.valid:
-                return HookResponse(result=HookResult.ALLOW)
-            else:
-                return HookResponse(
-                    result=HookResult.BLOCK,
-                    message=f"SSRF protection: {result.error_message}",
-                )
-        except ImportError:
-            # Security module not available, allow but warn
-            logger.warning("Security module not available for SSRF validation")
-            return HookResponse(
-                result=HookResult.WARN,
-                message="SSRF validation skipped: security module not available",
-            )
+        ok, reason = is_safe_url(str(url))
+        if ok:
+            return HookResponse(result=HookResult.ALLOW)
+        return HookResponse(
+            result=HookResult.BLOCK,
+            message=f"SSRF protection: {reason}",
+        )
 
 
 class QAGateHook(Hook):

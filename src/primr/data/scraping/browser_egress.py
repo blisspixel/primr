@@ -134,14 +134,17 @@ def install_playwright_egress_guard(context, tier_name: str) -> None:
         return
 
     def _guard(route) -> None:
+        from primr.utils.security import redact_url_for_log
+
         request_url = route.request.url
+        logged_url = redact_url_for_log(request_url)
         try:
             allowed, reason = browser_request_allowed(request_url)
         except Exception as exc:
             logger.warning(
                 "%s: aborted browser request %s after guard failure: %s",
                 tier_name,
-                request_url,
+                logged_url,
                 exc,
             )
             route.abort()
@@ -151,7 +154,7 @@ def install_playwright_egress_guard(context, tier_name: str) -> None:
             route.continue_()
             return
 
-        logger.info("%s: blocked browser request %s (%s)", tier_name, request_url, reason)
+        logger.info("%s: blocked browser request %s (%s)", tier_name, logged_url, reason)
         route.abort()
 
     context.route("**/*", _guard)

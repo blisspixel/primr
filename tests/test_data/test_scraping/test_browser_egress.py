@@ -143,6 +143,29 @@ def test_install_playwright_egress_guard_continues_safe_requests():
     route.abort.assert_not_called()
 
 
+def test_install_playwright_egress_guard_redacts_blocked_urls(caplog):
+    import logging
+
+    context = MagicMock()
+    route = MagicMock()
+    route.request.url = "https://example.com/page?token=secret"
+
+    with (
+        caplog.at_level(logging.INFO),
+        patch(
+            "primr.data.scraping.browser_egress.browser_request_allowed",
+            return_value=(False, "blocked"),
+        ),
+    ):
+        install_playwright_egress_guard(context, "test")
+        handler = context.route.call_args.args[1]
+        handler(route)
+
+    joined = " ".join(record.getMessage() for record in caplog.records)
+    assert "token=secret" not in joined
+    route.abort.assert_called_once()
+
+
 def test_install_playwright_egress_guard_aborts_unsafe_requests():
     context = MagicMock()
     route = MagicMock()

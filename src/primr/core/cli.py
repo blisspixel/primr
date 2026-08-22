@@ -1568,11 +1568,11 @@ def _handle_roadmap(config: CLIConfig) -> int:
 def _handle_eval(config: CLIConfig) -> int:
     """Handle versioned model/profile evaluation."""
     import csv
-    import glob
     import shutil
     from pathlib import Path
 
     from primr.config.config import FAST_FEEDBACK_RULES_PATH, OUTPUT_DIR
+    from primr.core.cli_eval_spend import approve_eval_spend, valid_eval_spend_ceiling
     from primr.core.cli_local_stage_eval import handle_stage_quality_generation
     from primr.core.model_eval import (
         LLMJudgeMetadata,
@@ -1588,8 +1588,6 @@ def _handle_eval(config: CLIConfig) -> int:
         write_local_judge_sweep_markdown,
         write_local_judge_sweep_summary,
     )
-    from primr.core.research_agent import perform_research
-    from primr.utils.cost_estimator import estimate_cost
 
     if not config.eval_id:
         console.error("--eval-id is required for --eval")
@@ -1670,7 +1668,7 @@ def _handle_eval(config: CLIConfig) -> int:
         if config.eval_max_new_runs <= 0:
             console.error("--eval-run-missing requires --eval-max-new-runs > 0")
             return 1
-        if config.eval_max_estimated_cost <= 0:
+        if not valid_eval_spend_ceiling(config.eval_max_estimated_cost):
             console.error("--eval-run-missing requires --eval-max-estimated-cost > 0")
             return 1
 
@@ -1700,25 +1698,13 @@ def _handle_eval(config: CLIConfig) -> int:
 
             to_run = current.missing_pairs[: config.eval_max_new_runs]
 
-            def _profile_estimate(profile: str) -> float:
-                # Consult the slot registry first - registered slots may declare
-                # an explicit estimated_cost_usd (v1.24.0 cross-provider slots).
-                slot = get_eval_profile(profile)
-                if slot is not None and slot.estimated_cost_usd is not None:
-                    return slot.estimated_cost_usd
+            from primr.core.cli_eval_spend import (
+                estimate_eval_profile_cost,
+                execute_eval_run_missing,
+            )
+            from primr.core.research_agent import perform_research
 
-                # Built-in slots fall through to the legacy mode-based estimator.
-                if profile == "fast":
-                    return estimate_cost(
-                        "complete", include_ai_strategy=True, fast_mode=True
-                    ).total_cost
-                if profile == "lite":
-                    return estimate_cost(
-                        "complete", include_ai_strategy=True, lite_strategy=True
-                    ).total_cost
-                return estimate_cost("complete", include_ai_strategy=True).total_cost
-
-            estimated_total = sum(_profile_estimate(profile) for _, profile in to_run)
+            estimated_total = sum(estimate_eval_profile_cost(profile) for _, profile in to_run)
             if estimated_total > config.eval_max_estimated_cost:
                 console.error(
                     f"Estimated cost for planned runs (${estimated_total:.2f}) exceeds cap "
@@ -1727,86 +1713,19 @@ def _handle_eval(config: CLIConfig) -> int:
                 console.info("Increase --eval-max-estimated-cost or lower --eval-max-new-runs.")
                 return 1
 
-            from primr.core.cli_eval_spend import approve_eval_spend
-
             console.step("Eval run-missing")
             spend_gate = approve_eval_spend(config, estimated_total, "eval run-missing")
             if spend_gate is not None:
                 return spend_gate
             console.info(f"Executing {len(to_run)} run(s), estimated <= ${estimated_total:.2f}")
-
-            from primr.ai.routing import EvalRecipeOverride
-
-            for company, profile in to_run:
-                website = websites.get(company.lower())
-                if not website:
-                    console.warn(f"Skipping {company} ({profile}): website missing in manifest")
-                    continue
-
-                profile_output = eval_dir / profile
-                profile_output.mkdir(parents=True, exist_ok=True)
-
-                # Resolve the slot's recipe; install it as an override so the
-                # writing-tier defaults in research_agent pick up the slot's
-                # writing model. Built-in slots (full/lite/fast) have recipe=None
-                # and fall through to the legacy mode flags below.
-                slot = get_eval_profile(profile)
-                slot_recipe = slot.recipe if slot is not None else None
-
-                console.info(f"Running {company} [{profile}]")
-                with EvalRecipeOverride(slot_recipe):
-                    run_result = perform_research(
-                        company_name=company,
-                        website=website,
-                        mode="complete",
-                        ai_strategy=True,
-                        skip_confirm=True,
-                        lite_strategy=(profile == "lite"),
-                        fast_mode=(profile == "fast"),
-                    )
-                if not run_result:
-                    console.warn(f"Run failed: {company} [{profile}]")
-                    continue
-
-                # Copy latest strategic overview artifact to eval profile folder.
-                # Match either underscored company names (Acme_Corp_Inc.) or
-                # space-preserving names (Acme Corp Inc.) - primr's actual
-                # output filenames preserve spaces, but historical patterns
-                # used underscores.
-                output_root = Path(OUTPUT_DIR)
-                company_prefix_underscore = company.replace(" ", "_")
-                # Escape the company-name fragments so brackets / "?" / "*"
-                # in a manifest name don't get reinterpreted as glob
-                # metacharacters and silently miss the just-staged report.
-                # Same bug class as the batch resume fix in 793e5d1.
-                matches: list[Path] = []
-                for ext in ("*.md", "*.txt"):
-                    matches.extend(
-                        output_root.glob(
-                            f"{glob.escape(company_prefix_underscore)}_Strategic_Overview_{ext}"
-                        )
-                    )
-                    matches.extend(
-                        output_root.glob(f"{glob.escape(company)}_Strategic_Overview_{ext}")
-                    )
-                # Dedupe (the two patterns can both match in some setups)
-                matches = list(dict.fromkeys(matches).keys())
-                if matches:
-                    latest = max(matches, key=lambda p: p.stat().st_mtime)
-                    # Always copy with an underscored filename so eval
-                    # downstream tooling (scorecard reader) can rely on the
-                    # convention.
-                    canonical_name = (
-                        f"{company_prefix_underscore}_Strategic_Overview{latest.suffix}"
-                    )
-                    shutil.copy2(latest, profile_output / canonical_name)
-                    console.info(
-                        f"Staged report into eval folder: {profile_output.name}/{canonical_name}"
-                    )
-                else:
-                    console.warn(
-                        f"Could not locate output artifact to copy for {company} [{profile}]"
-                    )
+            execute_eval_run_missing(
+                to_run=to_run,
+                websites=websites,
+                eval_dir=eval_dir,
+                max_cost_usd=float(config.eval_max_estimated_cost),
+                output_dir=OUTPUT_DIR,
+                perform_research=perform_research,
+            )
 
     eval_result = evaluate_outputs(
         eval_id=config.eval_id,
@@ -1842,7 +1761,9 @@ def _handle_eval(config: CLIConfig) -> int:
 
     judge_rows = []
     if config.eval_llm_judge:
-        if config.eval_judge_provider == "grok" and config.eval_judge_max_cost <= 0:
+        if config.eval_judge_provider == "grok" and not valid_eval_spend_ceiling(
+            config.eval_judge_max_cost
+        ):
             console.error(
                 "--eval-llm-judge with --eval-judge-provider grok requires --eval-judge-max-cost > 0"
             )
@@ -1857,8 +1778,6 @@ def _handle_eval(config: CLIConfig) -> int:
         if not candidate_profiles:
             console.warn("No non-baseline profile with reports available for LLM judge.")
             return 0
-        from primr.core.cli_eval_spend import approve_eval_spend
-
         console.blank()
         console.step("LLM Judge")
         judge_gate = approve_eval_spend(config, float(config.eval_judge_max_cost), "eval LLM judge")

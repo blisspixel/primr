@@ -56,18 +56,18 @@ NEW_FILE_MAX_LINES = 1000
 FILE_LINE_CEILINGS: dict[str, int] = {
     # research_agent.py and cli.py remain below their committed-main baselines.
     # These ceilings track the current measured sizes and may only shrink.
-    "core/research_agent.py": 4291,
-    "core/cli.py": 2559,
+    "core/research_agent.py": 4276,
+    "core/cli.py": 2478,
     "ai/deep_research.py": 3812,
     "data/scraping/browsers.py": 1835,
     "data/hiring_signals.py": 1577,
-    "core/model_eval.py": 1832,
+    "core/model_eval.py": 1828,
     "data/scrape.py": 1828,
     "data/fallback_sources.py": 1084,
     # cli_batch_runtime.py received extracted batch-runtime code during the
     # cli.py decomposition; pinned here now that it exceeds the new-file cap.
     "core/cli_batch_runtime.py": 1043,
-    "agentic/hooks.py": 1022,
+    "agentic/hooks.py": 1010,
     "data/scraping/orchestrator.py": 1064,
     "data/scraping/structured_content.py": 1067,
 }

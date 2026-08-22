@@ -809,7 +809,11 @@ class ResearchOrchestrator:
             pre_context = HookContext(
                 hook_type=HookType.PRE_TOOL_USE,
                 stage_name=stage_name,
-                arguments={"subagent": subagent.name, "estimated_cost_usd": 0.0},
+                arguments={
+                    "subagent": subagent.name,
+                    "estimated_cost_usd": 0.0,
+                    "company_url": subagent.company_url,
+                },
                 company_name=subagent.company_name,
             )
             response = await self._hooks.run_pre_hooks(stage_name, pre_context)

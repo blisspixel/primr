@@ -108,9 +108,9 @@ def clear_run_budget() -> None:
 def observed_session_spend() -> float:
     """Current actual LLM spend for this process, in USD.
 
-    Per-model xAI/cross-provider session cost plus the Gemini client's
-    accumulated cost. Same accounting ``--budget`` checkpoints use, without
-    importing ``research_agent`` (that edge grows the first-party cycle).
+    Per-model xAI/cross-provider session cost plus both Gemini accounting
+    seams. Same accounting ``--budget`` checkpoints use, without importing
+    ``research_agent`` (that edge grows the first-party cycle).
     """
     from primr.ai.grok_client import get_grok_session_usage_by_model
     from primr.config.models import PrimrModels
@@ -126,7 +126,21 @@ def observed_session_spend() -> float:
     from primr.ai.client import get_client
 
     flash_cost = get_client().get_usage_summary().get("total_cost", 0.0)
-    return grok_cost + flash_cost
+
+    # Direct Gemini SDK calls record through the provider seam rather than the
+    # legacy AIClient. Accordion section writes and a few compatibility paths
+    # use this route, so omitting it turns their runtime budget into a paper
+    # ceiling even though their response usage was recorded correctly.
+    from primr.ai.gemini_usage import get_usage_by_model
+
+    provider_cost = 0.0
+    for model_name, direct_tokens in get_usage_by_model().items():
+        cost_model = (
+            model_name if PrimrModels.get_model_config(model_name) else PrimrModels.FLASH_MODEL
+        )
+        provider_cost += PrimrModels.calculate_recorded_cost(cost_model, direct_tokens)[0]
+
+    return grok_cost + flash_cost + provider_cost
 
 
 def skip_stage_if_over_budget(spent_usd: float, stage_label: str) -> bool:
