@@ -550,6 +550,7 @@ def run_doctor(*, fix: bool = False) -> int:
             assume_yes=False,
             skip_browsers=False,
             run_doctor_after=True,
+            doctor_runner=run_doctor,
         )
 
     return 0 if all_passed else 1

@@ -15,7 +15,7 @@ def _isolated(monkeypatch, tmp_path):
     monkeypatch.delenv("PRIMR_CONTINUOUS_REASONING", raising=False)
     monkeypatch.setattr("primr.ai.grok_client.reset_grok_session", lambda: None)
     monkeypatch.setattr(
-        "primr.core.research_agent.create_working_folder",
+        "primr.core.workspace.create_working_folder",
         lambda company, website: str(tmp_path / "run"),
     )
 

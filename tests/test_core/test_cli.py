@@ -9,7 +9,7 @@ Tests cover:
 """
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from hypothesis import given, settings
@@ -20,13 +20,13 @@ from primr.core.cli import (
     CLIConfig,
     Command,
     _create_parser,
-    _ensure_project_env_file,
     _handle_research,
     _resolve_local_judge_models,
     main,
     parse_args,
     run_doctor,
 )
+from primr.core.cli_init import _ensure_project_env_file
 
 # =============================================================================
 # Command Enum Tests
@@ -632,6 +632,7 @@ class TestMain:
                 assume_yes=False,
                 skip_browsers=True,
                 run_doctor_after=False,
+                doctor_runner=ANY,
             )
 
     def test_ensure_project_env_file_creates_safe_template(self, tmp_path, monkeypatch):

@@ -239,7 +239,7 @@ def _default_regenerate(
     new_evidence: str,
     source_urls: list[str],
 ) -> str:
-    from primr.core.research_agent import _fast_regenerate_section
+    from primr.core.section_regeneration import _fast_regenerate_section
 
     return _fast_regenerate_section(
         company_name,
@@ -254,10 +254,8 @@ def _default_regenerate(
 
 def _default_prune(content: str) -> str:
     """Deterministic cleanup between iterations (Prune phase)."""
-    from primr.core.research_agent import (
-        _clean_fast_report_output,
-        _normalize_fast_citations,
-    )
+    from primr.core.report_cleanup import _clean_fast_report_output
+    from primr.core.strategy_artifacts import _normalize_fast_citations
 
     cleaned = _clean_fast_report_output(content)
     return _normalize_fast_citations(cleaned)

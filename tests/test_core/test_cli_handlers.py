@@ -7,7 +7,7 @@ and confirm the delegation contract.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -51,6 +51,7 @@ class TestHandleInit:
             assume_yes=True,
             skip_browsers=True,
             run_doctor_after=False,
+            doctor_runner=ANY,
         )
 
     def test_init_no_doctor_inverted(self, monkeypatch):

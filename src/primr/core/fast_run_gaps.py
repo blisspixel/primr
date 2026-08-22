@@ -85,13 +85,11 @@ def deepen_research(
     # with the sources already collected rather than spending past the cap.
     # Mirrors the Phase-6 strategy checkpoint: the irreversible act (spend) is
     # gated, never the reasoning.
-    from primr.utils.run_budget import get_run_budget
+    from primr.utils.run_budget import get_run_budget, observed_session_spend
 
     _run_budget = get_run_budget()
     if _run_budget is not None:
-        from primr.core.research_agent import _compute_session_llm_cost
-
-        _spent_so_far = _compute_session_llm_cost()
+        _spent_so_far = observed_session_spend()
         _run_budget.sync_spend(_spent_so_far)
         if _run_budget.exceeded():
             console.warn(

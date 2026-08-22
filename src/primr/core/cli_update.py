@@ -29,12 +29,14 @@ def notify_if_update_available() -> None:
     """
     try:
         latest = check_for_update(__version__)
-    except Exception:  # pragma: no cover - check_for_update is already safe
+        if not latest:
+            return
+        console.blank()
+        console.info(f"Update available: v{__version__} -> v{latest}. Run 'primr update'.")
+    except Exception:
+        # This notice runs after successful research. A cache, network, or
+        # output failure must never turn completed work into a failed command.
         return
-    if not latest:
-        return
-    console.blank()
-    console.info(f"Update available: v{__version__} -> v{latest}. Run 'primr update'.")
 
 
 def run_update(*, check_only: bool = False, yes: bool = False) -> int:

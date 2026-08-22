@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.5
+Current State: v1.39.6
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -513,7 +513,7 @@ The job is "URL in, consultant-grade artifact out," done well.
 | **1.43** | Memory layer 1 complete: run pointers, claim history, retention/deletion, export without flagged gaps. |
 | **1.44+** | Progressive early artifacts Layer 1; batch API public surface; pipeline overlap where measured; coverage ratchet continues every slice. |
 
-**Status (as of v1.39.5):** most of the 1.x engineering backlog is closed -
+**Status (as of v1.39.6):** most of the 1.x engineering backlog is closed -
 artifact pipeline contract (#1-2), cost/observability surface (#5, #7, #8,
 #12, #13), production failover (#6), QA iteration loop (#10), agentic write
 constraints (#11), runtime robustness (#24), and the `perform_fast_research`
@@ -2050,6 +2050,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.6 | Aug 2026 | **Architecture ownership and cycle reduction.** Explicit CLI callbacks and direct owner imports reduce the package-inclusive CLI/research component from 22 modules to 12 with zero new production modules, preserved compatibility exports, direct owner tests, and fresh-interpreter import-order coverage. |
 | 1.39.5 | Aug 2026 | **Eval, Accordion, and egress hardening.** Batch eval reserves each started cell across per-run counter resets, non-finite spend limits fail closed, direct Gemini compatibility calls join shared usage accounting, Accordion reads the current Interactions schema and refuses empty success, agentic SSRF checks receive the company URL, and browser/A2A URL logs redact credentials and queries. |
 | 1.39.4 | Aug 2026 | **Spend honesty + remaining SSRF embeddings.** Runtime budget bind on generate_strategy/orchestrate/sequential fan-out; process_batch fail-closed; unparseable resolved addresses and IPv4-translated/compatible embeddings blocked; browser egress denies non-HTTP schemes. |
 | 1.39.3 | Aug 2026 | **Hardening: SSRF pinning, scrape-cost honesty, artifact classification, JWT exp.** MCP/A2A share the central SSRF guard (mapped IPv6/NAT64), remaining fetch seams pin DNS, scrape mode no longer runs structured writing, QA files are not the Strategic Overview, HTTP job resources are owner-gated. |

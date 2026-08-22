@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -169,6 +170,7 @@ def _run_init_flow(
     assume_yes: bool,
     skip_browsers: bool,
     run_doctor_after: bool,
+    doctor_runner: Callable[..., int] | None = None,
 ) -> int:
     """Run first-time setup for CLI-first installs."""
     import getpass
@@ -318,10 +320,11 @@ def _run_init_flow(
             console.info("  Run later: python -m playwright install chromium")
 
     if run_doctor_after and not non_interactive:
-        from primr.core.cli import run_doctor
+        if doctor_runner is None:
+            raise RuntimeError("doctor_runner is required when run_doctor_after is enabled")
 
         console.blank()
-        return run_doctor(fix=False)
+        return doctor_runner(fix=False)
 
     console.blank()
     if all_ready:

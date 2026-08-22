@@ -62,8 +62,9 @@ def run_plan(config: CLIConfig) -> int:
         generate_hypothesis_tree,
         save_hypothesis_tree,
     )
-    from primr.core.research_agent import _extract_domain, create_working_folder
+    from primr.core.recon_context import validated_recon_domain
     from primr.core.research_framing import resolve_run_framing
+    from primr.core.workspace import create_working_folder
     from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     framing, _notes, framing_error = resolve_run_framing(
@@ -79,7 +80,7 @@ def run_plan(config: CLIConfig) -> int:
 
     console.banner("Plan preview (no spend beyond a cheap Day-1 pass)")
 
-    domain = _extract_domain(config.website)
+    domain = validated_recon_domain(config.website)
     recon_text = _safe_recon(domain) if (domain and not config.skip_recon) else ""
 
     with console.timed_operation("Forming Day-1 hypothesis tree"):

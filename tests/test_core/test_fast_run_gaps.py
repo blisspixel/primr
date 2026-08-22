@@ -187,7 +187,7 @@ class TestBudgetCheckpoint:
     def test_skipped_when_budget_already_exceeded(self, seams, monkeypatch):
         from primr.utils.run_budget import clear_run_budget, set_run_budget
 
-        monkeypatch.setattr("primr.core.research_agent._compute_session_llm_cost", lambda: 100.0)
+        monkeypatch.setattr("primr.utils.run_budget.observed_session_spend", lambda: 100.0)
         set_run_budget(1.0)  # ceiling $1, already spent $100 -> exceeded
         try:
             result = _call(seams)
@@ -210,7 +210,7 @@ class TestBudgetCheckpoint:
     def test_proceeds_when_budget_has_headroom(self, seams, monkeypatch):
         from primr.utils.run_budget import clear_run_budget, set_run_budget
 
-        monkeypatch.setattr("primr.core.research_agent._compute_session_llm_cost", lambda: 0.10)
+        monkeypatch.setattr("primr.utils.run_budget.observed_session_spend", lambda: 0.10)
         set_run_budget(100.0)  # plenty of headroom -> normal deepening
         try:
             result = _call(seams)

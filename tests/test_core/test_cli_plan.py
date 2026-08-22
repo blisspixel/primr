@@ -20,9 +20,7 @@ def _config(**overrides):
 
 def _mock_externals(monkeypatch, tmp_path, *, recon="Azure DNS", tree=_TREE_JSON):
     monkeypatch.setattr(cli_plan, "_safe_recon", lambda _d: recon)
-    monkeypatch.setattr(
-        "primr.core.research_agent.create_working_folder", lambda *a, **k: str(tmp_path)
-    )
+    monkeypatch.setattr("primr.core.workspace.create_working_folder", lambda *a, **k: str(tmp_path))
     monkeypatch.setattr("primr.pipeline.llm_failover.call_with_failover", lambda *a, **k: tree)
 
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from recon_tool.models import ConfidenceLevel, TenantInfo
@@ -23,7 +24,22 @@ from primr.core.recon_context import (
     SECTION_INFRASTRUCTURE,
     SECTION_SIGNAL_INTELLIGENCE,
     format_recon_context,
+    validated_recon_domain,
 )
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("https://www.acme.example:8443/path", "acme.example"),
+        ("acme.example", "acme.example"),
+        ("not a url", None),
+        ("", None),
+    ],
+)
+def test_validated_recon_domain(url, expected):
+    assert validated_recon_domain(url) == expected
+
 
 # ---------------------------------------------------------------------------
 # Strategies

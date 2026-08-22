@@ -124,6 +124,14 @@ def _pools_from_external_data(
     return source_urls, source_urls_seen, external_text_parts, external_raw_parts
 
 
+def _cache_metric(payload: dict[str, Any], name: str, default: int) -> int:
+    """Return a nonnegative integer metric from a collection cache."""
+    value = payload.get(name, default)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(name)
+    return value
+
+
 def _load_collection_cache(folder_path: str) -> DataCollectionResult | None:
     """Return a durable collection snapshot when it is a nonempty regular file."""
     path = _collection_cache_path(folder_path)
@@ -148,19 +156,28 @@ def _load_collection_cache(folder_path: str) -> DataCollectionResult | None:
         return None
     scraped_text = {str(url): str(text) for url, text in scraped_data.items()}
     external_text = {str(url): str(text) for url, text in external_data.items()}
+    try:
+        pages_scraped = _cache_metric(payload, "pages_scraped", len(scraped_text))
+        total_scraped_chars = _cache_metric(
+            payload,
+            "total_scraped_chars",
+            sum(len(value) for value in scraped_text.values()),
+        )
+        external_query_count = _cache_metric(payload, "external_query_count", 0)
+    except ValueError:
+        logger.warning("Collection cache metrics invalid; re-running collection")
+        return None
     source_urls, source_urls_seen, external_text_parts, external_raw_parts = (
         _pools_from_external_data(external_text)
     )
     return DataCollectionResult(
         scraped_data=scraped_text,
-        pages_scraped=int(payload.get("pages_scraped") or len(scraped_text)),
+        pages_scraped=pages_scraped,
         summarized=summarized,
         raw_corpus=raw_corpus,
-        total_scraped_chars=int(
-            payload.get("total_scraped_chars") or sum(len(v or "") for v in scraped_text.values())
-        ),
+        total_scraped_chars=total_scraped_chars,
         external_data=external_text,
-        external_query_count=int(payload.get("external_query_count") or 0),
+        external_query_count=external_query_count,
         source_urls=source_urls,
         source_urls_seen=source_urls_seen,
         external_text_parts=external_text_parts,
@@ -224,7 +241,7 @@ def _collect_research_data_fresh(
     public_output_dir: str | None = None,
 ) -> DataCollectionResult:
     """Run paid collection and persist a resume cache."""
-    from primr.core.research_agent import _assess_source_relevance
+    from primr.core.source_relevance import _assess_source_relevance
 
     scan_domain = normalized_hostname(website or "", strip_www=True) or "website"
     console.phase_banner(
