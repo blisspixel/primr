@@ -101,9 +101,15 @@ SOURCES:
             )
             return external_data
 
-        keep_set = {round(n) - 1 for n in keep_indices if isinstance(n, (int, float))}
+        selected_indices = {
+            value - 1
+            for value in keep_indices
+            if isinstance(value, int) and not isinstance(value, bool)
+        }
         filtered = {
-            url_list[i]: external_data[url_list[i]] for i in keep_set if 0 <= i < len(url_list)
+            url: external_data[url]
+            for index, url in enumerate(url_list)
+            if index in selected_indices
         }
 
         if len(filtered) < 3:
