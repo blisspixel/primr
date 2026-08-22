@@ -798,6 +798,8 @@ class ResearchOrchestrator:
         """
         logger.debug(f"Executing stage: {stage_name}")
 
+        self._sync_run_budget_spend()
+
         # Hoist the import once so the names are bound for both pre- and
         # post-hook blocks even if `self._hooks` evaluates differently
         # between the two checks.
@@ -807,7 +809,7 @@ class ResearchOrchestrator:
             pre_context = HookContext(
                 hook_type=HookType.PRE_TOOL_USE,
                 stage_name=stage_name,
-                arguments={"subagent": subagent.name},
+                arguments={"subagent": subagent.name, "estimated_cost_usd": 0.0},
                 company_name=subagent.company_name,
             )
             response = await self._hooks.run_pre_hooks(stage_name, pre_context)
@@ -823,6 +825,8 @@ class ResearchOrchestrator:
         # Execute subagent
         result: SubagentResult[Any] = await subagent.execute()
 
+        self._sync_run_budget_spend()
+
         # Run post-hooks
         if self._hooks:
             from primr.agentic.hooks import HookContext, HookType
@@ -836,6 +840,18 @@ class ResearchOrchestrator:
             await self._hooks.run_post_hooks(stage_name, result, post_context)
 
         return result
+
+    def _sync_run_budget_spend(self) -> None:
+        """Copy session LLM spend into the active run budget (no-op if unset)."""
+        from primr.utils.run_budget import get_run_budget, observed_session_spend
+
+        budget = get_run_budget()
+        if budget is None:
+            return
+        try:
+            budget.sync_spend(observed_session_spend())
+        except Exception:
+            logger.debug("Orchestrator could not sync session spend into run budget", exc_info=True)
 
     def _derive_context(
         self,

@@ -690,6 +690,55 @@ class TestRunResearchOrchestrator:
         assert strategy_mock.await_args.kwargs["output_dir"].name == job.job_id
 
     @pytest.mark.asyncio
+    async def test_standard_path_skips_strategy_when_run_budget_exhausted(
+        self, server, runner, monkeypatch, tmp_path
+    ):
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(tmp_path))
+        monkeypatch.setattr(
+            "primr.ai.client.get_client",
+            lambda: SimpleNamespace(get_usage_summary=lambda: {"total_cost": 5.0}),
+        )
+        job = server.job_store.create("Acme Corp", "premium", owner_client_id="stdio")
+        result = SimpleNamespace(
+            success=True,
+            error=None,
+            raw_content="# Report Body",
+            section_results={},
+            pending_interaction_id="",
+        )
+        report = tmp_path / job.job_id / "report.md"
+        report.parent.mkdir(parents=True)
+        report.write_text("# report", encoding="utf-8")
+        report_path = str(report)
+        runner._save_report = AsyncMock(return_value=report_path)
+        runner._generate_run_manifest = AsyncMock(return_value=str(tmp_path / "run_manifest.json"))
+
+        with (
+            patch(
+                "primr.core.research_orchestrator.ResearchOrchestrator",
+                return_value=MagicMock(research=AsyncMock(return_value=result)),
+            ),
+            patch(
+                "primr.mcp_server.pipeline_runner.run_strategy_generation",
+                new=AsyncMock(),
+            ) as strategy_mock,
+        ):
+            await runner.run_research(
+                job,
+                "https://example.com",
+                "premium",
+                platform="agnostic",
+                skip_qa=True,
+                budget_usd=1.0,
+            )
+
+        updated = server.job_store.get(job.job_id)
+        assert updated.current_stage == ResearchStage.COMPLETED
+        strategy_mock.assert_not_awaited()
+        assert report_path in updated.output_paths
+
+    @pytest.mark.asyncio
     async def test_standard_path_report_only_shape_emits_no_strategy(
         self, server, runner, monkeypatch, tmp_path
     ):

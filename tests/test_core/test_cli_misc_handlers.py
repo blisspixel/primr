@@ -56,6 +56,29 @@ class TestHandleGenerateVendor:
         assert result == 0
         assert gen_mock.call_count == 5
 
+    def test_runtime_budget_skips_remaining_vendors(self, monkeypatch, capsys):
+        gen_mock = MagicMock(return_value="/path.json")
+        monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
+
+        def skip_after_first(spent: float, _label: str) -> bool:
+            return spent > 0
+
+        monkeypatch.setattr("primr.core.cli_vendor.skip_stage_if_over_budget", skip_after_first)
+        result = run_generate_vendor(
+            _config(
+                generate_vendor="all",
+                skip_confirm=True,
+                budget_usd=12.5,
+                json_output=True,
+            )
+        )
+        payload = json.loads(capsys.readouterr().out)
+        assert result == 1
+        assert gen_mock.call_count == 1
+        assert payload["status"] == "partial"
+        assert len(payload["artifacts"]) == 1
+        assert len(payload["failed_vendors"]) == 4
+
     def test_single_vendor(self, monkeypatch):
         gen_mock = MagicMock(return_value="/path.json")
         monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)

@@ -407,6 +407,28 @@ def test_pre_hook_block_produces_failed_stage(fast_subagents):
         assert "Blocked by hook" in (scrape_result.error or "")
 
 
+def test_exhausted_run_budget_blocks_later_stages(fast_subagents, monkeypatch):
+    from primr.utils.run_budget import clear_run_budget, set_run_budget
+
+    monkeypatch.setattr(
+        "primr.utils.run_budget.observed_session_spend",
+        lambda: 1.0,
+    )
+    clear_run_budget()
+    try:
+        budget = set_run_budget(1.0)
+        with tempfile.TemporaryDirectory() as tmp:
+            hooks = HookSystem()
+            hooks.register(budget.as_hook())
+            orch = ResearchOrchestrator(config=_config(tmp), hook_system=hooks)
+            result = asyncio.run(orch.research("Acme", "https://acme.example", mode="full"))
+        scrape_result = result.stage_results["scrape"]
+        assert scrape_result.is_failure
+        assert "Blocked by hook" in (scrape_result.error or "")
+    finally:
+        clear_run_budget()
+
+
 def test_post_hooks_run(fast_subagents):
     calls = []
 

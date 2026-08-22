@@ -68,6 +68,15 @@ class RunBudget:
         """
         return self.spent + max(0.0, estimated_next_cost_usd) >= self.max_cost
 
+    def as_hook(self) -> CostGuardHook:
+        """Return the CostGuardHook this budget accounts through.
+
+        Orchestrated runs register this hook so PRE_TOOL_USE checks the same
+        spent total that ``sync_spend`` checkpoints update. A second, unbound
+        CostGuardHook would never see recorded spend.
+        """
+        return self._hook
+
 
 _active_budget: RunBudget | None = None
 _budget_lock = threading.Lock()
@@ -94,6 +103,30 @@ def clear_run_budget() -> None:
     global _active_budget
     with _budget_lock:
         _active_budget = None
+
+
+def observed_session_spend() -> float:
+    """Current actual LLM spend for this process, in USD.
+
+    Per-model xAI/cross-provider session cost plus the Gemini client's
+    accumulated cost. Same accounting ``--budget`` checkpoints use, without
+    importing ``research_agent`` (that edge grows the first-party cycle).
+    """
+    from primr.ai.grok_client import get_grok_session_usage_by_model
+    from primr.config.models import PrimrModels
+
+    usage_by_model = get_grok_session_usage_by_model()
+    grok_cost = 0.0
+    for model_name, tokens in usage_by_model.items():
+        cost_model = (
+            model_name if PrimrModels.get_model_config(model_name) else PrimrModels.GROK_MODEL
+        )
+        grok_cost += PrimrModels.calculate_recorded_cost(cost_model, tokens)[0]
+
+    from primr.ai.client import get_client
+
+    flash_cost = get_client().get_usage_summary().get("total_cost", 0.0)
+    return grok_cost + flash_cost
 
 
 def skip_stage_if_over_budget(spent_usd: float, stage_label: str) -> bool:

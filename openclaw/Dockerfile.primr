@@ -74,7 +74,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 ENTRYPOINT ["primr-mcp", "--stdio"]
 
 # Labels for documentation
-ARG PRIMR_VERSION=1.39.3
+ARG PRIMR_VERSION=1.39.4
 LABEL org.opencontainers.image.title="Primr MCP Server"
 LABEL org.opencontainers.image.description="Primr company research tool for Open Claw integration"
 LABEL org.opencontainers.image.version="${PRIMR_VERSION}"

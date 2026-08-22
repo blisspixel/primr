@@ -2460,7 +2460,7 @@ def process_batch(
     platforms: tuple[str, ...] | None = None,
     industry: str | None = None,
     limit: int | None = None,
-    skip_confirm: bool = True,
+    skip_confirm: bool = False,
     *,
     dry_run: bool = False,
     json_output: bool = False,

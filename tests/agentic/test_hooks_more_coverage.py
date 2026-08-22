@@ -674,3 +674,15 @@ def test_cost_guard_negative_estimate_treated_as_zero():
     )
     response = asyncio.run(hook.execute(ctx))
     assert response.result == HookResult.ALLOW
+
+
+def test_cost_guard_exhausted_budget_blocks_zero_estimate():
+    hook = CostGuardHook(max_cost_usd=5.0)
+    hook.set_spent(5.0)
+    ctx = HookContext(
+        hook_type=HookType.PRE_TOOL_USE,
+        arguments={"estimated_cost_usd": 0.0},
+    )
+    response = asyncio.run(hook.execute(ctx))
+    assert response.result == HookResult.BLOCK
+    assert "Budget exceeded" in (response.message or "")
