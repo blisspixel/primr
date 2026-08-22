@@ -160,7 +160,6 @@ EXPECTED_IMPORT_CYCLES = {
             "primr.core.refine",
             "primr.core.research_agent",
             "primr.core.research_orchestrator",
-            "primr.core.section_regeneration",
         }
     ),
     frozenset(
@@ -287,6 +286,8 @@ def test_first_party_import_cycles_match_burndown_baseline():
         ("primr.core.cli_doctor", "primr.core.cli_init"),
         ("primr.core.cli_errors", "primr.core.cli_update"),
         ("primr.core.cli_update", "primr.core.cli_errors"),
+        ("primr.core.section_regeneration", "primr.core.research_agent"),
+        ("primr.core.research_agent", "primr.core.section_regeneration"),
     ],
 )
 def test_removed_cycle_pairs_import_cleanly_in_fresh_interpreters(modules):

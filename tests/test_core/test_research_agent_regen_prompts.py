@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+from primr.ai.routing import Role
+from primr.core import section_regeneration
 from primr.core.research_agent import (
     _fast_regenerate_section,
     _strategy_regenerate_section,
@@ -21,6 +23,29 @@ from primr.qa.report_analyzer import SCAFFOLDING_PROHIBITION_GUIDANCE
 
 
 class TestFastRegenerateSectionPrompt:
+    def test_default_model_comes_directly_from_routing(self, monkeypatch):
+        routed_roles = []
+        call = MagicMock(return_value="## Competitive Landscape\n\nrewritten body")
+        monkeypatch.setattr(
+            section_regeneration,
+            "pick_model_for_role",
+            lambda role: routed_roles.append(role) or "routed-writing-model",
+        )
+        monkeypatch.setattr("primr.pipeline.llm_failover.call_with_failover", call)
+
+        _fast_regenerate_section(
+            company_name="Acme Corp",
+            website="https://acme.example",
+            section_title="Competitive Landscape",
+            section_content="## Competitive Landscape\n\noriginal body",
+            analysis_workbook="WORKBOOK",
+            new_evidence="NEW EVIDENCE",
+            source_urls=["https://a.example"],
+        )
+
+        assert routed_roles == [Role.WRITING]
+        assert call.call_args.kwargs["preferred_model"] == "routed-writing-model"
+
     def test_prompt_includes_scaffolding_prohibition(self, monkeypatch):
         mock = MagicMock(return_value="## Competitive Landscape\n\nrewritten body")
         monkeypatch.setattr("primr.ai.grok_client.grok_llm", mock)
