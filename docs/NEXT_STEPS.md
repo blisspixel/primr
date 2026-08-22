@@ -163,13 +163,18 @@ inconclusive.
 
 ## Next executable slice: architecture ownership without behavior drift
 
-**Status:** current v1.39.6 batch implemented; full release validation is in
-progress. The first P1 batch reduced the largest import-cycle component from
-24 modules to 22. The current batch reduces it from 22 to 12 with zero new
-production modules, unchanged public compatibility imports, and direct owner
-plus fresh-interpreter import-order tests.
+**Status:** current v1.39.6 batch implemented and locally validated. The full
+non-integration suite passes with 14,584 tests, 57 skips, 5 deselections, and
+86.83 percent branch coverage against the 81 percent floor. Lock, Ruff, mypy,
+strict docs, Bandit, dependency audit, source-distribution inventory, and
+recovery coverage gates also pass. The first P1 batch reduced the largest
+import-cycle component from 24 modules to 22. The current batch reduces it
+from 22 to 12 with zero new production modules, unchanged public compatibility
+imports, and direct owner plus fresh-interpreter import-order tests. It also
+isolates passive update-notice failures, validates deterministic source
+selections, and recovers from corrupt local collection-cache metrics.
 
-**Deliverable:** finish release validation for the recorded ownership batch in
+**Deliverable:** publish the validated ownership batch recorded in
 [`design/24-architecture-cohesion-plan.md`](design/24-architecture-cohesion-plan.md).
 The next behavior-owned extraction should remove one remaining fast-stage back
 edge. Then reduce `ai/deep_research.py` into a few one-way, behavior-owned
