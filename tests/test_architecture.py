@@ -151,7 +151,6 @@ EXPECTED_IMPORT_CYCLES = {
             "primr.core.fast_run_sections",
             "primr.core.fast_run_strategy",
             "primr.core.fast_run_trust",
-            "primr.core.fast_run_validation",
             "primr.core.research_agent",
             "primr.core.research_orchestrator",
         }
@@ -292,6 +291,8 @@ def test_first_party_import_cycles_match_burndown_baseline():
         ("primr.core.research_agent", "primr.core.fast_run_collection"),
         ("primr.core.fast_run_setup", "primr.core.research_agent"),
         ("primr.core.research_agent", "primr.core.fast_run_setup"),
+        ("primr.core.fast_run_validation", "primr.core.research_agent"),
+        ("primr.core.research_agent", "primr.core.fast_run_validation"),
         ("primr.core.refine", "primr.core.research_agent"),
         ("primr.core.research_agent", "primr.core.refine"),
     ],

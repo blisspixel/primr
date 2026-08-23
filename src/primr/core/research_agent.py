@@ -2298,7 +2298,6 @@ def perform_fast_research(
         report_content = _sections_result.report_content
         written_sections = _sections_result.written_sections
         total_words = _sections_result.total_words
-
         # =================================================================
         # Phase 5: Cross-Validation (extracted: core/fast_run_validation.py)
         # =================================================================
@@ -2309,6 +2308,7 @@ def perform_fast_research(
             report_content=report_content,
             source_urls=source_urls,
             source_urls_seen=source_urls_seen,
+            review_report=_fast_cross_validate,
             analysis_workbook=analysis_workbook,
             grok_reasoning=grok_reasoning,
             grok_writing=grok_writing,

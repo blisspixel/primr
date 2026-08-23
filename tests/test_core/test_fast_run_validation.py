@@ -30,14 +30,13 @@ Competitor body text here.
 @pytest.fixture
 def seams(monkeypatch, tmp_path):
     cv_review = MagicMock(return_value={"weak_sections": [], "contradictions": []})
-    monkeypatch.setattr("primr.core.research_agent._fast_cross_validate", cv_review)
 
     regenerate = MagicMock(
         side_effect=lambda company, website, title, original, *a, **k: (
             f"## {title}\nENRICHED {title} body.\n"
         )
     )
-    monkeypatch.setattr("primr.core.research_agent._fast_regenerate_section", regenerate)
+    monkeypatch.setattr("primr.core.fast_run_validation._fast_regenerate_section", regenerate)
 
     def fake_recovery(executor, fn, folder):
         try:
@@ -76,6 +75,7 @@ def _call(seams, **overrides) -> CrossValidationResult:
         "report_content": REPORT,
         "source_urls": ["https://acme.example/about"],
         "source_urls_seen": {"https://acme.example/about"},
+        "review_report": seams["cv_review"],
         "analysis_workbook": "workbook",
         "grok_reasoning": "reasoner-model",
         "grok_writing": "writer-model",
@@ -107,6 +107,34 @@ class TestCleanReview:
         result = _call(seams)
         assert result.report_content == REPORT
         assert result.unresolved_contradictions == 0
+
+    @pytest.mark.parametrize(
+        "review_output",
+        [
+            None,
+            [],
+            {"weak_sections": "invalid", "contradictions": [1, None, ""]},
+        ],
+    )
+    def test_malformed_successful_review_degrades_without_blocking(self, seams, review_output):
+        seams["cv_review"].return_value = review_output
+
+        result = _call(seams)
+
+        assert result.report_content == REPORT
+        assert result.unresolved_contradictions == 0
+        assert result.sections_enriched == 0
+
+    def test_diagnostic_write_failure_does_not_discard_report(self, seams, monkeypatch):
+        monkeypatch.setattr(
+            "primr.core.fast_run_validation.atomic_write_text",
+            MagicMock(side_effect=OSError("disk unavailable")),
+        )
+
+        result = _call(seams)
+
+        assert result.report_content == REPORT
+        assert result.sections_enriched == 0
 
     def test_session_threaded_to_review(self, seams):
         session = object()
@@ -141,7 +169,7 @@ class TestEnrichment:
 
     def test_serial_splice_both_sections(self, seams):
         # Second pattern must match against the report AFTER the first splice.
-        # Distinct evidence URLs per query — discovered URLs dedup across
+        # Distinct evidence URLs per query; discovered URLs dedup across
         # sections via source_urls_seen, so identical URLs would starve the
         # second section of evidence.
         self._flag(seams, "Market", "Competitors")
@@ -171,9 +199,38 @@ class TestEnrichment:
             {"url": "https://acme.example/about"},
         ]
         result = _call(seams)
-        # Both candidates filtered (own site / already seen) → nothing scraped
+        # Both candidates filtered (own site / already seen), so nothing is scraped.
         assert result.sections_enriched == 0
         assert "ENRICHED" not in result.report_content
+
+    def test_own_site_variants_and_subdomains_are_filtered(self, seams):
+        self._flag(seams, "Market")
+        seams["search"].return_value = [
+            {"url": "http://www.acme.example/self-praise"},
+            {"url": "https://news.acme.example/announcement"},
+        ]
+
+        result = _call(seams)
+
+        assert result.sections_enriched == 0
+        assert result.report_content == REPORT
+
+    def test_timeout_detaches_enrichment_worker(self, seams, monkeypatch):
+        self._flag(seams, "Market")
+        detach = MagicMock()
+
+        def timeout(*args, **kwargs):
+            raise TimeoutError
+
+        monkeypatch.setattr("concurrent.futures.as_completed", timeout)
+        monkeypatch.setattr("primr.core.fast_run_validation.detach_running_workers", detach)
+
+        result = _call(seams)
+
+        assert result.report_content == REPORT
+        assert result.sections_enriched == 0
+        assert result.cv_search_count == 1
+        detach.assert_called_once()
 
     def test_unknown_heading_skipped(self, seams):
         self._flag(seams, "Nonexistent Section")
@@ -249,7 +306,7 @@ class TestBudgetCheckpoint:
         from primr.utils.run_budget import clear_run_budget, set_run_budget
 
         seams["cv_review"].return_value = dict(self._WEAK)
-        monkeypatch.setattr("primr.core.research_agent._compute_session_llm_cost", lambda: 100.0)
+        monkeypatch.setattr("primr.core.fast_run_validation.observed_session_spend", lambda: 100.0)
         set_run_budget(1.0)  # ceiling $1, already spent $100 -> exceeded
         try:
             result = _call(seams)
@@ -276,7 +333,7 @@ class TestBudgetCheckpoint:
             "weak_sections": [],
             "contradictions": ["Revenue $10M vs $12M"],
         }
-        monkeypatch.setattr("primr.core.research_agent._compute_session_llm_cost", lambda: 100.0)
+        monkeypatch.setattr("primr.core.fast_run_validation.observed_session_spend", lambda: 100.0)
         set_run_budget(1.0)
         try:
             result = _call(seams)
@@ -290,7 +347,7 @@ class TestBudgetCheckpoint:
         from primr.utils.run_budget import clear_run_budget, set_run_budget
 
         seams["cv_review"].return_value = dict(self._WEAK)
-        monkeypatch.setattr("primr.core.research_agent._compute_session_llm_cost", lambda: 0.10)
+        monkeypatch.setattr("primr.core.fast_run_validation.observed_session_spend", lambda: 0.10)
         set_run_budget(100.0)  # plenty of headroom -> full Phase-5 work
         try:
             result = _call(seams)
@@ -304,9 +361,9 @@ class TestBudgetCheckpoint:
 
     def test_no_budget_active_does_not_compute_spend(self, seams, monkeypatch):
         # With no active budget the checkpoint must short-circuit and never call
-        # _compute_session_llm_cost, keeping the default path free.
+        # observed_session_spend, keeping the default path free.
         cost = MagicMock(return_value=0.0)
-        monkeypatch.setattr("primr.core.research_agent._compute_session_llm_cost", cost)
+        monkeypatch.setattr("primr.core.fast_run_validation.observed_session_spend", cost)
         seams["cv_review"].return_value = dict(self._WEAK)
 
         result = _call(seams)
