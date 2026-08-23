@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.7] - 2026-08-22
+
+### Changed
+
+- **Fast validation has one-way ownership.** The stage receives its report
+  reviewer through the research composition boundary and imports regeneration
+  and observed-spend behavior from their existing owners. This removes
+  `fast_run_validation` from the package-inclusive orchestration cycle, reducing
+  that component from 12 modules to 11 with no new production module or public
+  CLI, MCP, A2A, or report-contract change.
+- **External-source independence uses one URL boundary.** Fast collection, gap
+  filling, report and strategy enrichment, structured research, and scrape-only
+  collection now share canonical hostname comparison instead of comparing raw
+  URL strings.
+
+### Fixed
+
+- **Malformed cross-validation results degrade safely.** Successful recovery
+  results are type-checked, bounded to the documented finding limits, and
+  normalized before enrichment or contradiction handling. A null, list-shaped,
+  or partially malformed model response no longer crashes a report run.
+- **Timed-out enrichment workers cannot hold process shutdown open.** Abandoned
+  validation pools now use the established running-worker detachment seam after
+  canceling queued work.
+- **Optional validation diagnostics cannot discard a report.**
+  `cross_validation.json` is replaced atomically, and persistence or JSON
+  encoding failures are logged without failing the completed report stage.
+- **First-party pages no longer masquerade as external evidence.** Scheme and
+  `www` variants plus company subdomains are filtered consistently, while
+  hostname lookalikes remain eligible and malformed candidates fail closed.
+
 ## [1.39.6] - 2026-08-22
 
 ### Changed
