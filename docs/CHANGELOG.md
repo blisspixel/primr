@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Circuit-breaker property coverage is deterministic under load.** The
   retry-delay invariant no longer races a 10-millisecond half-open transition
   while coverage tracing or a busy CI runner is active.
+- **Banner capability tests are isolated from the host terminal.** Truecolor
+  detection cases now define their complete color and terminal preconditions
+  instead of inheriting `NO_COLOR` or `TERM=dumb` from an agent or CI host.
 
 ## [1.39.6] - 2026-08-22
 
