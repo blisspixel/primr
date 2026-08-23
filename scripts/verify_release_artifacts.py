@@ -104,7 +104,7 @@ def verify_release_artifacts(
     package: str,
     version: str,
     dist_dir: Path,
-    attempts: int = 6,
+    attempts: int = 18,
     delay_seconds: float = 10.0,
     fetch_payload: PayloadFetcher | None = None,
     sleep: Sleeper | None = None,
@@ -148,7 +148,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--package", required=True)
     parser.add_argument("--version", required=True)
     parser.add_argument("--dist-dir", type=Path, default=Path("dist"))
-    parser.add_argument("--attempts", type=int, default=6)
+    parser.add_argument("--attempts", type=int, default=18)
     parser.add_argument("--delay-seconds", type=float, default=10.0)
     parser.add_argument(
         "--allow-absent",
