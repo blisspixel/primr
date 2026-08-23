@@ -115,7 +115,8 @@ class TestGapFillingHappyPath:
 class TestFilteringAndDedup:
     def test_own_site_and_seen_urls_filtered(self, seams):
         seams["search"].return_value = [
-            {"url": "https://acme.example/self"},
+            {"url": "http://www.acme.example/self"},
+            {"url": "https://news.acme.example/announcement"},
             {"url": "https://acme.example/about"},
         ]
         result = _call(seams)

@@ -55,7 +55,7 @@ from primr.utils.run_budget import (
     observed_session_spend,
     skip_stage_if_over_budget,
 )
-from primr.utils.url_helpers import normalized_hostname
+from primr.utils.url_helpers import web_url_is_external
 
 logger = get_logger("core.fast_run_validation")
 
@@ -102,19 +102,14 @@ def _normalize_review_output(
     return review, failed, weak_sections, contradictions
 
 
-def _is_external_candidate(candidate: object, website_host: str) -> bool:
+def _is_external_candidate(candidate: object, website: str | None) -> bool:
     """Return whether a search result is a valid URL outside the company site."""
     if not isinstance(candidate, dict):
         return False
     url = candidate.get("url")
     if not isinstance(url, str) or not url.strip():
         return False
-    candidate_host = normalized_hostname(url, strip_www=True)
-    if not candidate_host:
-        return False
-    return not website_host or not (
-        candidate_host == website_host or candidate_host.endswith(f".{website_host}")
-    )
+    return web_url_is_external(url, website)
 
 
 def cross_validate_and_enrich(
@@ -255,8 +250,6 @@ def cross_validate_and_enrich(
 
         _enrich_section_deadline_s = 300.0  # 5 min hard cap per section
         _returns_detector = DiminishingReturnsDetector()
-        website_host = normalized_hostname(website or "", strip_www=True)
-
         for ws in weak_sections:
             # --budget checkpoint: enriching a weak section issues external
             # searches and a regeneration LLM call (real spend). Enrichment is
@@ -297,7 +290,7 @@ def cross_validate_and_enrich(
                     filtered = [
                         r
                         for r in results[:3]
-                        if _is_external_candidate(r, website_host)
+                        if _is_external_candidate(r, website)
                         and r["url"] not in source_urls_seen
                         and r["url"] not in local_urls_seen
                     ]

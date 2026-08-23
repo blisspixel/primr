@@ -284,7 +284,7 @@ from primr.output.output_utils import generate_final_report
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import correlation_scope, log_structured
-from primr.utils.url_helpers import normalized_hostname
+from primr.utils.url_helpers import normalized_hostname, web_url_is_external
 from primr.utils.validators import sanitize_for_filename
 
 load_primr_env()
@@ -790,7 +790,7 @@ def run_research(
                 total_search_results += len(results)
                 progress(f"  Found {len(results)} results for '{query[:40]}...'")
                 filtered = [
-                    r for r in results[:5] if website.lower() not in r.get("url", "").lower()
+                    r for r in results[:5] if web_url_is_external(r.get("url", ""), website)
                 ]
                 remaining_slots = max_external_sources - len(external_data)
                 progress(f"  Validating {len(filtered)} external articles...")
@@ -2015,7 +2015,7 @@ def _enrich_strategy_content(
                         filtered = [
                             r
                             for r in results[:3]
-                            if (not website or website.lower() not in r.get("url", "").lower())
+                            if web_url_is_external(r.get("url", ""), website)
                             and r.get("url", "") not in source_urls_seen
                         ]
                         scraped = scrape_external_sources_validated(
@@ -2938,9 +2938,7 @@ def perform_research(
                     results = search_web(query, company_name, website)
                     if results:
                         filtered = [
-                            r
-                            for r in results[:5]
-                            if not website or website.lower() not in r.get("url", "").lower()
+                            r for r in results[:5] if web_url_is_external(r.get("url", ""), website)
                         ]
                         remaining_slots = max_external_sources - len(external_data)
                         scraped = scrape_external_sources_validated(
