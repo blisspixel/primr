@@ -37,6 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **First-party pages no longer masquerade as external evidence.** Scheme and
   `www` variants plus company subdomains are filtered consistently, while
   hostname lookalikes remain eligible and malformed candidates fail closed.
+- **Circuit-breaker property coverage is deterministic under load.** The
+  retry-delay invariant no longer races a 10-millisecond half-open transition
+  while coverage tracing or a busy CI runner is active.
 
 ## [1.39.6] - 2026-08-22
 
