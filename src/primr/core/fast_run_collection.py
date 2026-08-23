@@ -38,7 +38,7 @@ from primr.data.search_utils import generate_external_search_queries, search_web
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import log_structured
-from primr.utils.url_helpers import normalized_hostname
+from primr.utils.url_helpers import normalized_hostname, web_url_is_external
 
 logger = get_logger("core.fast_run_collection")
 
@@ -334,9 +334,7 @@ def _collect_research_data_fresh(
         results = search_web(query, company_name, website)
         if not results:
             return []
-        return [
-            r for r in results[:5] if not website or website.lower() not in r.get("url", "").lower()
-        ]
+        return [r for r in results[:5] if web_url_is_external(r.get("url", ""), website)]
 
     # Phase 1: parallel searches (thread-safe HTTP calls)
     console.status(f"Searching external sources (0/{len(external_queries)} queries)")

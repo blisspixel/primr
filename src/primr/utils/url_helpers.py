@@ -105,6 +105,22 @@ def hostname_is_same_or_subdomain(candidate: str, parent: str) -> bool:
     )
 
 
+def web_url_is_external(candidate: str, website: str | None) -> bool:
+    """Return whether a valid candidate URL is outside a website's host tree.
+
+    External research treats ``www.example.com``, ``example.com``, and child
+    hosts such as ``news.example.com`` as the same site. Invalid candidates
+    fail closed so malformed search results never reach a scraper.
+    """
+    candidate_host = normalized_hostname(candidate, strip_www=True)
+    if not candidate_host:
+        return False
+    website_host = normalized_hostname(website or "", strip_www=True)
+    return not website_host or not (
+        candidate_host == website_host or candidate_host.endswith(f".{website_host}")
+    )
+
+
 def safe_hostname_token(url: str, *, max_length: int = 30) -> str:
     """Return a portable filename token derived only from a URL hostname."""
     hostname = normalized_hostname(url, strip_www=True) or "source"
@@ -117,4 +133,5 @@ __all__ = [
     "normalized_web_origin",
     "public_web_url",
     "safe_hostname_token",
+    "web_url_is_external",
 ]

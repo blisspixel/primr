@@ -142,7 +142,10 @@ class TestExternalValidation:
         assert result.external_query_count == 1
 
     def test_own_site_results_filtered(self, seams):
-        seams["search"].return_value = [{"url": "https://acme.example/self-praise"}]
+        seams["search"].return_value = [
+            {"url": "http://www.acme.example/self-praise"},
+            {"url": "https://news.acme.example/announcement"},
+        ]
         result = _call(seams)
         assert result.source_urls == []
         seams["scrape"].assert_not_called()

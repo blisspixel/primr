@@ -4,8 +4,9 @@
 ``_strategy_regenerate_section`` (Phase 6 strategy enrichment) re-write one
 weak section with freshly gathered evidence. Both moved here verbatim when
 ``research_agent`` hit its architecture line ceiling; behavior is unchanged.
-``research_agent`` re-exports both names so the lazy imports in the stage
-modules and the existing test patch points keep working.
+``research_agent`` re-exports both names for compatibility. Fast validation
+imports its helper from this owner directly; the strategy stage still resolves
+its compatibility import at call time.
 
 The ``new_evidence`` input is freshly scraped external page text - the T1
 prompt-injection boundary - so both functions fence it as data before it

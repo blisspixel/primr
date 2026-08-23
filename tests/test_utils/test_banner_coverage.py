@@ -131,6 +131,8 @@ class TestDetectContext:
         assert isinstance(ctx, BannerContext)
 
     def test_truecolor_via_colorterm(self, monkeypatch):
+        monkeypatch.delenv("NO_COLOR", raising=False)
+        monkeypatch.setenv("TERM", "xterm-256color")
         monkeypatch.setenv("COLORTERM", "truecolor")
         monkeypatch.delenv("WT_SESSION", raising=False)
         with patch("primr.utils.banner.sys.stdout") as mock_stdout:
@@ -140,6 +142,8 @@ class TestDetectContext:
         assert ctx.supports_truecolor is True
 
     def test_truecolor_via_term_program(self, monkeypatch):
+        monkeypatch.delenv("NO_COLOR", raising=False)
+        monkeypatch.setenv("TERM", "xterm-256color")
         monkeypatch.delenv("COLORTERM", raising=False)
         monkeypatch.delenv("WT_SESSION", raising=False)
         monkeypatch.setenv("TERM_PROGRAM", "iTerm.app")

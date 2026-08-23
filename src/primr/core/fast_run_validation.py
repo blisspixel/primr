@@ -19,7 +19,7 @@ Tangle points handled here (refactor map #2 and #4):
   the late-binding-in-closure trap, and returns its URL discoveries
   explicitly; the merge back into the caller's ``source_urls`` /
   ``source_urls_seen`` happens in the outer loop. Those two collections are
-  MUTATED IN PLACE — the caller's objects accumulate the new URLs, exactly as
+  MUTATED IN PLACE; the caller's objects accumulate the new URLs, exactly as
   the inline code did.
 - The regex splice loop is strictly serial: each regenerated section is
   spliced into ``report_content`` before the next pattern is searched, so
@@ -27,26 +27,35 @@ Tangle points handled here (refactor map #2 and #4):
 
 Precision note: the enrichment workers call ``search_web`` /
 ``scrape_external_sources_validated`` with the RAW ``company_name`` (possibly
-None), not the display label — preserved exactly, which is why this function
+None), not the display label. This is preserved exactly, which is why this function
 takes both ``company_name`` and ``company_label``.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 
 from primr.core.report_cleanup import _preserves_report_structure
+from primr.core.section_regeneration import _fast_regenerate_section
 from primr.data.scrape import scrape_external_sources_validated
 from primr.data.search_utils import search_web
 from primr.pipeline.llm_failover import LLMRole, call_with_failover
+from primr.utils.async_utils import detach_running_workers
+from primr.utils.atomic_io import atomic_write_text
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import log_structured
-from primr.utils.run_budget import get_run_budget, skip_stage_if_over_budget
+from primr.utils.run_budget import (
+    get_run_budget,
+    observed_session_spend,
+    skip_stage_if_over_budget,
+)
+from primr.utils.url_helpers import web_url_is_external
 
 logger = get_logger("core.fast_run_validation")
 
@@ -61,6 +70,48 @@ class CrossValidationResult:
     cv_search_count: int
 
 
+def _normalize_review_output(
+    output: object,
+) -> tuple[dict[str, object], bool, list[dict[str, object]], list[str]]:
+    """Return bounded, type-safe findings from an untrusted model response."""
+    if isinstance(output, Mapping):
+        review = dict(output)
+        failed = bool(review.pop("_failed", False))
+    else:
+        logger.warning(
+            "Cross-validation returned %s instead of an object; ignoring findings",
+            type(output).__name__,
+        )
+        review = {}
+        failed = True
+
+    raw_weak_sections = review.get("weak_sections", [])
+    weak_sections = (
+        [dict(item) for item in raw_weak_sections if isinstance(item, Mapping)][:3]
+        if isinstance(raw_weak_sections, list)
+        else []
+    )
+    raw_contradictions = review.get("contradictions", [])
+    contradictions = (
+        [item.strip() for item in raw_contradictions if isinstance(item, str) and item.strip()][:3]
+        if isinstance(raw_contradictions, list)
+        else []
+    )
+    review["weak_sections"] = weak_sections
+    review["contradictions"] = contradictions
+    return review, failed, weak_sections, contradictions
+
+
+def _is_external_candidate(candidate: object, website: str | None) -> bool:
+    """Return whether a search result is a valid URL outside the company site."""
+    if not isinstance(candidate, dict):
+        return False
+    url = candidate.get("url")
+    if not isinstance(url, str) or not url.strip():
+        return False
+    return web_url_is_external(url, website)
+
+
 def cross_validate_and_enrich(
     *,
     company_name: str | None,
@@ -69,6 +120,7 @@ def cross_validate_and_enrich(
     report_content: str,
     source_urls: list[str],
     source_urls_seen: set[str],
+    review_report: Callable[..., dict[str, object]],
     analysis_workbook: str,
     grok_reasoning: str,
     grok_writing: str,
@@ -78,24 +130,16 @@ def cross_validate_and_enrich(
     total_phases: int,
 ) -> CrossValidationResult:
     """Review the report, enrich weak sections, resolve contradictions."""
-    # Lazy import: research_agent imports this module, so the LLM-backed
-    # review and regeneration helpers (which stay there until their own
-    # extraction) must be resolved at call time to avoid a circular import.
-    from primr.core.research_agent import (
-        _compute_session_llm_cost,
-        _fast_cross_validate,
-        _fast_regenerate_section,
-    )
 
     def _over_budget(stage_label: str) -> bool:
         """True when an active ``--budget`` has been reached.
 
         Spend is computed lazily only when a budget is active, so the no-budget
-        path (the default) does not invoke ``_compute_session_llm_cost`` at all.
+        path (the default) does not inspect provider usage at all.
         """
         if get_run_budget() is None:
             return False
-        return skip_stage_if_over_budget(_compute_session_llm_cost(), stage_label)
+        return skip_stage_if_over_budget(observed_session_spend(), stage_label)
 
     console.phase_banner(
         5,
@@ -129,7 +173,7 @@ def cross_validate_and_enrich(
                 duration_seconds=time.monotonic() - cv_route_start,
                 failure_class=failure,
             )
-            console.warn(f"Cross-validation skipped ({failure}) — report not quality-checked")
+            console.warn(f"Cross-validation skipped ({failure}); report not quality-checked")
             return CrossValidationResult(
                 report_content=report_content,
                 unresolved_contradictions=0,
@@ -156,7 +200,7 @@ def cross_validate_and_enrich(
         from primr.pipeline.integration import cross_validate_with_recovery
 
         def _do_cross_validate():
-            return _fast_cross_validate(
+            return review_report(
                 company_label,
                 website,
                 report_content,
@@ -169,20 +213,18 @@ def cross_validate_and_enrich(
             recovery_executor, _do_cross_validate, folder_path
         )
         if _cv_stage_result.success:
-            cv_result = _cv_stage_result.output
+            review_output = _cv_stage_result.output
         else:
             logger.info("Cross-validation skipped: %s", _cv_stage_result.skip_reason)
-            cv_result = {"weak_sections": [], "contradictions": [], "_failed": True}
+            review_output = {"weak_sections": [], "contradictions": [], "_failed": True}
 
-    cv_failed = cv_result.pop("_failed", False)
-    weak_sections = cv_result.get("weak_sections", [])
-    contradictions = cv_result.get("contradictions", [])
+    cv_result, cv_failed, weak_sections, contradictions = _normalize_review_output(review_output)
     unresolved_contradictions = len(contradictions)
     sections_enriched = 0
     cv_search_count = 0
 
     if cv_failed:
-        console.warn("Cross-validation failed — report was not quality-checked")
+        console.warn("Cross-validation failed; report was not quality-checked")
     elif weak_sections:
         console.ok(f"Review complete: {len(weak_sections)} section(s) flagged for enrichment")
 
@@ -192,7 +234,7 @@ def cross_validate_and_enrich(
 
         # Per-section enrichment deadline. Without this, a single slow
         # query (DDG hang, slow validator, deadlocked external scrape)
-        # blocked the whole cross-validation phase indefinitely — caught
+        # blocked the whole cross-validation phase indefinitely. This was caught
         # twice during the v1.24.0 eval where two cells deadlocked here
         # for 12-24 hours. The inner scrape_external_sources_validated
         # call has retry/backoff but no overarching wall-clock cap, so
@@ -208,7 +250,6 @@ def cross_validate_and_enrich(
 
         _enrich_section_deadline_s = 300.0  # 5 min hard cap per section
         _returns_detector = DiminishingReturnsDetector()
-
         for ws in weak_sections:
             # --budget checkpoint: enriching a weak section issues external
             # searches and a regeneration LLM call (real spend). Enrichment is
@@ -229,7 +270,7 @@ def cross_validate_and_enrich(
             # Case-insensitive heading match
             section_title = heading_lookup.get(raw_title.lower(), raw_title)
 
-            # Search for additional evidence — wrapped in a future so a
+            # Search for additional evidence, wrapped in a future so a
             # hung sub-call can be abandoned without blocking the whole
             # cross-validation phase. `_queries` is bound as a default arg
             # to defeat the late-binding-in-closure trap (otherwise each
@@ -249,9 +290,9 @@ def cross_validate_and_enrich(
                     filtered = [
                         r
                         for r in results[:3]
-                        if (not website or website.lower() not in r.get("url", "").lower())
-                        and r.get("url", "") not in source_urls_seen
-                        and r.get("url", "") not in local_urls_seen
+                        if _is_external_candidate(r, website)
+                        and r["url"] not in source_urls_seen
+                        and r["url"] not in local_urls_seen
                     ]
                     scraped = scrape_external_sources_validated(
                         filtered,
@@ -294,12 +335,9 @@ def cross_validate_and_enrich(
                 except _FutTimeout:
                     console.warn(
                         f"Enrichment deadline ({int(_enrich_section_deadline_s)}s) "
-                        f"exceeded for '{section_title}' — abandoning this section "
+                        f"exceeded for '{section_title}'; abandoning this section "
                         f"and continuing"
                     )
-                    # Best-effort cancel of the stuck worker so it doesn't
-                    # keep eating resources while we move on.
-                    _enrich_pool.shutdown(wait=False, cancel_futures=True)
                     continue
                 except Exception as e:
                     logger.warning(
@@ -307,10 +345,10 @@ def cross_validate_and_enrich(
                         section_title,
                         e,
                     )
-                    _enrich_pool.shutdown(wait=False, cancel_futures=True)
                     continue
                 finally:
-                    _enrich_pool.shutdown(wait=False)
+                    _enrich_pool.shutdown(wait=False, cancel_futures=True)
+                    detach_running_workers(_enrich_pool)
 
             if not new_evidence_parts:
                 continue
@@ -400,7 +438,7 @@ For EACH contradiction:
 RULES:
 - Do NOT delete, summarize, or condense any sections, paragraphs, or content
 - Make ONLY surgical edits to the specific contradictory values/numbers
-- Do NOT rewrite prose — change only the conflicting data points
+- Do NOT rewrite prose; change only the conflicting data points
 - When evidence is ambiguous, use the most conservative estimate with a range
 - Add "(Estimated)" or "(Reported)" labels to standardized values
 - Preserve all ## headings, [cite: N] references, and structure
@@ -429,17 +467,19 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                     console.ok(f"Resolved {len(contradictions)} contradiction(s)")
                 else:
                     logger.warning(
-                        "Contradiction resolution changed structure too much (%d → %d words or headings changed), keeping original",
+                        "Contradiction resolution changed structure too much (%d to %d words or headings changed), keeping original",
                         original_words,
                         resolved_words,
                     )
         except Exception as resolve_err:
             logger.warning("Contradiction resolution failed: %s", resolve_err)
 
-    # Save cross-validation output to working folder
-    cv_output_path = os.path.join(folder_path, "cross_validation.json")
-    with open(cv_output_path, "w", encoding="utf-8") as f:
-        json.dump(cv_result, f, indent=2)
+    # This diagnostic is optional. A persistence failure must not discard the report.
+    cv_output_path = Path(folder_path) / "cross_validation.json"
+    try:
+        atomic_write_text(cv_output_path, json.dumps(cv_result, indent=2) + "\n")
+    except (OSError, TypeError, ValueError) as exc:
+        logger.warning("Cross-validation diagnostic could not be persisted: %s", exc)
 
     # Extract section count from report for metrics
     report_section_count = len(re.findall(r"^## ", report_content, re.MULTILINE))

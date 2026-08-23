@@ -36,6 +36,7 @@ from primr.data.search_utils import search_web
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import log_structured
+from primr.utils.url_helpers import web_url_is_external
 
 if TYPE_CHECKING:
     from primr.ai.stage_routing import StageModelRoute
@@ -148,7 +149,7 @@ def deepen_research(
             return [
                 r
                 for r in results[:3]
-                if (not website or website.lower() not in r.get("url", "").lower())
+                if web_url_is_external(r.get("url", ""), website)
                 and r.get("url", "") not in source_urls_seen
             ]
 

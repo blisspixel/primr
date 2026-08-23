@@ -10,6 +10,7 @@ from primr.utils.url_helpers import (
     normalized_web_origin,
     public_web_url,
     safe_hostname_token,
+    web_url_is_external,
 )
 
 
@@ -90,6 +91,27 @@ def test_hostname_boundary_match_rejects_lookalike_domain() -> None:
 def test_hostname_boundary_match_does_not_widen_www_specific_parent() -> None:
     assert hostname_is_same_or_subdomain("https://docs.www.acme.com", "www.acme.com")
     assert not hostname_is_same_or_subdomain("https://news.acme.com", "www.acme.com")
+
+
+@pytest.mark.parametrize(
+    "candidate",
+    [
+        "http://www.acme.com/article",
+        "https://acme.com/article",
+        "https://news.acme.com/article",
+    ],
+)
+def test_external_web_url_rejects_same_site_variants(candidate: str) -> None:
+    assert not web_url_is_external(candidate, "https://www.acme.com")
+
+
+def test_external_web_url_accepts_distinct_hostname_boundary() -> None:
+    assert web_url_is_external("https://notacme.com/article", "https://acme.com")
+
+
+@pytest.mark.parametrize("candidate", ["", "not a URL", "javascript:alert(1)"])
+def test_external_web_url_rejects_invalid_candidates(candidate: str) -> None:
+    assert not web_url_is_external(candidate, "https://acme.com")
 
 
 def test_safe_hostname_token_excludes_ipv6_separators() -> None:

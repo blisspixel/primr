@@ -21,7 +21,7 @@ The current package-inclusive AST graph and repository inventory show:
 - `core/` remains the clearest navigation problem: 105 non-`__init__` modules,
   a 223-line median, and the largest resolved import-cycle component.
 - Three first-party import-cycle components remain after P0 and the current P1
-  batches: a 12-module CLI/research orchestration component, a five-module
+  batches: an 11-module CLI/research orchestration component, a five-module
   model-routing component, and a three-module first-party extraction
   component. CI pins their exact memberships and permits only shrinkage.
 - Ten low-blast, single-consumer modules under 80 lines have no directly mapped
@@ -178,20 +178,41 @@ composition tests, and both fresh-interpreter import orders cover each removed
 pair. The production-module delta is zero, `cli.py` fell from 2,478 to 2,449
 lines, and `research_agent.py` fell from 4,276 to 4,262 lines.
 
-Before this batch, the component contained `primr`, `cli`, `cli_dispatch`,
+Before the second batch, the component contained `primr`, `cli`, `cli_dispatch`,
 `cli_doctor`, `cli_errors`, `cli_init`, `cli_plan`, `cli_update`, `cli_vendor`,
 `deep_research_runner`, the eight `fast_run_*` stage modules, `refine`,
 `research_agent`, `research_orchestrator`, and `section_regeneration`. It now
-contains only `primr`, `cli`, `cli_dispatch`, `cli_doctor`, `cli_update`,
+contained only `primr`, `cli`, `cli_dispatch`, `cli_doctor`, `cli_update`,
 `deep_research_runner`, `fast_run_sections`, `fast_run_strategy`,
 `fast_run_trust`, `fast_run_validation`, `research_agent`, and
 `research_orchestrator`.
 
+The third P1 batch completed on 2026-08-22 without adding a production module.
+`fast_run_validation` now receives its report reviewer from the
+`research_agent` composition boundary and imports section regeneration and
+observed spend directly from their existing owners. This removes the stage
+from the broad component, reducing it from 12 members to 11. The remaining
+membership is `primr`, `cli`, `cli_dispatch`, `cli_doctor`, `cli_update`,
+`deep_research_runner`, `fast_run_sections`, `fast_run_strategy`,
+`fast_run_trust`, `research_agent`, and `research_orchestrator`.
+
+The same batch hardened the owned stage rather than preserving known defects:
+model-shaped review output is normalized and bounded before use, abandoned
+enrichment workers cannot hold interpreter shutdown open, and the optional
+cross-validation diagnostic is atomic and fail-open. A shared hostname helper
+also replaces every remaining raw string comparison used to exclude
+first-party search results, so `www` and subdomain variants cannot be counted
+as independent evidence. Direct stage, helper, composition, and both
+fresh-interpreter import-order tests pin the behavior. The production-module
+delta is zero; `research_agent.py` falls from 4,262 to 4,260 lines and
+`fast_run_validation.py` grows from 475 to 515 while remaining a cohesive stage
+well below the new-file ceiling.
+
 The next P1 batch should extract one behavior-owned seam from the remaining
-12-module component, with `fast_run_validation` or `fast_run_sections` as the
-lowest-risk candidates. The later P3 `ai/deep_research.py` split remains
-binding and must preserve its public facade and provider lifecycle behavior.
-Do not create an interface file solely to make the graph look cleaner.
+11-module component, with `fast_run_sections` the current lowest-risk
+candidate. The later P3 `ai/deep_research.py` split remains binding and must
+preserve its public facade and provider lifecycle behavior. Do not create an
+interface file solely to make the graph look cleaner.
 
 ### Safety-boundary cohesion addendum
 

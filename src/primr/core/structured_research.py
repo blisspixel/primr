@@ -39,6 +39,7 @@ from primr.data.search_utils import (
     search_web,
 )
 from primr.utils.logging_config import get_logger
+from primr.utils.url_helpers import web_url_is_external
 
 logger = get_logger("structured_research")
 
@@ -377,11 +378,7 @@ def _collect_data(
         report(f"Searching: {company_name} {query[:40]}...")
         results = search_web(query, company_name, website)
         if results:
-            filtered = [
-                r
-                for r in results[:5]
-                if not website or website.lower() not in r.get("url", "").lower()
-            ]
+            filtered = [r for r in results[:5] if web_url_is_external(r.get("url", ""), website)]
             remaining_slots = max_external_sources - len(external_data)
             scraped = scrape_external_sources_validated(
                 filtered,
