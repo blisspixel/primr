@@ -307,11 +307,14 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.build.outputs.version }}
         run: |
+          # PyPI's version JSON can trail a successful trusted upload by more
+          # than a minute. Allow nearly three minutes while hash equality
+          # remains fail-closed.
           python scripts/verify_release_artifacts.py \
             --package primr \
             --version "$RELEASE_VERSION" \
             --dist-dir dist \
-            --attempts 6 \
+            --attempts 18 \
             --delay-seconds 10
 
       - name: Create or update GitHub Release

@@ -99,6 +99,49 @@ def test_verify_release_artifacts_retries_until_pypi_matches(tmp_path: Path) -> 
     assert sleeps == [0.25]
 
 
+def test_default_retry_window_tolerates_slow_pypi_propagation(tmp_path: Path) -> None:
+    wheel_name = "primr-1.2.3-py3-none-any.whl"
+    sdist_name = "primr-1.2.3.tar.gz"
+    wheel = b"wheel-content"
+    sdist = b"sdist-content"
+    (tmp_path / wheel_name).write_bytes(wheel)
+    (tmp_path / sdist_name).write_bytes(sdist)
+    matching = {
+        "urls": [
+            {"filename": wheel_name, "digests": {"sha256": _sha256(wheel)}},
+            {"filename": sdist_name, "digests": {"sha256": _sha256(sdist)}},
+        ]
+    }
+    calls = 0
+    sleeps: list[float] = []
+
+    def delayed_payload(_package: str, _version: str):
+        nonlocal calls
+        calls += 1
+        if calls <= 7:
+            raise urllib.error.HTTPError(
+                url="https://pypi.org/pypi/primr/1.2.3/json",
+                code=404,
+                msg="Not Found",
+                hdrs=None,
+                fp=None,
+            )
+        return matching
+
+    result = verify_release_artifacts(
+        package="primr",
+        version="1.2.3",
+        dist_dir=tmp_path,
+        delay_seconds=10,
+        fetch_payload=delayed_payload,
+        sleep=sleeps.append,
+    )
+
+    assert result == distribution_hashes(tmp_path)
+    assert calls == 8
+    assert sleeps == [10] * 7
+
+
 def test_verify_release_artifacts_fails_on_persistent_mismatch(tmp_path: Path) -> None:
     (tmp_path / "primr-1.2.3-py3-none-any.whl").write_bytes(b"wheel")
     (tmp_path / "primr-1.2.3.tar.gz").write_bytes(b"sdist")

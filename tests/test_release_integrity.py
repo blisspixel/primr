@@ -185,6 +185,7 @@ def test_release_requires_changelog_notes_and_verifies_pypi_hashes() -> None:
     assert "No changelog section found" in release_workflow
     assert "scripts/verify_release_artifacts.py" in release_workflow
     assert "Verify published PyPI artifact hashes" in release_workflow
+    assert "--attempts 18" in release_workflow
     assert "Check for an existing PyPI release before publishing" in release_workflow
     assert "--allow-absent" in release_workflow
     assert "uv sync --locked --only-group release --no-install-project --python 3.12" in (

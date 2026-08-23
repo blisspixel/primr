@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Release verification tolerates normal PyPI propagation delay.** Published
+  filename and hash verification now waits for nearly three minutes before
+  failing, while retaining exact, fail-closed artifact equality checks.
+
 ## [1.39.7] - 2026-08-22
 
 ### Changed
