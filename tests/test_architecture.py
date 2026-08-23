@@ -56,7 +56,7 @@ NEW_FILE_MAX_LINES = 1000
 FILE_LINE_CEILINGS: dict[str, int] = {
     # research_agent.py and cli.py remain below their committed-main baselines.
     # These ceilings track the current measured sizes and may only shrink.
-    "core/research_agent.py": 4262,
+    "core/research_agent.py": 4260,
     "core/cli.py": 2449,
     "ai/deep_research.py": 3812,
     "data/scraping/browsers.py": 1835,
@@ -151,7 +151,6 @@ EXPECTED_IMPORT_CYCLES = {
             "primr.core.fast_run_sections",
             "primr.core.fast_run_strategy",
             "primr.core.fast_run_trust",
-            "primr.core.fast_run_validation",
             "primr.core.research_agent",
             "primr.core.research_orchestrator",
         }
@@ -292,6 +291,8 @@ def test_first_party_import_cycles_match_burndown_baseline():
         ("primr.core.research_agent", "primr.core.fast_run_collection"),
         ("primr.core.fast_run_setup", "primr.core.research_agent"),
         ("primr.core.research_agent", "primr.core.fast_run_setup"),
+        ("primr.core.fast_run_validation", "primr.core.research_agent"),
+        ("primr.core.research_agent", "primr.core.fast_run_validation"),
         ("primr.core.refine", "primr.core.research_agent"),
         ("primr.core.research_agent", "primr.core.refine"),
     ],

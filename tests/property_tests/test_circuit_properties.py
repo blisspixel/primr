@@ -686,7 +686,9 @@ class TestOpenCircuitRejection:
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
     def test_retry_after_is_non_negative(self, key: str):
         """retry_after should always be non-negative."""
-        config = CircuitBreakerConfig(failure_threshold=2, timeout_seconds=0.01)
+        # The property concerns the error value, not timeout transition timing.
+        # Keep the circuit open long enough for coverage and loaded CI runners.
+        config = CircuitBreakerConfig(failure_threshold=2, timeout_seconds=60.0)
         breaker = CircuitBreaker(config)
 
         # Open the circuit

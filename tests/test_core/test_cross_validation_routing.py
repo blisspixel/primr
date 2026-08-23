@@ -49,8 +49,6 @@ def test_cross_validation_fails_closed_when_route_unavailable(monkeypatch, tmp_p
         called["cv"] = True
         raise AssertionError("cross-validate must not run when route is unavailable")
 
-    monkeypatch.setattr("primr.core.research_agent._fast_cross_validate", boom)
-
     result = cross_validate_and_enrich(
         company_name="ExampleCo",
         company_label="ExampleCo",
@@ -58,6 +56,7 @@ def test_cross_validation_fails_closed_when_route_unavailable(monkeypatch, tmp_p
         report_content="## Overview\n\nBody",
         source_urls=[],
         source_urls_seen=set(),
+        review_report=boom,
         analysis_workbook="wb",
         grok_reasoning="legacy-r",
         grok_writing="legacy-w",
