@@ -164,11 +164,11 @@ inconclusive.
 
 ## Next executable slice: architecture ownership without behavior drift
 
-**Status:** current v1.39.7 batch implemented; release validation is in
-progress. The v1.39.6 full non-integration suite passed with 14,584 tests, 57
-skips, 5 deselections, and 86.83 percent branch coverage against the 81 percent
-floor. The first P1 batch reduced the largest import-cycle component from 24
-modules to 22, the second reduced it from 22 to 12, and this batch reduces it
+**Status:** current v1.39.7 batch implemented and locally validated. The full
+non-integration suite passed with 14,599 tests, 57 skips, 5 deselections, and
+86.84 percent branch coverage against the 81 percent floor. The first P1 batch
+reduced the largest import-cycle component from 24 modules to 22, the second
+reduced it from 22 to 12, and this batch reduces it
 from 12 to 11. The stage now receives its reviewer through composition and
 uses the existing regeneration and spend owners directly. Malformed review
 results, abandoned enrichment workers, and optional diagnostic-write failures
