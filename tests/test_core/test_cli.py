@@ -562,7 +562,15 @@ class TestParseArgs:
 
     def test_handle_research_passes_output_dir_and_auto_platform_none(self, tmp_path):
         """Research handler should pass custom output dir and preserve recon auto-detect."""
-        config = parse_args(["Acme Corp", "https://acme.example", "--output-dir", "client-output"])
+        config = parse_args(
+            [
+                "Acme Corp",
+                "https://acme.example",
+                "--output-dir",
+                "client-output",
+                "--skip-confirm",
+            ]
+        )
 
         def successful_run(*_args, **kwargs):
             from primr.core.strategy_outcome import StrategyOutcomeTracker, persist_strategy_outcome

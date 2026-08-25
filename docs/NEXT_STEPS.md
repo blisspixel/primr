@@ -5,15 +5,17 @@ This is Primr's canonical execution brief. It answers what to implement next.
 rationale and contracts; `docs/CHANGELOG.md` owns completed implementation
 history.
 
-Last reviewed: 2026-08-22.
+Last reviewed: 2026-08-25.
 
 ## Current release objective
 
 Keep billable execution and network egress fail closed while architecture
-ownership work proceeds. The v1.39.7 ownership batch removes the fast
-validation back edge, hardens that optional stage, and makes external-evidence
-hostname boundaries consistent without changing report behavior. The prior
-v1.39.5 audit closed cumulative eval
+ownership work proceeds. The v1.39.8 approval transport patch makes approved
+provider-backed background launches explicit and rejects noninteractive paid
+execution without `--skip-confirm` before provider work. The v1.39.7 ownership
+batch removed the fast validation back edge, hardened that optional stage, and
+made external-evidence hostname boundaries consistent without changing report
+behavior. The prior v1.39.5 audit closed cumulative eval
 budgeting across per-run counter resets, direct Gemini compatibility-call
 accounting, Accordion response/current-budget handling, the agentic
 orchestrator's SSRF hook input, and URL-secret redaction on browser and A2A
@@ -164,9 +166,11 @@ inconclusive.
 
 ## Next executable slice: architecture ownership without behavior drift
 
-**Status:** current v1.39.7 batch implemented and locally validated. The full
-non-integration suite passed with 14,599 tests, 57 skips, 5 deselections, and
-86.84 percent branch coverage against the 81 percent floor. The first P1 batch
+**Status:** the v1.39.7 architecture batch remains implemented and locally
+validated after the v1.39.8 approval transport patch. The full non-integration
+suite passed with 14,605 tests, 57 skips, and 5 deselections. The most recent
+measured branch coverage was 86.84 percent against the 81 percent floor. The
+first P1 batch
 reduced the largest import-cycle component from 24 modules to 22, the second
 reduced it from 22 to 12, and this batch reduces it
 from 12 to 11. The stage now receives its reviewer through composition and

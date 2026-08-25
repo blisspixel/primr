@@ -2765,21 +2765,21 @@ def perform_research(
         grok_tier=grok_tier,
     )
     runtime_plan = preparation.plan
-    if preparation.status == "invalid":
-        console.error(runtime_plan.error_message or "Unsupported research runtime")
-        _update_run_state(folder_path, status="failed", current_phase="initializing")
+    if preparation.status != "ready":
+        messages = {
+            "invalid": runtime_plan.error_message or "Unsupported research runtime",
+            "approval_required": (
+                "Research was not started because no interactive input was available. "
+                "After explicit approval, rerun the exact command with --skip-confirm."
+            ),
+            "cancelled": "Research cancelled by user at cost confirmation",
+        }
+        final_status = "cancelled" if preparation.status == "cancelled" else "failed"
+        message = messages[preparation.status]
+        (console.info if final_status == "cancelled" else console.error)(message)
+        _update_run_state(folder_path, status=final_status, current_phase="initializing")
+        _append_run_event(folder_path, "initializing", final_status, message)
         return None
-    if preparation.status == "cancelled":
-        console.info("Research cancelled by user")
-        _update_run_state(folder_path, status="cancelled", current_phase="initializing")
-        _append_run_event(
-            folder_path,
-            "initializing",
-            "cancelled",
-            "Run cancelled by user at cost confirmation",
-        )
-        return None
-
     start_time = time.time()
 
     # Wrap entire research flow in correlation context for tracing

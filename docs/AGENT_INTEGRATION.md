@@ -49,6 +49,13 @@ Any explicitly billable agent-driven Primr run must follow this lifecycle:
 5. Monitor asynchronously.
 6. Read the output artifact before summarizing.
 
+For CLI transport, estimate with the exact command plus `--dry-run`. After the
+user approves that quote, replace `--dry-run` with `--skip-confirm` when
+launching through automation or a background job. Do not depend on an
+interactive prompt or pipe `y` into the process. Without `--skip-confirm`, a
+noninteractive CLI invocation returns an approval-required refusal and starts
+no provider work.
+
 Do not start billable work from a vague request like "research ExampleCo" or a
 bare Primr company-and-URL request. Use Primr Zero for a named Primr request and
 normal web research for an unnamed quick brief. Reserve provider-backed Primr
@@ -309,7 +316,8 @@ Primr runs can take 35-120 minutes. Good agent integrations avoid tight polling.
 
 Preferred patterns:
 
-1. Launch in the background and report completion.
+1. Launch in the background and report completion. An approved provider-backed
+   CLI command must include `--skip-confirm`.
 2. Stream sparse phase markers from logs.
 3. Do one early sanity check after the first few minutes.
 4. On the next user turn, read job state before saying anything about completion.

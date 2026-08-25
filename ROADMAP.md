@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.7
+Current State: v1.39.8
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -378,6 +378,11 @@ for every profile and can set a higher authorization floor from run history.
   uses the canonical four-label confidence vocabulary, checkpoints the report
   inside the prep bundle, and confirms its body-free `primary_report` inventory
   role before a requested downstream handoff when local execution is available.
+- Approved provider-backed CLI automation replaces `--dry-run` with
+  `--skip-confirm` in the exact quoted command. Noninteractive execution
+  without that approval signal starts no provider work, returns actionable
+  approval guidance, and is not recorded as a user cancellation. The operator
+  skills and background-launch guidance pin the same transition.
 - Agent governance surfaces for generic MCP clients: estimate-first prompts/resources, next-action hints, and server-enforced cost caps (`max_estimated_cost_usd`) with matching approval tokens. Enforcement defaults on for every transport; an explicit false `PRIMR_ENFORCE_MCP_COST_CAPS` value is retained only as an unsafe compatibility opt-out (`mcp_server/cost_caps.py`).
 - Long-running job guidance for agent clients: monitor/resume flows for standard runs and premium multi-vendor runs
 
@@ -513,7 +518,7 @@ The job is "URL in, consultant-grade artifact out," done well.
 | **1.43** | Memory layer 1 complete: run pointers, claim history, retention/deletion, export without flagged gaps. |
 | **1.44+** | Progressive early artifacts Layer 1; batch API public surface; pipeline overlap where measured; coverage ratchet continues every slice. |
 
-**Status (as of v1.39.7):** most of the 1.x engineering backlog is closed -
+**Status (as of v1.39.8):** most of the 1.x engineering backlog is closed -
 artifact pipeline contract (#1-2), cost/observability surface (#5, #7, #8,
 #12, #13), production failover (#6), QA iteration loop (#10), agentic write
 constraints (#11), runtime robustness (#24), and the `perform_fast_research`
@@ -2050,6 +2055,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.8 | Aug 2026 | **Noninteractive approval transport.** Approved provider-backed background runs replace the quoted command's `--dry-run` with `--skip-confirm`. Known noninteractive launches without that signal fail before provider work, and closed input is reported as missing approval instead of a user cancellation. The README, roadmap, agent guidance, and portable skill mirrors document the same transition. |
 | 1.39.7 | Aug 2026 | **Validation ownership and evidence independence.** The fast validation stage receives its reviewer through composition and depends directly on regeneration and spend owners, shrinking the broad import cycle from 12 modules to 11. Malformed reviews, timed-out enrichment workers, and optional diagnostic failures degrade safely. Every research path now uses hostname boundaries so first-party `www` and subdomain pages cannot masquerade as independent evidence. |
 | 1.39.6 | Aug 2026 | **Architecture ownership and cycle reduction.** Explicit CLI callbacks and direct owner imports reduce the package-inclusive CLI/research component from 22 modules to 12 with zero new production modules, preserved compatibility exports, direct owner tests, and fresh-interpreter import-order coverage. |
 | 1.39.5 | Aug 2026 | **Eval, Accordion, and egress hardening.** Batch eval reserves each started cell across per-run counter resets, non-finite spend limits fail closed, direct Gemini compatibility calls join shared usage accounting, Accordion reads the current Interactions schema and refuses empty success, agentic SSRF checks receive the company URL, and browser/A2A URL logs redact credentials and queries. |

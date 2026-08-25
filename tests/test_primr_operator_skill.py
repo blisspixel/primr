@@ -77,6 +77,21 @@ def test_operator_guides_intercept_zero_cost_requests_before_billable_modes() ->
         )
 
 
+def test_provider_backed_background_launch_uses_noninteractive_approval() -> None:
+    for path in (CLAUDE_SKILL, AGENT_GUIDE):
+        content = path.read_text(encoding="utf-8")
+        normalized = " ".join(content.split())
+
+        assert "replace `--dry-run` with `--skip-confirm`" in normalized
+        assert "background command must include `--skip-confirm`" in normalized
+        assert "pipe `y`" in normalized
+
+    for path in (README, AGENT_INTEGRATION):
+        normalized = " ".join(path.read_text(encoding="utf-8").split())
+        assert "--skip-confirm" in normalized
+        assert "background" in normalized
+
+
 def test_inline_zero_cost_fallback_is_complete() -> None:
     content = CLAUDE_SKILL.read_text(encoding="utf-8")
 

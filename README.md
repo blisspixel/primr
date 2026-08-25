@@ -86,9 +86,13 @@ remains the Claude-specific adapter.
 ### Terminal path
 
 ```bash
-primr "ExampleCo" https://example.co --dry-run   # always first
-primr "ExampleCo" https://example.co             # after you approve
+primr "ExampleCo" https://example.co --dry-run        # always first
+primr "ExampleCo" https://example.co                  # foreground, then approve
+primr "ExampleCo" https://example.co --skip-confirm   # automation, after approval
 ```
+
+`--skip-confirm` is the approval signal for a noninteractive or background
+launch. Use it only after a person has reviewed and approved the fresh quote.
 
 Mode matrix, platforms, strategy types, and cost controls:
 [Run Modes and Costs](docs/RUN_MODES.md).
@@ -157,6 +161,9 @@ Focused help: `primr --help`. Everything: `primr --help-all`.
 Billable runs need a fresh estimate and explicit approval. Use `--dry-run` to
 inspect the plan without starting work; normal execution repeats the quote and
 asks before provider work begins. `--budget N` refuses to start above the cap.
+Without `--skip-confirm`, a noninteractive launch starts no provider work and
+tells the caller how to rerun after approval. A closed input stream is reported
+as missing approval instead of being recorded as a user cancellation.
 Batch, enrichment, vendor research, and standalone strategy each have their own
 quote path. See [Run Modes and Costs](docs/RUN_MODES.md#cost-controls).
 

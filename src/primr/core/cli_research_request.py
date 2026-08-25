@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -42,6 +43,10 @@ class _ResearchConfig(Protocol):
 
     @property
     def json_output(self) -> bool:
+        raise NotImplementedError
+
+    @property
+    def skip_confirm(self) -> bool:
         raise NotImplementedError
 
     @property
@@ -155,6 +160,29 @@ def validate_research_request(config: _ResearchConfig) -> ValidatedResearchReque
     return ValidatedResearchRequest(company_name=company_name, website=website)
 
 
+def ensure_research_approval_transport(config: _ResearchConfig) -> bool:
+    """Refuse paid execution when no prompt or explicit approval is available."""
+    stdin = sys.stdin
+    try:
+        stdin_is_interactive = bool(stdin is not None and stdin.isatty())
+    except (OSError, ValueError):
+        stdin_is_interactive = False
+    if config.skip_confirm or stdin_is_interactive:
+        return True
+    json_modifier = " --json" if config.json_output else ""
+    report_command_error(
+        json_output=config.json_output,
+        operation="research",
+        error_type="approval_required",
+        message="Research requires explicit approval before provider work can start.",
+        hints=(
+            f"Run the exact command with --dry-run{json_modifier}, then repeat it "
+            "with --skip-confirm after approval.",
+        ),
+    )
+    return False
+
+
 def report_research_workspace_error(error: Exception, *, json_output: bool) -> int:
     """Render one active-run or unsafe-workspace failure consistently."""
     from primr.core.workspace import ActiveRunLeaseError
@@ -216,6 +244,7 @@ def resolve_research_context_files(config: _ResearchConfig) -> list[str] | None:
 
 __all__ = [
     "ValidatedResearchRequest",
+    "ensure_research_approval_transport",
     "report_research_workspace_error",
     "resolve_research_context_files",
     "validate_research_request",
