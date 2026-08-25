@@ -127,6 +127,31 @@ def test_preparation_forwards_the_resolved_shape_to_confirmation(monkeypatch):
     assert calls[0][1]["vendor_research_refreshes"] == 2
 
 
+def test_closed_confirmation_input_requires_noninteractive_approval(monkeypatch):
+    monkeypatch.setattr(
+        "primr.utils.cost_display.display_cost_estimate",
+        lambda *args, **kwargs: None,
+    )
+
+    preparation = prepare_research_runtime(
+        mode="complete",
+        display_name="ExampleCo",
+        explicit_fast_mode=True,
+        premium_mode=False,
+        xai_available=True,
+        platform_count=1,
+        ai_strategy=True,
+        strategy_types=None,
+        refresh_vendor_research=False,
+        skip_confirm=False,
+        lite_strategy=False,
+        verify=False,
+        grok_tier="hybrid",
+    )
+
+    assert preparation.status == "approval_required"
+
+
 def test_invalid_preparation_never_requests_cost_confirmation(monkeypatch):
     confirm = pytest.fail
     monkeypatch.setattr("primr.utils.cost_display.display_cost_estimate", confirm)

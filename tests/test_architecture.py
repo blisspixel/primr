@@ -57,7 +57,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     # research_agent.py and cli.py remain below their committed-main baselines.
     # These ceilings track the current measured sizes and may only shrink.
     "core/research_agent.py": 4260,
-    "core/cli.py": 2449,
+    "core/cli.py": 2440,
     "ai/deep_research.py": 3812,
     "data/scraping/browsers.py": 1835,
     "data/hiring_signals.py": 1577,

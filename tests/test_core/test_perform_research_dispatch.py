@@ -173,6 +173,17 @@ class TestCostConfirmationGate:
         assert state["status"] == "cancelled"
         seams["fast"].assert_not_called()
 
+    def test_closed_confirmation_input_is_not_recorded_as_user_cancel(self, seams, capsys):
+        seams["confirm"].return_value = None
+
+        assert _run(skip_confirm=False) is None
+
+        state = _read_state(seams["folder"])
+        assert state["status"] == "failed"
+        assert state["events"][-1]["status"] == "failed"
+        assert "no interactive input" in capsys.readouterr().out
+        seams["fast"].assert_not_called()
+
     def test_skip_confirm_bypasses_estimate(self, seams):
         _run(skip_confirm=True)
         seams["confirm"].assert_not_called()

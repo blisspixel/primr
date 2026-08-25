@@ -110,10 +110,11 @@ def display_cost_estimate(
     grok_tier: str = "hybrid",
     strategy_types: Sequence[str] | None = None,
     vendor_research_refreshes: int = 0,
-) -> bool:
+) -> bool | None:
     """Display cost estimate and ask for confirmation.
 
-    Returns True if the user confirms with an explicit yes; empty Enter cancels.
+    Return True for an explicit yes, False for a decline, and None when the
+    input stream closes before an answer can be read.
     """
     print_cost_estimate(
         mode,
@@ -134,7 +135,10 @@ def display_cost_estimate(
         sys.stdout.flush()
         response = input().strip().lower()
         return response in ("y", "yes")
-    except (KeyboardInterrupt, EOFError):
+    except EOFError:
+        print()
+        return None
+    except KeyboardInterrupt:
         print("\nCancelled.")
         return False
 

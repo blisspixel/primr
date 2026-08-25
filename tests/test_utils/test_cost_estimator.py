@@ -1165,6 +1165,15 @@ class TestDisplayCostEstimateStrategyTypes:
         assert estimate.total_cost == 2.4
         assert "~$2.40" in capsys.readouterr().out
 
+    def test_closed_stdin_is_distinct_from_a_user_decline(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import primr.utils.cost_display as cd
+
+        monkeypatch.setattr("builtins.input", MagicMock(side_effect=EOFError))
+
+        assert cd.display_cost_estimate("complete", "AcmeCo") is None
+
 
 class TestStrategyTypePrecedenceWithExplicitAi:
     """When the explicit list also names 'ai', the runtime runs the AI strategy
