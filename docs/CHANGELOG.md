@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.8] - 2026-08-25
+
 ### Fixed
 
+- **Background CLI launches preserve the approval contract.** Agent guidance
+  now replaces `--dry-run` with `--skip-confirm` after explicit approval before
+  starting a provider-backed background job. A noninteractive research command
+  without that signal starts no provider work and is no longer mislabeled as a
+  user cancellation when its input stream is closed.
 - **Release verification tolerates normal PyPI propagation delay.** Published
   filename and hash verification now waits for nearly three minutes before
   failing, while retaining exact, fail-closed artifact equality checks.

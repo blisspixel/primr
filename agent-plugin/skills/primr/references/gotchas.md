@@ -4,6 +4,10 @@ This is the living section. Update from real failures.
 
 ## Real observed failure modes (from usage and docs)
 - Forgetting the cost gate: always call estimate first (estimate_run or --dry-run) and get explicit "yes" before launch. Never assume.
+- Launching the approved CLI command in a background job without
+  `--skip-confirm`: replace `--dry-run` with `--skip-confirm` after approval.
+  Background jobs have no reliable interactive stdin, so never depend on the
+  prompt or pipe `y` into it.
 - Treating long runs as sync: primr is async by design. Use job_id or file timestamp to check; do not poll sub-minute.
 - Using for quick pre-call briefs: primr is for full dossier. For quick, use host search. primr costs real time/money.
 - DNS-only or recon standalone: use `primr recon` or shell dig for that. The full pipeline bundles it but is overkill.

@@ -7,6 +7,7 @@ to exercise each early-return branch and the mode-resolution logic.
 from __future__ import annotations
 
 import json
+import sys
 from unittest.mock import MagicMock
 
 import pytest
@@ -249,6 +250,28 @@ class TestModeIncompatibilities:
 
 
 class TestSuccessPath:
+    def test_background_execution_requires_skip_confirm(self, monkeypatch, capsys):
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        preflight = MagicMock()
+        monkeypatch.setattr("primr.core.cli._run_preflight_checks", preflight)
+
+        assert _handle_research(_config(skip_confirm=False)) == 1
+
+        output = capsys.readouterr().out
+        assert "explicit approval" in output
+        assert "--skip-confirm" in output
+        preflight.assert_not_called()
+
+    def test_background_execution_handles_missing_stdin(self, monkeypatch, capsys):
+        monkeypatch.setattr(sys, "stdin", None)
+        preflight = MagicMock()
+        monkeypatch.setattr("primr.core.cli._run_preflight_checks", preflight)
+
+        assert _handle_research(_config(skip_confirm=False)) == 1
+
+        assert "approval" in capsys.readouterr().out
+        preflight.assert_not_called()
+
     def test_json_execution_requires_explicit_noninteractive_approval(self, monkeypatch, capsys):
         monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda value: value)
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda value: value)

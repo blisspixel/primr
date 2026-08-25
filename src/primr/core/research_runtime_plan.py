@@ -155,5 +155,8 @@ def prepare_research_runtime(
         strategy_types=strategy_types,
         vendor_research_refreshes=plan.vendor_refresh_tasks,
     )
-    status = "ready" if approved else "cancelled"
+    if approved is None:
+        status = "approval_required"
+    else:
+        status = "ready" if approved else "cancelled"
     return ResearchRuntimePreparation(plan=plan, status=status)

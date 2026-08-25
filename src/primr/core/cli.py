@@ -87,6 +87,7 @@ from primr.core.cli_recovery import (
 )
 from primr.core.cli_render import is_render_command, run_render
 from primr.core.cli_research_request import (
+    ensure_research_approval_transport,
     report_research_workspace_error,
     resolve_research_context_files,
     validate_research_request,
@@ -1975,18 +1976,8 @@ def _handle_research(config: CLIConfig) -> int:
             error_type="unsupported_strategy_runtime",
             message=runtime_error,
         )
-
-    if config.json_output and not config.skip_confirm:
-        return report_command_error(
-            json_output=True,
-            operation="research",
-            error_type="approval_required",
-            message="Research requires explicit approval before provider work can start.",
-            hints=(
-                "Run the exact command with --dry-run --json, then repeat it with "
-                "--skip-confirm after approval.",
-            ),
-        )
+    if not ensure_research_approval_transport(config):
+        return 1
 
     def report_preflight_failure(errors: list[str]) -> int:
         if config.json_output:
