@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from primr.utils.console import console, prompt_yes_no
+from primr.utils.terminal import can_prompt_for_input
 
 
 def valid_eval_spend_ceiling(value: float) -> bool:
@@ -45,6 +46,12 @@ def approve_eval_spend(config: Any, estimated_total: float, label: str) -> int |
     if getattr(config, "skip_confirm", False):
         console.info(f"Proceeding with {label} under --skip-confirm")
         return None
+    if not can_prompt_for_input():
+        console.error(
+            f"{label}: interactive approval is unavailable. Re-run the approved command "
+            "with --skip-confirm."
+        )
+        return 1
     if not prompt_yes_no(
         f"Proceed with {label} (~${estimated_total:.2f})?",
         default=False,

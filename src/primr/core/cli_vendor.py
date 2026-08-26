@@ -14,6 +14,7 @@ from primr.utils.run_budget import (
     set_run_budget,
     skip_stage_if_over_budget,
 )
+from primr.utils.terminal import can_prompt_for_input
 
 logger = get_logger(__name__)
 
@@ -171,6 +172,15 @@ def run_generate_vendor(config: CLIConfig) -> int:
             ),
         )
 
+    if not config.skip_confirm and not config.json_output and not can_prompt_for_input():
+        return _report_error(
+            config,
+            estimate,
+            error_type="approval_required",
+            message="Execution requires explicit approval. Re-run with --skip-confirm.",
+            hints=("Use --dry-run to inspect the estimate without execution.",),
+        )
+
     from primr.core.vendor_research import _validate_vendor_research_preflight
 
     preflight_errors = tuple(
@@ -192,9 +202,8 @@ def run_generate_vendor(config: CLIConfig) -> int:
             estimate,
             error_type="approval_required",
             message="Execution requires explicit approval. Re-run with --skip-confirm.",
-            hints=("Use --dry-run --json to inspect the estimate without execution.",),
+            hints=("Use --dry-run to inspect the estimate without execution.",),
         )
-
     if not config.json_output:
         _emit_estimate(config, estimate)
     approval_source = "--skip-confirm"

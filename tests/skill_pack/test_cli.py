@@ -10,6 +10,7 @@ re-run here.
 from __future__ import annotations
 
 import json
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -377,6 +378,7 @@ class TestRunSkillsCliEarlyReturns:
         assert "Estimated cost" in out
 
     def test_execution_decline_stops_before_collection(self, monkeypatch, capsys):
+        monkeypatch.setattr("primr.skill_pack.cli.can_prompt_for_input", lambda: True)
         monkeypatch.setattr("builtins.input", lambda *a, **k: "n")
         monkeypatch.setattr(
             "primr.skill_pack.cli.collect_evidence",
@@ -389,6 +391,7 @@ class TestRunSkillsCliEarlyReturns:
         assert "Estimated cost" in capsys.readouterr().out
 
     def test_budget_still_requires_confirm(self, monkeypatch, capsys):
+        monkeypatch.setattr("primr.skill_pack.cli.can_prompt_for_input", lambda: True)
         monkeypatch.setattr("builtins.input", lambda *a, **k: "n")
         monkeypatch.setattr(
             "primr.skill_pack.cli.collect_evidence",
@@ -399,6 +402,21 @@ class TestRunSkillsCliEarlyReturns:
 
         assert rc == 0
         assert "Estimated cost" in capsys.readouterr().out
+
+    def test_background_execution_requires_explicit_approval(self, monkeypatch, capsys):
+        collect = MagicMock()
+        prompt = MagicMock(side_effect=AssertionError("background jobs must not prompt"))
+        monkeypatch.setattr("primr.skill_pack.cli.can_prompt_for_input", lambda: False)
+        monkeypatch.setattr("primr.skill_pack.cli.collect_evidence", collect)
+        monkeypatch.setattr("builtins.input", prompt)
+
+        rc = run_skills_cli(["skills", "Acme", "https://acme.example"])
+
+        captured = capsys.readouterr()
+        assert rc == 2
+        assert "--skip-confirm" in captured.err
+        prompt.assert_not_called()
+        collect.assert_not_called()
 
     def test_budget_below_quote_stops_before_collection(self, monkeypatch, capsys):
         monkeypatch.setattr(

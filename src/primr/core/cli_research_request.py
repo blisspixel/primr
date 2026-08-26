@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -16,6 +15,7 @@ from primr.core.cli_inference import (
 )
 from primr.utils import validators
 from primr.utils.console import console
+from primr.utils.terminal import can_prompt_for_input
 
 _FULL_RESEARCH_MODES = ("complete", "structured", "hybrid")
 
@@ -162,12 +162,7 @@ def validate_research_request(config: _ResearchConfig) -> ValidatedResearchReque
 
 def ensure_research_approval_transport(config: _ResearchConfig) -> bool:
     """Refuse paid execution when no prompt or explicit approval is available."""
-    stdin = sys.stdin
-    try:
-        stdin_is_interactive = bool(stdin is not None and stdin.isatty())
-    except (OSError, ValueError):
-        stdin_is_interactive = False
-    if config.skip_confirm or stdin_is_interactive:
+    if config.skip_confirm or can_prompt_for_input():
         return True
     json_modifier = " --json" if config.json_output else ""
     report_command_error(

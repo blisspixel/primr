@@ -92,7 +92,10 @@ primr "ExampleCo" https://example.co --skip-confirm   # automation, after approv
 ```
 
 `--skip-confirm` is the approval signal for a noninteractive or background
-launch. Use it only after a person has reviewed and approved the fresh quote.
+launch of the standard provider-backed commands. Use it only after a person has
+reviewed and approved the fresh quote. The experimental `primr orchestrate`
+command is the exception: its noninteractive approval and spend ceiling is
+`--max-cost <usd>` after the exact dry run is approved.
 
 Mode matrix, platforms, strategy types, and cost controls:
 [Run Modes and Costs](docs/RUN_MODES.md).

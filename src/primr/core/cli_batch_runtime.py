@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 
 from primr.core.cli_batch import _ColumnMap, _csv_safe, _ensure_valid_url, _prepare_batch_df
 from primr.utils.console import console
+from primr.utils.terminal import prompt_for_approval
 
 if TYPE_CHECKING:
     from primr.utils.cost_estimator import CostEstimate
@@ -485,15 +486,14 @@ def _authorize_batch_execution(
 ) -> int | None:
     """Return an exit code when approval or local preflight stops execution."""
     if not skip_confirm:
-        response = (
-            input(
-                f"Proceed with {len(plan.pending)} companies for an estimated "
-                f"${_required_number(payload, 'estimated_batch_cost_usd'):.2f}? [y/N] "
-            )
-            .strip()
-            .lower()
+        decision = prompt_for_approval(
+            f"Proceed with {len(plan.pending)} companies for an estimated "
+            f"${_required_number(payload, 'estimated_batch_cost_usd'):.2f}? [y/N] "
         )
-        if response not in {"y", "yes"}:
+        if decision == "unavailable":
+            console.error("Interactive approval unavailable. Re-run with --skip-confirm.")
+            return 1
+        if decision == "declined":
             console.info("Cancelled. No research calls were started.")
             return 0
         approval_source = "interactive"
@@ -964,15 +964,14 @@ def enrich_batch(
         )
         return 1
     if missing and not skip_confirm:
-        response = (
-            input(
-                f"Proceed with {len(missing)} website lookups for an estimated "
-                f"${estimated_lookup_cost:.4f}? [y/N] "
-            )
-            .strip()
-            .lower()
+        decision = prompt_for_approval(
+            f"Proceed with {len(missing)} website lookups for an estimated "
+            f"${estimated_lookup_cost:.4f}? [y/N] "
         )
-        if response not in {"y", "yes"}:
+        if decision == "unavailable":
+            console.error("Interactive approval unavailable. Re-run with --skip-confirm.")
+            return 1
+        if decision == "declined":
             console.info("Cancelled. No searches or model calls were started.")
             return 0
     logger.info(

@@ -14,6 +14,7 @@ import shutil
 import sys
 from dataclasses import dataclass
 from functools import lru_cache
+from typing import Literal, TextIO
 
 
 @dataclass
@@ -232,3 +233,31 @@ def is_interactive() -> bool:
         True if stdout is a TTY
     """
     return get_terminal_capabilities().is_interactive
+
+
+def can_prompt_for_input() -> bool:
+    """Return whether both standard streams support a foreground prompt."""
+
+    def is_tty(stream: TextIO | None) -> bool:
+        try:
+            return bool(stream is not None and stream.isatty())
+        except (OSError, ValueError):
+            return False
+
+    return is_tty(sys.stdin) and is_tty(sys.stdout)
+
+
+ApprovalDecision = Literal["approved", "declined", "unavailable"]
+
+
+def prompt_for_approval(prompt: str) -> ApprovalDecision:
+    """Read one fail-closed yes-only decision from a foreground terminal."""
+    if not can_prompt_for_input():
+        return "unavailable"
+    try:
+        response = input(prompt).strip().lower()
+    except (EOFError, OSError, ValueError):
+        return "unavailable"
+    except KeyboardInterrupt:
+        return "declined"
+    return "approved" if response in {"y", "yes"} else "declined"
