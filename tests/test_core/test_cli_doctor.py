@@ -595,9 +595,16 @@ class TestRunDoctor:
 
     def test_fix_mode_dispatches_to_init_flow(self, monkeypatch):
         self._stub_all_checks(monkeypatch, all_passed=False, warnings=0)
+        monkeypatch.setattr(cli_doctor, "can_prompt_for_input", lambda: False)
         with patch("primr.core.cli_init._run_init_flow", return_value=99) as init_mock:
             result = run_doctor(fix=True)
-        init_mock.assert_called_once()
+        init_mock.assert_called_once_with(
+            non_interactive=True,
+            assume_yes=False,
+            skip_browsers=False,
+            run_doctor_after=True,
+            doctor_runner=run_doctor,
+        )
         assert result == 99
 
     def test_fix_mode_with_clean_state_returns_zero(self, monkeypatch):

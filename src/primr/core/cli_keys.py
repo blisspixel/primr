@@ -10,6 +10,7 @@ import os
 import sys
 
 from primr.utils.console import console
+from primr.utils.terminal import can_prompt_for_input
 
 
 def create_keys_parser() -> argparse.ArgumentParser:
@@ -162,11 +163,16 @@ def run_keys(args: list[str] | None) -> int:
         env_name = normalize_key_name(parsed.provider)
         value = parsed.option_value or parsed.provided_value
         if value is None:
-            if not sys.stdin.isatty():
-                console.error("No key value provided and stdin is not interactive")
+            if not can_prompt_for_input():
+                console.error("No key value provided and an interactive terminal is unavailable")
                 console.info(f"Usage: primr keys set {parsed.provider} --value <key>")
                 return 1
-            value = getpass.getpass(f"{env_name}: ")
+            try:
+                value = getpass.getpass(f"{env_name}: ")
+            except (EOFError, OSError, ValueError):
+                console.error("Key input became unavailable before a value was read")
+                console.info(f"Usage: primr keys set {parsed.provider} --value <key>")
+                return 1
         value = value.strip()
         if not value:
             console.error("Key value cannot be empty")

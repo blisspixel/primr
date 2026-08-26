@@ -17,6 +17,14 @@ from functools import lru_cache
 from typing import Literal, TextIO
 
 
+def stream_is_tty(stream: TextIO | None) -> bool:
+    """Return whether a stream safely reports foreground terminal support."""
+    try:
+        return bool(stream is not None and stream.isatty())
+    except (AttributeError, OSError, ValueError):
+        return False
+
+
 @dataclass
 class TerminalCapabilities:
     """
@@ -49,7 +57,7 @@ class TerminalCapabilities:
             TerminalCapabilities with detected values
         """
         # Check if stdout is a TTY (interactive terminal)
-        is_tty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+        is_tty = stream_is_tty(sys.stdout)
 
         # Check for NO_COLOR environment variable (standard)
         # https://no-color.org/
@@ -237,14 +245,7 @@ def is_interactive() -> bool:
 
 def can_prompt_for_input() -> bool:
     """Return whether both standard streams support a foreground prompt."""
-
-    def is_tty(stream: TextIO | None) -> bool:
-        try:
-            return bool(stream is not None and stream.isatty())
-        except (OSError, ValueError):
-            return False
-
-    return is_tty(sys.stdin) and is_tty(sys.stdout)
+    return stream_is_tty(sys.stdin) and stream_is_tty(sys.stdout)
 
 
 ApprovalDecision = Literal["approved", "declined", "unavailable"]
