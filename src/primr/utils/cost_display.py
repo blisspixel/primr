@@ -114,7 +114,7 @@ def display_cost_estimate(
     """Display cost estimate and ask for confirmation.
 
     Return True for an explicit yes, False for a decline, and None when the
-    input stream closes before an answer can be read.
+    input stream closes or cannot be read before an answer is available.
     """
     print_cost_estimate(
         mode,
@@ -135,7 +135,7 @@ def display_cost_estimate(
         sys.stdout.flush()
         response = input().strip().lower()
         return response in ("y", "yes")
-    except EOFError:
+    except (EOFError, OSError, ValueError):
         print()
         return None
     except KeyboardInterrupt:

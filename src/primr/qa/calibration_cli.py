@@ -37,6 +37,7 @@ from primr.qa.calibration_selection import (
     write_calibration_pack_selection_template,
 )
 from primr.utils.console import prompt_yes_no
+from primr.utils.terminal import can_prompt_for_input
 
 
 class CalibrateConfig(Protocol):
@@ -225,7 +226,7 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
                 judge_metadata=judge_metadata,
             )
             return 0
-        if not _approve_cloud_judge_spend(
+        approval = _approve_cloud_judge_spend(
             config,
             console,
             total_calls=total_calls,
@@ -235,8 +236,10 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
                 f"({_format_cloud_cost(cloud_cost)}) + "
                 f"~{total_calls} local judge calls ($0.00)"
             ),
-        ):
-            return 0
+        )
+        approval_exit = _approval_exit_code(approval)
+        if approval_exit is not None:
+            return approval_exit
         outcomes, agreement = compare_judges(
             reports,
             local_selection=local_selection,
@@ -259,13 +262,15 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
             console.error(str(exc))
             return 1
         console.info(f"Judge: {judge_selection.kind} ({judge_selection.model})")
-        if not _approve_judge_selection(
+        approval = _approve_judge_selection(
             config,
             console,
             reports=reports,
             judge_selection=judge_selection,
-        ):
-            return 0
+        )
+        approval_exit = _approval_exit_code(approval)
+        if approval_exit is not None:
+            return approval_exit
         outcomes = run_calibration(
             reports,
             max_per_label=config.calibrate_max_per_label,
@@ -614,7 +619,7 @@ def _approve_judge_selection(
     *,
     reports: list[Path],
     judge_selection: JudgeSelection,
-) -> bool:
+) -> bool | None:
     """Approve a resolved cloud judge; local and dry runs need no spend gate."""
     if config.calibrate_dry_run or judge_selection.kind != "cloud":
         return True
@@ -649,11 +654,17 @@ def _approve_cloud_judge_spend(
     total_calls: int,
     estimated_cost_usd: float,
     description: str,
-) -> bool:
+) -> bool | None:
     """Quote and approve cloud judge spend before calibration starts."""
     console.info(f"Execution estimate: {description}")
     if total_calls <= 0 or config.skip_confirm:
         return True
+    if not can_prompt_for_input():
+        console.error(
+            "Interactive approval is unavailable. Re-run the approved calibration command "
+            "with --skip-confirm."
+        )
+        return None
 
     approved = prompt_yes_no(
         f"Start ~{total_calls} cloud judge calls for {_format_cloud_cost(estimated_cost_usd)}?",
@@ -662,6 +673,15 @@ def _approve_cloud_judge_spend(
     if not approved:
         console.info("Cancelled. No cloud judge calls were started.")
     return approved
+
+
+def _approval_exit_code(approval: bool | None) -> int | None:
+    """Map calibration approval state to an early exit code when needed."""
+    if approval is None:
+        return 1
+    if not approval:
+        return 0
+    return None
 
 
 def _format_cloud_cost(cost_usd: float) -> str:

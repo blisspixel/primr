@@ -102,6 +102,7 @@ def test_process_batch_default_requires_confirm(monkeypatch, tmp_path):
         MagicMock(return_value=_plan(_company())),
     )
     monkeypatch.setattr("primr.core.research_agent.perform_research", research)
+    monkeypatch.setattr("primr.utils.terminal.can_prompt_for_input", lambda: True)
     monkeypatch.setattr("builtins.input", MagicMock(return_value="n"))
 
     result = process_batch(
@@ -125,6 +126,7 @@ def test_declined_batch_starts_no_research(monkeypatch, tmp_path):
         MagicMock(return_value=_plan(_company())),
     )
     monkeypatch.setattr("primr.core.research_agent.perform_research", research)
+    monkeypatch.setattr("primr.utils.terminal.can_prompt_for_input", lambda: True)
     monkeypatch.setattr("builtins.input", MagicMock(return_value="n"))
 
     result = process_batch(
@@ -136,6 +138,32 @@ def test_declined_batch_starts_no_research(monkeypatch, tmp_path):
     )
 
     assert result == 0
+    preflight.assert_not_called()
+    research.assert_not_called()
+
+
+def test_background_batch_requires_explicit_approval(monkeypatch, tmp_path, capsys):
+    research = MagicMock()
+    preflight = MagicMock(return_value=(True, []))
+    prompt = MagicMock(side_effect=AssertionError("background jobs must not prompt"))
+    monkeypatch.setattr(
+        "primr.core.cli_batch_runtime.build_batch_plan",
+        MagicMock(return_value=_plan(_company())),
+    )
+    monkeypatch.setattr("primr.utils.terminal.can_prompt_for_input", lambda: False)
+    monkeypatch.setattr("builtins.input", prompt)
+
+    result = process_batch(
+        str(tmp_path / "batch.csv"),
+        per_company_estimate=_estimate(),
+        ai_strategy=False,
+        execution_preflight=preflight,
+        research_runner=research,
+    )
+
+    assert result == 1
+    assert "--skip-confirm" in capsys.readouterr().out
+    prompt.assert_not_called()
     preflight.assert_not_called()
     research.assert_not_called()
 
@@ -360,6 +388,7 @@ def test_enrich_decline_has_zero_search_model_calls_and_no_output(monkeypatch, t
         ),
     )
     monkeypatch.setattr("primr.data.search_utils.lookup_company_website", lookup)
+    monkeypatch.setattr("primr.utils.terminal.can_prompt_for_input", lambda: True)
     monkeypatch.setattr("builtins.input", MagicMock(return_value="n"))
 
     result = enrich_batch(
@@ -371,6 +400,35 @@ def test_enrich_decline_has_zero_search_model_calls_and_no_output(monkeypatch, t
     assert result == 0
     lookup.assert_not_called()
     assert not output.exists()
+
+
+def test_background_enrichment_requires_explicit_approval(monkeypatch, tmp_path, capsys):
+    lookup = MagicMock()
+    prompt = MagicMock(side_effect=AssertionError("background jobs must not prompt"))
+    monkeypatch.setattr(
+        "primr.core.cli_batch_runtime._prepare_batch_df",
+        MagicMock(return_value=_enrich_frame()),
+    )
+    monkeypatch.setattr(
+        "primr.core.cli_batch_runtime.estimate_website_lookup",
+        MagicMock(
+            return_value={
+                "lookup_count": 1,
+                "model_name": "utility-model",
+                "estimated_cost_usd": 0.01,
+            }
+        ),
+    )
+    monkeypatch.setattr("primr.utils.terminal.can_prompt_for_input", lambda: False)
+    monkeypatch.setattr("primr.data.search_utils.lookup_company_website", lookup)
+    monkeypatch.setattr("builtins.input", prompt)
+
+    result = enrich_batch(str(tmp_path / "batch.csv"), output_dir=tmp_path)
+
+    assert result == 1
+    assert "--skip-confirm" in capsys.readouterr().out
+    prompt.assert_not_called()
+    lookup.assert_not_called()
 
 
 def test_enrich_json_dry_run_has_stable_contract_and_no_lookup(monkeypatch, tmp_path):

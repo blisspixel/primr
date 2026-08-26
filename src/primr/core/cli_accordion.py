@@ -12,6 +12,7 @@ from math import isfinite
 from typing import Any
 
 from primr.utils.console import console, prompt_yes_no
+from primr.utils.terminal import can_prompt_for_input
 
 
 def handle_test_accordion(config: Any) -> int:
@@ -66,6 +67,12 @@ def handle_test_accordion(config: Any) -> int:
         )
 
     if not getattr(config, "skip_confirm", False):
+        if not can_prompt_for_input():
+            console.error(
+                "Interactive approval is unavailable. Re-run the approved command with "
+                "--skip-confirm."
+            )
+            return 1
         if not prompt_yes_no(
             f"Proceed with Accordion test (~${estimate.total_cost:.2f})?",
             default=False,

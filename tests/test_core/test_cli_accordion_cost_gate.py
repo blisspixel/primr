@@ -111,7 +111,22 @@ class TestAccordionCostGate:
     def test_decline_does_not_launch(self, monkeypatch, estimate_seam):
         launch = MagicMock()
         monkeypatch.setattr("primr.ai.accordion_test.run_accordion_test", launch)
+        monkeypatch.setattr("primr.core.cli_accordion.can_prompt_for_input", lambda: True)
         monkeypatch.setattr("primr.core.cli_accordion.prompt_yes_no", lambda *a, **k: False)
         code = handle_test_accordion(_config(skip_confirm=False))
         assert code == 1
+        launch.assert_not_called()
+
+    def test_background_run_requires_explicit_approval(self, monkeypatch, estimate_seam, capsys):
+        prompt = MagicMock()
+        launch = MagicMock()
+        monkeypatch.setattr("primr.ai.accordion_test.run_accordion_test", launch)
+        monkeypatch.setattr("primr.core.cli_accordion.can_prompt_for_input", lambda: False)
+        monkeypatch.setattr("primr.core.cli_accordion.prompt_yes_no", prompt)
+
+        code = handle_test_accordion(_config(skip_confirm=False))
+
+        assert code == 1
+        assert "--skip-confirm" in capsys.readouterr().out
+        prompt.assert_not_called()
         launch.assert_not_called()

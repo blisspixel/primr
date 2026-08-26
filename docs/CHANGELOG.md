@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.9] - 2026-08-25
+
+### Changed
+
+- **Noninteractive approval guidance is command-specific.** The README,
+  roadmap, agent integration guide, operator guidance, portable skill mirrors,
+  and CLI help now distinguish the standard provider-backed
+  `--skip-confirm` signal from the experimental orchestrator's approved
+  `--max-cost <usd>` ceiling.
+
+### Fixed
+
+- **Every paid CLI prompt detects background execution before reading input.**
+  Research, vendor research, standalone strategy generation, batch research,
+  batch enrichment, model-backed improvement, orchestration, Accordion tests,
+  paid evals, skill packs, and cloud calibration now require usable input and
+  output terminals before opening an interactive approval prompt. Background
+  jobs fail before billable work and report the exact explicit approval flag
+  needed to resume.
+- **Unavailable input is no longer reported as a user cancellation.** EOF,
+  detached streams, and closed streams map to missing approval across direct
+  confirmation paths. Keyboard interrupts and explicit negative answers remain
+  voluntary cancellations.
+- **Prompt capability checks fail closed on damaged standard streams.** Shared
+  terminal detection safely handles missing, closed, or detached input and
+  output streams, and shared yes/no prompts no longer leak stream exceptions.
+- **Approval state is bounded and machine-checkable.** Research runtime plans
+  now type their status vocabulary explicitly, preventing new unhandled states
+  from silently entering command dispatch.
+
 ## [1.39.8] - 2026-08-25
 
 ### Fixed

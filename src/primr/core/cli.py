@@ -616,7 +616,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--skip-confirm",
         action="store_true",
-        help="Explicitly approve non-interactive provider-backed execution",
+        help="Approve non-interactive paid execution; orchestrate uses --max-cost instead",
     )
 
     # Research options

@@ -159,11 +159,28 @@ class TestHandleGenerateVendor:
     def test_interactive_decline_starts_no_provider_calls(self, monkeypatch):
         gen_mock = MagicMock()
         monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
+        monkeypatch.setattr("primr.core.cli_vendor.can_prompt_for_input", lambda: True)
         monkeypatch.setattr("primr.core.cli_init._prompt_yes_no", lambda *a, **k: False)
 
         result = run_generate_vendor(_config(generate_vendor="azure", skip_confirm=False))
 
         assert result == 0
+        gen_mock.assert_not_called()
+
+    def test_background_execution_refuses_before_vendor_preflight(self, monkeypatch, capsys):
+        gen_mock = MagicMock()
+        preflight = MagicMock()
+        monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
+        monkeypatch.setattr(
+            "primr.core.vendor_research._validate_vendor_research_preflight", preflight
+        )
+        monkeypatch.setattr("primr.core.cli_vendor.can_prompt_for_input", lambda: False)
+
+        result = run_generate_vendor(_config(generate_vendor="azure", skip_confirm=False))
+
+        assert result == 1
+        assert "--skip-confirm" in capsys.readouterr().out
+        preflight.assert_not_called()
         gen_mock.assert_not_called()
 
     def test_json_partial_failure_reports_artifacts_and_returns_nonzero(self, monkeypatch, capsys):

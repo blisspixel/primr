@@ -32,6 +32,7 @@ from primr.utils.run_budget import (
     set_run_budget,
     skip_stage_if_over_budget,
 )
+from primr.utils.terminal import can_prompt_for_input
 
 logger = get_logger(__name__)
 
@@ -401,7 +402,7 @@ def handle_ai_strategy_only(
             ),
         )
 
-    if config.json_output and not config.skip_confirm:
+    if not config.skip_confirm and (config.json_output or not can_prompt_for_input()):
         return _report_error(
             config,
             estimate,
@@ -413,7 +414,19 @@ def handle_ai_strategy_only(
     if not config.json_output:
         _emit_estimate(config, estimate)
     if not config.skip_confirm:
-        response = input("Proceed with standalone strategy generation? [y/N] ").strip().lower()
+        try:
+            response = input("Proceed with standalone strategy generation? [y/N] ").strip().lower()
+        except (EOFError, OSError, ValueError):
+            return _report_error(
+                config,
+                estimate,
+                error_type="approval_required",
+                message="Execution requires explicit approval. Re-run with --skip-confirm.",
+                hints=("Use --dry-run to inspect the estimate without execution.",),
+            )
+        except KeyboardInterrupt:
+            console.info("Cancelled. No model calls were started.")
+            return 0
         if response not in {"y", "yes"}:
             console.info("Cancelled. No model calls were started.")
             return 0
