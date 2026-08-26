@@ -29,6 +29,8 @@ from rich.console import Console
 from rich.markup import escape
 from rich.text import Text
 
+from primr.utils.terminal import stream_is_tty
+
 # ─── ASCII Wordmark ─────────────────────────────────────────────────────
 # ANSI Shadow block font — bold 6-line design.
 # Uses █ (full block) for fills and ╔═╗║╚╝ (double-line box-drawing) for edges.
@@ -73,7 +75,7 @@ class BannerContext:
 
 
 def detect_banner_context() -> BannerContext:
-    is_tty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+    is_tty = stream_is_tty(sys.stdout)
     no_color = os.environ.get("NO_COLOR") is not None
     term_dumb = os.environ.get("TERM", "").lower() == "dumb"
     supports_color = is_tty and not no_color and not term_dumb

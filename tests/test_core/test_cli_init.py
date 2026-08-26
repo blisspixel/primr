@@ -46,9 +46,10 @@ class TestPromptYesNo:
         with patch("builtins.input", return_value=""):
             assert _prompt_yes_no("?", default=False) is False
 
-    def test_eof_uses_default(self):
-        with patch("builtins.input", side_effect=EOFError):
-            assert _prompt_yes_no("?", default=True) is True
+    @pytest.mark.parametrize("prompt_error", [EOFError(), OSError("closed"), ValueError("closed")])
+    def test_unavailable_input_fails_closed(self, prompt_error):
+        with patch("builtins.input", side_effect=prompt_error):
+            assert _prompt_yes_no("?", default=True) is False
             assert _prompt_yes_no("?", default=False) is False
 
 
@@ -67,6 +68,17 @@ class TestShouldOfferInteractiveKeySetup:
             patch("sys.stdin.isatty", return_value=False),
             patch("sys.stdout.isatty", return_value=True),
         ):
+            assert _should_offer_interactive_key_setup(self._result("GEMINI_API_KEY")) is False
+
+    def test_returns_false_when_output_is_not_tty(self):
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch("sys.stdout.isatty", return_value=False),
+        ):
+            assert _should_offer_interactive_key_setup(self._result("GEMINI_API_KEY")) is False
+
+    def test_returns_false_when_stream_is_damaged(self):
+        with patch("sys.stdin.isatty", side_effect=ValueError("closed")):
             assert _should_offer_interactive_key_setup(self._result("GEMINI_API_KEY")) is False
 
     def test_returns_false_when_no_errors(self):
@@ -431,6 +443,7 @@ class TestRunInitFlow:
 
         monkeypatch.setattr("sys.version_info", _VI((3, 12, 0, "final", 0)))
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("sys.stdout.isatty", lambda: True)
 
         # Validate-key always succeeds; getpass returns real-looking key.
         monkeypatch.setattr(cli_init, "_validate_key_live", lambda p, v: (True, "verified"))
@@ -465,6 +478,7 @@ class TestRunInitFlow:
 
         monkeypatch.setattr("sys.version_info", _VI((3, 12, 0, "final", 0)))
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("sys.stdout.isatty", lambda: True)
 
         monkeypatch.setattr(cli_init, "_validate_key_live", lambda p, v: (False, "rejected"))
         monkeypatch.setattr("getpass.getpass", lambda *a, **k: "bogus-1234567890")
@@ -495,6 +509,7 @@ class TestRunInitFlow:
 
         monkeypatch.setattr("sys.version_info", _VI((3, 12, 0, "final", 0)))
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("sys.stdout.isatty", lambda: True)
 
         # User presses enter at the getpass prompt -> empty string -> skipped
         monkeypatch.setattr("getpass.getpass", lambda *a, **k: "")
@@ -506,6 +521,38 @@ class TestRunInitFlow:
             run_doctor_after=False,
         )
         # All provider prompts were skipped, so setup is not ready.
+        assert result == 1
+
+    @pytest.mark.parametrize("prompt_error", [EOFError(), OSError("closed"), ValueError("closed")])
+    def test_interactive_secret_input_failure_returns_nonzero(
+        self, tmp_path, monkeypatch, prompt_error
+    ):
+        from primr.core import cli_init
+
+        monkeypatch.chdir(tmp_path)
+        for env_name in MODEL_PROVIDER_ENV_NAMES:
+            monkeypatch.delenv(env_name, raising=False)
+        monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env"))
+        monkeypatch.setattr("primr.config.env.load_primr_env", lambda: None)
+        monkeypatch.setattr(cli_init, "_playwright_browsers_ready", lambda: True)
+
+        class _VI(tuple):
+            major = 3
+            minor = 12
+            micro = 0
+
+        monkeypatch.setattr("sys.version_info", _VI((3, 12, 0, "final", 0)))
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+        monkeypatch.setattr("getpass.getpass", MagicMock(side_effect=prompt_error))
+
+        result = cli_init._run_init_flow(
+            non_interactive=False,
+            assume_yes=True,
+            skip_browsers=True,
+            run_doctor_after=False,
+        )
+
         assert result == 1
 
     def test_browser_install_failure_returns_nonzero(self, tmp_path, monkeypatch):

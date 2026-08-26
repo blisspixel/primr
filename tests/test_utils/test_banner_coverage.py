@@ -66,6 +66,16 @@ class TestEasingAndSleep:
         assert time.perf_counter() >= start + 0.0005
 
 
+class TestContextDetection:
+    def test_closed_stdout_falls_back_to_noninteractive(self):
+        with patch("sys.stdout") as stdout:
+            stdout.isatty.side_effect = OSError("closed")
+            stdout.encoding = "utf-8"
+            context = detect_banner_context()
+        assert context.is_tty is False
+        assert context.supports_cursor is False
+
+
 class TestGradientRendering:
     def test_precompute_gradient_length(self):
         codes = _precompute_gradient(10)
