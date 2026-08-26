@@ -98,6 +98,7 @@ class TestProcessBatch:
             MagicMock(return_value=(df, col_map)),
         )
         # User says no at the prompt
+        monkeypatch.setattr("primr.utils.terminal.can_prompt_for_input", lambda: True)
         monkeypatch.setattr("builtins.input", lambda *_a: "n")
         result = process_batch("/path.csv", skip_confirm=False)
         assert result == 0

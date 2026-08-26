@@ -136,6 +136,7 @@ def test_execute_eval_run_missing_rejects_invalid_ceiling(tmp_path, ceiling):
 
 
 def test_decline_cancels(monkeypatch):
+    monkeypatch.setattr("primr.core.cli_eval_spend.can_prompt_for_input", lambda: True)
     monkeypatch.setattr("primr.core.cli_eval_spend.prompt_yes_no", lambda *a, **k: False)
     assert (
         approve_eval_spend(
@@ -145,3 +146,19 @@ def test_decline_cancels(monkeypatch):
         )
         == 1
     )
+
+
+def test_background_eval_requires_explicit_approval(monkeypatch, capsys):
+    prompt = MagicMock()
+    monkeypatch.setattr("primr.core.cli_eval_spend.can_prompt_for_input", lambda: False)
+    monkeypatch.setattr("primr.core.cli_eval_spend.prompt_yes_no", prompt)
+
+    code = approve_eval_spend(
+        SimpleNamespace(dry_run_requested=False, skip_confirm=False),
+        4.0,
+        "eval run-missing",
+    )
+
+    assert code == 1
+    assert "--skip-confirm" in capsys.readouterr().out
+    prompt.assert_not_called()

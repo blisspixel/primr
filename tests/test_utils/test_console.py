@@ -4,7 +4,7 @@ Tests for console output utilities.
 
 import pytest
 
-from primr.utils.console import Console, console, get_console, set_console
+from primr.utils.console import Console, console, get_console, prompt_yes_no, set_console
 
 
 class TestConsole:
@@ -82,6 +82,14 @@ class TestConsole:
         c.error("Error message")
         captured = capsys.readouterr()
         assert "Error message" in captured.out
+
+    @pytest.mark.parametrize("error", [EOFError(), OSError("detached"), ValueError("closed")])
+    def test_prompt_yes_no_uses_default_when_input_is_unavailable(self, monkeypatch, error):
+        monkeypatch.setattr(
+            "builtins.input", lambda *_args, **_kwargs: (_ for _ in ()).throw(error)
+        )
+
+        assert prompt_yes_no("Proceed?", default=False) is False
 
     @pytest.mark.timing
     def test_timing_in_ok(self, capsys):

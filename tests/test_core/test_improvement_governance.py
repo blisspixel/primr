@@ -156,6 +156,7 @@ def test_human_agentic_execution_repeats_quote_and_requires_yes(
         "estimate_agentic_improve",
         lambda _content, *, is_strategy: bounded_estimate,
     )
+    monkeypatch.setattr(governance, "can_prompt_for_input", lambda: True)
     monkeypatch.setattr("builtins.input", lambda _prompt: "no")
 
     result = governance.handle_improve(
@@ -167,6 +168,34 @@ def test_human_agentic_execution_repeats_quote_and_requires_yes(
     assert result == 0
     assert "Estimated cost: ~$0.30" in stdout
     assert "Cancelled. No model calls were started." in stdout
+    run.assert_not_called()
+
+
+def test_background_agentic_improve_requires_explicit_approval(
+    tmp_path, monkeypatch, capsys, bounded_estimate
+):
+    report = tmp_path / "report.md"
+    report.write_text("## Overview\n\nContent", encoding="utf-8")
+    run = MagicMock()
+    prompt = MagicMock(side_effect=AssertionError("background jobs must not prompt"))
+    monkeypatch.setattr(
+        governance,
+        "estimate_agentic_improve",
+        lambda _content, *, is_strategy: bounded_estimate,
+    )
+    monkeypatch.setattr(governance, "can_prompt_for_input", lambda: False)
+    monkeypatch.setattr("builtins.input", prompt)
+
+    result = governance.handle_improve(
+        _config(improve_path=str(report), improve_agentic=True),
+        improve_output_file=run,
+    )
+
+    stdout = capsys.readouterr().out
+    assert result == 1
+    assert "approval" in stdout.lower()
+    assert "--skip-confirm" in stdout
+    prompt.assert_not_called()
     run.assert_not_called()
 
 

@@ -54,7 +54,8 @@ user approves that quote, replace `--dry-run` with `--skip-confirm` when
 launching through automation or a background job. Do not depend on an
 interactive prompt or pipe `y` into the process. Without `--skip-confirm`, a
 noninteractive CLI invocation returns an approval-required refusal and starts
-no provider work.
+no provider work. The experimental `primr orchestrate` command uses an approved
+`--max-cost <usd>` ceiling as its noninteractive approval token instead.
 
 Do not start billable work from a vague request like "research ExampleCo" or a
 bare Primr company-and-URL request. Use Primr Zero for a named Primr request and

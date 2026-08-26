@@ -255,6 +255,7 @@ class TestStrategyGeneration:
     def test_declined_confirmation_never_generates(self, report_under_output, monkeypatch):
         gen_mock = MagicMock()
         monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
+        monkeypatch.setattr("primr.core.cli_strategy.can_prompt_for_input", lambda: True)
         monkeypatch.setattr("builtins.input", lambda _prompt: "n")
 
         result = _handle_ai_strategy_only(
@@ -419,6 +420,7 @@ class TestStrategyGeneration:
             report_under_output.write_text("replacement", encoding="utf-8")
             return "y"
 
+        monkeypatch.setattr("primr.core.cli_strategy.can_prompt_for_input", lambda: True)
         monkeypatch.setattr("builtins.input", replace_then_approve)
 
         result = _handle_ai_strategy_only(
@@ -452,6 +454,7 @@ class TestStrategyGeneration:
             )
             return "y"
 
+        monkeypatch.setattr("primr.core.cli_strategy.can_prompt_for_input", lambda: True)
         monkeypatch.setattr("builtins.input", overwrite_then_approve)
 
         result = _handle_ai_strategy_only(
@@ -566,6 +569,28 @@ class TestStrategyJsonContract:
         assert payload["schema_version"] == "primr.strategy-command.v1"
         assert payload["error_type"] == "approval_required"
         assert payload["status"] == "not_started"
+        input_mock.assert_not_called()
+        gen_mock.assert_not_called()
+
+    def test_human_output_refuses_when_no_foreground_prompt_is_available(
+        self, report_under_output, monkeypatch, capsys
+    ):
+        gen_mock = MagicMock()
+        input_mock = MagicMock(side_effect=AssertionError("input must not be called"))
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
+        monkeypatch.setattr("primr.core.cli_strategy.can_prompt_for_input", lambda: False)
+        monkeypatch.setattr("builtins.input", input_mock)
+
+        result = _handle_ai_strategy_only(
+            _config(
+                ai_strategy_only_path=str(report_under_output),
+                skip_confirm=False,
+                platforms=("azure",),
+            )
+        )
+
+        assert result == 1
+        assert "--skip-confirm" in capsys.readouterr().out
         input_mock.assert_not_called()
         gen_mock.assert_not_called()
 

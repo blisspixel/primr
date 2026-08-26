@@ -39,6 +39,7 @@ from primr.skill_pack.config import (
 from primr.skill_pack.evidence import collect_evidence
 from primr.skill_pack.pipeline import run_skill_pack_pipeline
 from primr.skill_pack.saved_plan import prepare_saved_plan
+from primr.utils.terminal import can_prompt_for_input
 
 logger = logging.getLogger(__name__)
 
@@ -486,6 +487,13 @@ def run_skills_cli(args: list[str] | None) -> int:
     if not parsed.skip_confirm:
         from primr.utils.console import prompt_yes_no
 
+        if not can_prompt_for_input():
+            print(
+                "Error: interactive approval is unavailable. Re-run the approved command "
+                "with --skip-confirm.",
+                file=sys.stderr,
+            )
+            return 2
         if not prompt_yes_no("Proceed?", default=False):
             print("Cancelled.")
             return 0

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from primr.utils.console import console
+from primr.utils.terminal import can_prompt_for_input
 
 
 def handle_orchestrate(config: Any) -> int:
@@ -105,7 +106,20 @@ def handle_orchestrate(config: Any) -> int:
         )
         spend_ceiling = float(max_cost)
     else:
-        if not _confirm_orchestrate_spend(estimate.total_cost):
+        if not can_prompt_for_input():
+            console.error(
+                "Interactive approval is unavailable. Re-run the approved dry-run command "
+                "with --max-cost <usd>."
+            )
+            return 1
+        confirmation = _confirm_orchestrate_spend(estimate.total_cost)
+        if confirmation is None:
+            console.error(
+                "Approval input became unavailable. Re-run the approved dry-run command "
+                "with --max-cost <usd>."
+            )
+            return 1
+        if not confirmation:
             console.info("Cancelled.")
             return 1
         # Explicit yes without a budget flag still gets a runtime ceiling so
@@ -163,14 +177,16 @@ def handle_orchestrate(config: Any) -> int:
     return 1
 
 
-def _confirm_orchestrate_spend(estimated_total: float) -> bool:
+def _confirm_orchestrate_spend(estimated_total: float) -> bool | None:
     """Interactive yes-only confirm after the estimate line was already printed."""
     try:
         sys.stdout.write(f"Proceed with orchestrated research (~${estimated_total:.2f})? [y/N] ")
         sys.stdout.flush()
         response = input().strip().lower()
         return response in ("y", "yes")
-    except (KeyboardInterrupt, EOFError):
+    except (EOFError, OSError, ValueError):
+        return None
+    except KeyboardInterrupt:
         print("\nCancelled.")
         return False
 

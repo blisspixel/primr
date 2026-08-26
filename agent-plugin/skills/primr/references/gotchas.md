@@ -7,7 +7,8 @@ This is the living section. Update from real failures.
 - Launching the approved CLI command in a background job without
   `--skip-confirm`: replace `--dry-run` with `--skip-confirm` after approval.
   Background jobs have no reliable interactive stdin, so never depend on the
-  prompt or pipe `y` into it.
+  prompt or pipe `y` into it. For the experimental `primr orchestrate` command,
+  use the approved `--max-cost <usd>` ceiling instead of `--skip-confirm`.
 - Treating long runs as sync: primr is async by design. Use job_id or file timestamp to check; do not poll sub-minute.
 - Using for quick pre-call briefs: primr is for full dossier. For quick, use host search. primr costs real time/money.
 - DNS-only or recon standalone: use `primr recon` or shell dig for that. The full pipeline bundles it but is overkill.

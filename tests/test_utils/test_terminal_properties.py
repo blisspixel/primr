@@ -13,8 +13,10 @@ from hypothesis import strategies as st
 
 from primr.utils.terminal import (
     TerminalCapabilities,
+    can_prompt_for_input,
     clear_terminal_cache,
     get_terminal_capabilities,
+    prompt_for_approval,
 )
 from primr.utils.theme import Theme, get_theme
 
@@ -183,6 +185,39 @@ class TestTerminalCapabilitiesDetection:
         # Not interactive
         caps = TerminalCapabilities.for_testing(supports_cursor=True, is_interactive=False)
         assert not caps.should_update_in_place()
+
+    def test_prompt_requires_both_standard_streams_to_be_ttys(self):
+        with patch("sys.stdin") as stdin, patch("sys.stdout") as stdout:
+            stdin.isatty.return_value = True
+            stdout.isatty.return_value = False
+            assert not can_prompt_for_input()
+
+            stdout.isatty.return_value = True
+            assert can_prompt_for_input()
+
+    def test_prompt_rejects_missing_or_broken_streams(self):
+        with patch("sys.stdin", None), patch("sys.stdout") as stdout:
+            stdout.isatty.return_value = True
+            assert not can_prompt_for_input()
+
+    def test_approval_prompt_distinguishes_decisions_from_unavailable_input(self):
+        with (
+            patch("primr.utils.terminal.can_prompt_for_input", return_value=False),
+            patch("builtins.input") as prompt,
+        ):
+            assert prompt_for_approval("Proceed? ") == "unavailable"
+            prompt.assert_not_called()
+
+        with patch("primr.utils.terminal.can_prompt_for_input", return_value=True):
+            with patch("builtins.input", return_value="yes"):
+                assert prompt_for_approval("Proceed? ") == "approved"
+            with patch("builtins.input", side_effect=OSError("detached")):
+                assert prompt_for_approval("Proceed? ") == "unavailable"
+
+        with patch("sys.stdin") as stdin, patch("sys.stdout") as stdout:
+            stdin.isatty.side_effect = OSError("detached")
+            stdout.isatty.return_value = True
+            assert not can_prompt_for_input()
 
 
 class TestThemeTerminalIntegration:

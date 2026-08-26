@@ -3,6 +3,7 @@
 import json
 import time
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -1053,6 +1054,7 @@ class TestCLIWiring:
             return False
 
         monkeypatch.setattr(calibration_cli, "run_calibration", guarded_run_calibration)
+        monkeypatch.setattr(calibration_cli, "can_prompt_for_input", lambda: True)
         monkeypatch.setattr(calibration_cli, "prompt_yes_no", decline_prompt)
         config = CLIConfig(
             command=Command.CALIBRATE,
@@ -1067,6 +1069,38 @@ class TestCLIWiring:
         output = capsys.readouterr().out
         assert "Execution estimate: ~2 cloud judge calls" in output
         assert "Cancelled. No cloud judge calls were started." in output
+
+    def test_cloud_execution_without_terminal_requires_explicit_approval(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+        from primr.qa import calibration_cli
+
+        report = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        real_run_calibration = calibration_cli.run_calibration
+        live_calls = []
+
+        def guarded_run_calibration(*args, **kwargs):
+            if kwargs.get("dry_run"):
+                return real_run_calibration(*args, **kwargs)
+            live_calls.append(True)
+            raise AssertionError("live calibration must not start without approval")
+
+        prompt = MagicMock(side_effect=AssertionError("background jobs must not prompt"))
+        monkeypatch.setattr(calibration_cli, "run_calibration", guarded_run_calibration)
+        monkeypatch.setattr(calibration_cli, "can_prompt_for_input", lambda: False)
+        monkeypatch.setattr(calibration_cli, "prompt_yes_no", prompt)
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_target=str(report),
+            calibrate_judge="cloud",
+            skip_confirm=False,
+        )
+
+        assert _handle_calibrate(config) == 1
+        assert "--skip-confirm" in capsys.readouterr().out
+        prompt.assert_not_called()
+        assert live_calls == []
 
     def test_cloud_execution_skip_confirm_is_explicit_approval(self, tmp_path, monkeypatch):
         from primr.core.cli import CLIConfig, Command, _handle_calibrate

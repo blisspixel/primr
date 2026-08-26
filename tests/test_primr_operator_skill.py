@@ -85,11 +85,15 @@ def test_provider_backed_background_launch_uses_noninteractive_approval() -> Non
         assert "replace `--dry-run` with `--skip-confirm`" in normalized
         assert "background command must include `--skip-confirm`" in normalized
         assert "pipe `y`" in normalized
+        assert "`primr orchestrate`" in normalized
+        assert "`--max-cost <usd>`" in normalized
 
     for path in (README, AGENT_INTEGRATION):
         normalized = " ".join(path.read_text(encoding="utf-8").split())
         assert "--skip-confirm" in normalized
         assert "background" in normalized
+        assert "`primr orchestrate`" in normalized
+        assert "`--max-cost <usd>`" in normalized
 
 
 def test_inline_zero_cost_fallback_is_complete() -> None:

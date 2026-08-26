@@ -26,6 +26,7 @@ from typing import Protocol
 from primr.core.cli_command_output import emit_json, suppress_json_command_stdout
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
+from primr.utils.terminal import can_prompt_for_input
 
 logger = get_logger(__name__)
 
@@ -451,9 +452,13 @@ def _approve(config: _ImprovementConfig, estimate: ImprovementEstimate) -> tuple
         _emit_estimate(config, estimate)
     if config.skip_confirm:
         return True, "--skip-confirm"
+    if not can_prompt_for_input():
+        return False, "approval_required"
     try:
         response = input("Proceed with model-backed improvement? [y/N] ").strip().lower()
-    except (EOFError, KeyboardInterrupt):
+    except (EOFError, OSError, ValueError):
+        return False, "approval_required"
+    except KeyboardInterrupt:
         console.info("Cancelled. No model calls were started.")
         return False, "cancelled"
     if response not in {"y", "yes"}:

@@ -1165,12 +1165,13 @@ class TestDisplayCostEstimateStrategyTypes:
         assert estimate.total_cost == 2.4
         assert "~$2.40" in capsys.readouterr().out
 
-    def test_closed_stdin_is_distinct_from_a_user_decline(self, monkeypatch):
+    @pytest.mark.parametrize("read_error", [EOFError, OSError, ValueError])
+    def test_unreadable_stdin_is_distinct_from_a_user_decline(self, monkeypatch, read_error):
         from unittest.mock import MagicMock
 
         import primr.utils.cost_display as cd
 
-        monkeypatch.setattr("builtins.input", MagicMock(side_effect=EOFError))
+        monkeypatch.setattr("builtins.input", MagicMock(side_effect=read_error))
 
         assert cd.display_cost_estimate("complete", "AcmeCo") is None
 

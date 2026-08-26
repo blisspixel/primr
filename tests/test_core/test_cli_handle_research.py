@@ -272,6 +272,17 @@ class TestSuccessPath:
         assert "approval" in capsys.readouterr().out
         preflight.assert_not_called()
 
+    def test_redirected_output_cannot_claim_interactive_approval(self, monkeypatch, capsys):
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+        preflight = MagicMock()
+        monkeypatch.setattr("primr.core.cli._run_preflight_checks", preflight)
+
+        assert _handle_research(_config(skip_confirm=False)) == 1
+
+        assert "--skip-confirm" in capsys.readouterr().out
+        preflight.assert_not_called()
+
     def test_json_execution_requires_explicit_noninteractive_approval(self, monkeypatch, capsys):
         monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda value: value)
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda value: value)

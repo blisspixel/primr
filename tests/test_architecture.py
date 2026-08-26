@@ -66,7 +66,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     "data/fallback_sources.py": 1084,
     # cli_batch_runtime.py received extracted batch-runtime code during the
     # cli.py decomposition; pinned here now that it exceeds the new-file cap.
-    "core/cli_batch_runtime.py": 1043,
+    "core/cli_batch_runtime.py": 1042,
     "agentic/hooks.py": 1010,
     "data/scraping/orchestrator.py": 1064,
     "data/scraping/structured_content.py": 1067,

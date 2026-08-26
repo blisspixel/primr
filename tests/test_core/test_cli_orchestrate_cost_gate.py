@@ -128,6 +128,7 @@ class TestOrchestrateCostGate:
             lambda *a, **k: _estimate(0.76),
         )
         monkeypatch.setattr("builtins.input", MagicMock(return_value="n"))
+        monkeypatch.setattr("primr.core.cli_orchestrate.can_prompt_for_input", lambda: True)
         launch = MagicMock()
         monkeypatch.setattr(
             "primr.agentic.orchestrator.ResearchOrchestrator",
@@ -135,6 +136,20 @@ class TestOrchestrateCostGate:
         )
         code = handle_orchestrate(_config(orchestrate_max_cost=None))
         assert code == 1
+        launch.assert_not_called()
+
+    def test_background_run_requires_max_cost(self, monkeypatch, estimate_seam, capsys):
+        prompt = MagicMock(side_effect=AssertionError("background jobs must not prompt"))
+        launch = MagicMock()
+        monkeypatch.setattr("primr.core.cli_orchestrate.can_prompt_for_input", lambda: False)
+        monkeypatch.setattr("builtins.input", prompt)
+        monkeypatch.setattr("primr.agentic.orchestrator.ResearchOrchestrator", launch)
+
+        code = handle_orchestrate(_config(orchestrate_max_cost=None))
+
+        assert code == 1
+        assert "--max-cost <usd>" in capsys.readouterr().out
+        prompt.assert_not_called()
         launch.assert_not_called()
 
     def test_interactive_yes_launches(self, monkeypatch, estimate_seam):
@@ -163,6 +178,7 @@ class TestOrchestrateCostGate:
             lambda *a, **k: _estimate(0.5),
         )
         monkeypatch.setattr("builtins.input", MagicMock(return_value="yes"))
+        monkeypatch.setattr("primr.core.cli_orchestrate.can_prompt_for_input", lambda: True)
 
         code = handle_orchestrate(_config(orchestrate_max_cost=None))
         assert code == 0

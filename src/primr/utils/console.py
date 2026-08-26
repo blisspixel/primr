@@ -65,7 +65,7 @@ def prompt_yes_no(prompt: str, *, default: bool) -> bool:
     suffix = "Y/n" if default else "y/N"
     try:
         answer = input(f"{prompt} [{suffix}] ").strip().lower()
-    except EOFError:
+    except (EOFError, OSError, ValueError):
         return default
     if not answer:
         return default

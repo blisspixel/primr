@@ -92,6 +92,7 @@ class TestProcessCsv:
     def test_decline_starts_no_research(self, helper, sample_csv, monkeypatch):
         research = MagicMock()
         monkeypatch.setattr("primr.core.research_agent.perform_research", research)
+        monkeypatch.setattr("primr.utils.terminal.can_prompt_for_input", lambda: True)
         monkeypatch.setattr("builtins.input", MagicMock(return_value="n"))
 
         helper(str(sample_csv), ai_strategy=False)
@@ -110,6 +111,7 @@ class TestProcessCsv:
         report.write_text("report " * 1_000, encoding="utf-8")
         research = MagicMock(return_value=str(report))
         monkeypatch.setattr("primr.core.research_agent.perform_research", research)
+        monkeypatch.setattr("primr.utils.terminal.can_prompt_for_input", lambda: True)
         monkeypatch.setattr("builtins.input", MagicMock(return_value="y"))
         monkeypatch.delenv("PRIMR_ALLOW_VENDOR_REFRESH", raising=False)
 

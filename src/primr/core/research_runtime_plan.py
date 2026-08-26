@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 from primr.utils.model_policy import unpriced_model_opt_ins
 
@@ -29,7 +30,7 @@ class ResearchRuntimePreparation:
     """Runtime plan plus the outcome of its compatibility and approval gates."""
 
     plan: ResearchRuntimePlan
-    status: str
+    status: Literal["ready", "invalid", "approval_required", "cancelled"]
 
 
 def resolve_research_runtime_plan(
@@ -155,6 +156,7 @@ def prepare_research_runtime(
         strategy_types=strategy_types,
         vendor_research_refreshes=plan.vendor_refresh_tasks,
     )
+    status: Literal["ready", "approval_required", "cancelled"]
     if approved is None:
         status = "approval_required"
     else:
