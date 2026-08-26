@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from primr.utils.security import mask_sensitive_data
+from primr.utils.terminal import stream_is_tty
 
 
 @dataclass
@@ -61,12 +62,12 @@ _enable_windows_ansi()
 
 
 def prompt_yes_no(prompt: str, *, default: bool) -> bool:
-    """Prompt for operator confirmation, returning the default at EOF."""
+    """Prompt for confirmation, using the default only for an empty answer."""
     suffix = "Y/n" if default else "y/N"
     try:
         answer = input(f"{prompt} [{suffix}] ").strip().lower()
     except (EOFError, OSError, ValueError):
-        return default
+        return False
     if not answer:
         return default
     return answer in {"y", "yes"}
@@ -74,7 +75,7 @@ def prompt_yes_no(prompt: str, *, default: bool) -> bool:
 
 @lru_cache(maxsize=1)
 def _detect_terminal():
-    is_tty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+    is_tty = stream_is_tty(sys.stdout)
     no_color = os.environ.get("NO_COLOR") is not None
     term_dumb = os.environ.get("TERM", "").lower() == "dumb"
     force_color = os.environ.get("FORCE_COLOR") is not None

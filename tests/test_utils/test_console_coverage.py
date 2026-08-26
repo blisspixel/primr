@@ -8,6 +8,7 @@ test_console.py does not exercise.
 from __future__ import annotations
 
 import time
+from unittest.mock import patch
 
 import pytest
 
@@ -51,6 +52,16 @@ class TestTerminalCaps:
         caps = _detect_terminal()
         assert isinstance(caps, _TerminalCaps)
         assert caps.width >= 40
+
+    def test_detect_terminal_handles_closed_stdout(self):
+        _detect_terminal.cache_clear()
+        with patch("sys.stdout") as stdout:
+            stdout.isatty.side_effect = ValueError("closed")
+            stdout.encoding = "utf-8"
+            caps = _detect_terminal()
+        _detect_terminal.cache_clear()
+        assert caps.is_interactive is False
+        assert caps.supports_cursor is False
 
     def test_enable_windows_ansi_no_error(self):
         # Should be a no-op or succeed silently on any platform.

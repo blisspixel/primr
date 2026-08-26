@@ -117,7 +117,12 @@ primr keys list
 primr keys path
 ```
 
-`primr init` and `primr keys set ...` prompt for keys without echoing them. Primr reads keys in this order:
+`primr init` and `primr keys set ...` prompt for keys without echoing them when
+both input and output are attached to a foreground terminal. For automation,
+prefer a protected environment variable or secret store. The explicit
+`primr keys set <provider> --value <key>` form is available when the caller can
+prevent command arguments from entering shell history or process telemetry.
+Primr reads keys in this order:
 
 1. Shell environment variables
 2. The nearest local `.env`

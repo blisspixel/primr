@@ -10,10 +10,10 @@ Last reviewed: 2026-08-25.
 ## Current release objective
 
 Keep billable execution and network egress fail closed while architecture
-ownership work proceeds. The v1.39.9 approval polish extends the explicit
-background contract across every paid CLI surface, rejects unusable input or
-output streams before paid work, and distinguishes standard `--skip-confirm`
-automation from orchestrator `--max-cost <usd>`. The v1.39.7 ownership
+ownership work proceeds. The v1.39.10 terminal follow-through extends the
+v1.39.9 approval contract to update, init, doctor fix, key setup, shared
+capability detection, and the legacy module launcher. Unavailable input fails
+closed without selecting a default-yes action. The v1.39.7 ownership
 batch removed the fast validation back edge, hardened that optional stage, and
 made external-evidence hostname boundaries consistent without changing report
 behavior. The prior v1.39.5 audit closed cumulative eval
@@ -168,9 +168,10 @@ inconclusive.
 ## Next executable slice: architecture ownership without behavior drift
 
 **Status:** the v1.39.7 architecture batch remains implemented and locally
-validated after the v1.39.9 approval transport polish. The full non-integration
-suite passed with 14,625 tests, 57 skips, and 5 deselections. The most recent
-measured branch coverage was 86.83 percent against the 81 percent floor. The
+validated after the v1.39.10 terminal and launcher polish. The full
+non-integration suite passed with 14,644 tests, 57 skips, and 5 deselections.
+The most recent measured branch coverage was 86.86 percent against the 81
+percent floor. The
 first P1 batch
 reduced the largest import-cycle component from 24 modules to 22, the second
 reduced it from 22 to 12, and this batch reduces it

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 
 import pytest
 
@@ -115,7 +114,7 @@ def test_run_update_check_only_does_not_install(monkeypatch):
 
 def test_noninteractive_update_requires_explicit_yes(monkeypatch):
     monkeypatch.setattr(cli_update, "get_latest_version", lambda **_kwargs: "999.0.0")
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+    monkeypatch.setattr(cli_update, "can_prompt_for_input", lambda: False)
     monkeypatch.setattr(
         cli_update,
         "detect_install_method",
@@ -124,6 +123,37 @@ def test_noninteractive_update_requires_explicit_yes(monkeypatch):
     monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: pytest.fail("no upgrade"))
 
     assert cli_update.run_update() == 1
+
+
+def test_update_requires_visible_output_terminal(monkeypatch):
+    monkeypatch.setattr(cli_update, "get_latest_version", lambda **_kwargs: "999.0.0")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr(
+        cli_update,
+        "detect_install_method",
+        lambda: pytest.fail("installation method should not be inspected"),
+    )
+
+    assert cli_update.run_update() == 1
+
+
+@pytest.mark.parametrize("prompt_error", [EOFError(), OSError("closed"), ValueError("closed")])
+def test_update_reports_unavailable_confirmation_input(monkeypatch, capsys, prompt_error):
+    monkeypatch.setattr(cli_update, "get_latest_version", lambda **_kwargs: "999.0.0")
+    monkeypatch.setattr(cli_update, "can_prompt_for_input", lambda: True)
+    monkeypatch.setattr(
+        cli_update,
+        "detect_install_method",
+        lambda: InstallMethod(kind="pip", upgrade_command=["pip", "install", "primr"]),
+    )
+    monkeypatch.setattr("builtins.input", lambda _prompt: (_ for _ in ()).throw(prompt_error))
+    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: pytest.fail("no upgrade"))
+
+    assert cli_update.run_update() == 1
+    output = capsys.readouterr().out
+    assert "input is unavailable" in output
+    assert "Update cancelled" not in output
 
 
 def test_run_update_runs_upgrade(monkeypatch):

@@ -10,6 +10,7 @@ Playwright browser-availability checks and installation, project-level
 
 from __future__ import annotations
 
+import getpass
 import logging
 import os
 import sys
@@ -20,6 +21,7 @@ from typing import Any
 from primr.ai.genai_factory import default_genai_http_options
 from primr.utils.console import console
 from primr.utils.console import prompt_yes_no as _prompt_yes_no
+from primr.utils.terminal import can_prompt_for_input
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +35,7 @@ MODEL_PROVIDER_ENV_NAMES = (
 
 def _should_offer_interactive_key_setup(validation_result: Any) -> bool:
     """Return True when the only validation errors are missing API keys and we're on a TTY."""
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
+    if not can_prompt_for_input():
         return False
     if not validation_result.errors:
         return False
@@ -132,6 +134,38 @@ def _install_playwright_browsers() -> bool:
     return result.returncode == 0
 
 
+def _prompt_for_provider_key(provider: str, env_name: str) -> bool:
+    """Prompt for, validate, and save one provider key.
+
+    Returns False only when the secret input stream becomes unavailable.
+    Skips and exhausted validation retries return True so the caller can
+    continue through the remaining providers and report aggregate readiness.
+    """
+    from primr.config.env import mask_secret, set_user_key
+
+    for attempt in range(3):
+        try:
+            value = getpass.getpass(f"  {env_name} (input hidden): ").strip()
+        except (EOFError, OSError, ValueError):
+            console.error("Secret input became unavailable before a value was read")
+            console.info("Re-run 'primr init' in a foreground terminal.")
+            return False
+        if not value:
+            console.warn(f"Skipped {env_name}")
+            return True
+        console.info("  Verifying key with provider...")
+        ok, message = _validate_key_live(provider, value)
+        if ok:
+            set_user_key(provider, value)
+            os.environ[env_name] = value
+            console.ok(f"{env_name} saved ({mask_secret(value)}) - {message}")
+            return True
+        console.error(f"  {message}")
+        if attempt < 2:
+            console.info("  Try again, or press Enter to skip.")
+    return True
+
+
 def _ensure_project_env_file() -> tuple[bool, str | None]:
     """Create a safe local .env template for source/project checkouts."""
     cwd = Path.cwd()
@@ -173,17 +207,14 @@ def _run_init_flow(
     doctor_runner: Callable[..., int] | None = None,
 ) -> int:
     """Run first-time setup for CLI-first installs."""
-    import getpass
-
     from primr.config.env import (
         get_user_env_path,
         load_primr_env,
         mask_secret,
-        set_user_key,
     )
 
     load_primr_env()
-    interactive = (not non_interactive) and sys.stdin.isatty()
+    interactive = (not non_interactive) and can_prompt_for_input()
     all_ready = True
 
     console.banner("Primr Init")
@@ -273,21 +304,8 @@ def _run_init_flow(
             if not wants_to_paste:
                 continue
 
-        for attempt in range(3):
-            value = getpass.getpass(f"  {env_name} (input hidden): ").strip()
-            if not value:
-                console.warn(f"Skipped {env_name}")
-                break
-            console.info("  Verifying key with provider...")
-            ok, message = _validate_key_live(provider, value)
-            if ok:
-                set_user_key(provider, value)
-                os.environ[env_name] = value
-                console.ok(f"{env_name} saved ({mask_secret(value)}) - {message}")
-                break
-            console.error(f"  {message}")
-            if attempt < 2:
-                console.info("  Try again, or press Enter to skip.")
+        if not _prompt_for_provider_key(provider, env_name):
+            return 1
     if not any(_key_looks_configured(env_name) for env_name in MODEL_PROVIDER_ENV_NAMES):
         all_ready = False
         console.warn("No model provider key configured")

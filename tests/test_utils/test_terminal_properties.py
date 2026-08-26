@@ -17,6 +17,7 @@ from primr.utils.terminal import (
     clear_terminal_cache,
     get_terminal_capabilities,
     prompt_for_approval,
+    stream_is_tty,
 )
 from primr.utils.theme import Theme, get_theme
 
@@ -199,6 +200,17 @@ class TestTerminalCapabilitiesDetection:
         with patch("sys.stdin", None), patch("sys.stdout") as stdout:
             stdout.isatty.return_value = True
             assert not can_prompt_for_input()
+
+    def test_stream_tty_check_rejects_missing_method(self):
+        assert not stream_is_tty(object())  # type: ignore[arg-type]
+
+    def test_terminal_detection_rejects_broken_stdout(self):
+        with patch("sys.stdout") as stdout:
+            stdout.isatty.side_effect = ValueError("closed")
+            stdout.encoding = "utf-8"
+            caps = TerminalCapabilities.detect()
+        assert caps.is_interactive is False
+        assert caps.supports_cursor is False
 
     def test_approval_prompt_distinguishes_decisions_from_unavailable_input(self):
         with (

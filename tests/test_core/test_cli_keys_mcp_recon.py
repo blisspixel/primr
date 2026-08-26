@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from primr.core.cli import (
     _is_keys_command,
     _is_recon_command,
@@ -86,9 +88,21 @@ class TestRunKeys:
 
     def test_set_non_interactive_no_value_returns_1(self, monkeypatch):
         monkeypatch.setattr("primr.config.env.normalize_key_name", lambda p: f"{p.upper()}_API_KEY")
-        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        monkeypatch.setattr("primr.core.cli_keys.can_prompt_for_input", lambda: False)
         result = run_keys(["keys", "set", "gemini"])
         assert result == 1
+
+    @pytest.mark.parametrize("prompt_error", [EOFError(), OSError("closed"), ValueError("closed")])
+    def test_set_handles_secret_prompt_failure(self, monkeypatch, prompt_error):
+        monkeypatch.setattr("primr.config.env.normalize_key_name", lambda p: f"{p.upper()}_API_KEY")
+        monkeypatch.setattr("primr.core.cli_keys.can_prompt_for_input", lambda: True)
+        monkeypatch.setattr("getpass.getpass", MagicMock(side_effect=prompt_error))
+        monkeypatch.setattr(
+            "primr.config.env.set_user_key",
+            lambda *_args, **_kwargs: pytest.fail("key must not be saved"),
+        )
+
+        assert run_keys(["keys", "set", "gemini"]) == 1
 
     def test_unset_removes_key(self, monkeypatch):
         monkeypatch.setattr(

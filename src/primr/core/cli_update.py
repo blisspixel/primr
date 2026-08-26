@@ -9,10 +9,10 @@ new version exists; this command installs it in one step.
 from __future__ import annotations
 
 import subprocess
-import sys
 
 from primr import __version__
 from primr.utils.console import console
+from primr.utils.terminal import can_prompt_for_input
 from primr.utils.version_check import (
     check_for_update,
     detect_install_method,
@@ -79,7 +79,7 @@ def run_update(*, check_only: bool = False, yes: bool = False) -> int:
         console.info("Run 'primr update' to install it.")
         return 0
 
-    if not yes and not sys.stdin.isatty():
+    if not yes and not can_prompt_for_input():
         console.error("Non-interactive updates require explicit confirmation.")
         console.info("Re-run with 'primr update --yes', or use '--check' to inspect only.")
         return 1
@@ -92,7 +92,12 @@ def run_update(*, check_only: bool = False, yes: bool = False) -> int:
     if not yes:
         try:
             answer = input(f"Upgrade primr to v{latest} now? [Y/n] ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
+        except (EOFError, OSError, ValueError):
+            console.blank()
+            console.error("Confirmation input is unavailable.")
+            console.info("Re-run with 'primr update --yes', or use '--check' to inspect only.")
+            return 1
+        except KeyboardInterrupt:
             console.blank()
             console.info("Update cancelled.")
             return 1

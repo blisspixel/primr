@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.10] - 2026-08-25
+
+### Changed
+
+- **Foreground terminal detection is shared across setup and maintenance.**
+  Update, init, doctor fix, key setup, banner detection, and console capability
+  detection now use the same exception-safe stream check.
+- **The legacy packaged module follows the public CLI boundary.**
+  `python -m primr.primr_cli` delegates to `primr.cli_entry`, matching the
+  console script and `python -m primr` behavior.
+
+### Fixed
+
+- **Unavailable input cannot select a default-yes action.** An empty answer
+  still uses the displayed default, while EOF and closed or detached streams
+  fail closed.
+- **Setup and key entry handle disappearing terminals cleanly.** Hidden secret
+  prompts now return an actionable nonzero result instead of leaking an input
+  exception or continuing after the terminal disappears.
+- **Automated updates require a visible prompt or `--yes`.** `primr update`
+  checks both input and output terminal capability before inspecting the
+  installation method, and distinguishes unavailable confirmation input from
+  a user cancellation.
+- **Damaged output streams no longer break capability detection.** Banner,
+  console, and terminal probes fall back to noninteractive capabilities when
+  `isatty()` is missing or raises.
+
 ## [1.39.9] - 2026-08-25
 
 ### Changed

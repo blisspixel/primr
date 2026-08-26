@@ -739,7 +739,7 @@ src/primr/
 ├── __init__.py, __main__.py # Package and `python -m primr` entry points
 ├── types.py                 # Transport-neutral result and protocol types
 ├── job_status.py            # Versioned cross-transport lifecycle snapshots
-├── primr_cli.py             # Legacy module wrapper; console script uses core.cli
+├── primr_cli.py             # Legacy module wrapper; delegates to cli_entry
 │
 ├── core/                    # CLI and research/strategy orchestration
 │   ├── cli.py, cli_*.py    # Command parsing, dispatch, preflight, and budgets

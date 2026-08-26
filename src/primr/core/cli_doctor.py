@@ -34,6 +34,7 @@ from primr.ai.provider_availability_collectors import (
 from primr.config.config import LOGS_DIR, OUTPUT_DIR, WORKING_DIR
 from primr.utils.atomic_io import atomic_replace
 from primr.utils.console import console
+from primr.utils.terminal import can_prompt_for_input
 
 logger = logging.getLogger(__name__)
 
@@ -546,7 +547,7 @@ def run_doctor(*, fix: bool = False) -> int:
         console.blank()
         console.info("Launching guided setup...")
         return _run_init_flow(
-            non_interactive=not sys.stdin.isatty(),
+            non_interactive=not can_prompt_for_input(),
             assume_yes=False,
             skip_browsers=False,
             run_doctor_after=True,

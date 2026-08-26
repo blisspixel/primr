@@ -16,7 +16,7 @@ This document describes all configuration options available in Primr.
 | `AZURE_OPENAI_API_KEY` | Optional Azure AI Foundry provider (resolves the `foundry`/`azure` provider); set `AZURE_OPENAI_BASE_URL` or `AZURE_OPENAI_ENDPOINT` for the deployment endpoint | No |
 | `AWS_BEARER_TOKEN_BEDROCK` | Optional AWS Bedrock provider (resolves the `bedrock`/`aws` provider); the standard AWS credential chain (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION`/`AWS_PROFILE`) also works. Needs `pip install 'primr[bedrock]'` | No |
 
-Run `primr init` for guided first-run setup. Set keys directly with `primr keys set gemini`, `primr keys set xai`, `primr keys set openai`, `primr keys set anthropic`, `primr keys set ollama`, `primr keys set foundry`, or `primr keys set bedrock`; shell env vars and local `.env` values are also supported. Run `primr keys path` to see the user-level config file. The measured default remains XAI + Gemini, but a single usable cloud provider key is enough for provider diagnostics.
+Run `primr init` for guided first-run setup. Set keys directly with `primr keys set gemini`, `primr keys set xai`, `primr keys set openai`, `primr keys set anthropic`, `primr keys set ollama`, `primr keys set foundry`, or `primr keys set bedrock`; these hidden prompts require a foreground input/output terminal. Shell env vars and local `.env` values are also supported for noninteractive configuration. Run `primr keys path` to see the user-level config file. The measured default remains XAI + Gemini, but a single usable cloud provider key is enough for provider diagnostics.
 
 ### Agent Host Authentication
 

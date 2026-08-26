@@ -115,6 +115,10 @@ primr --version
 Plain `pip install primr` also works. On Windows, prefer pipx or the installer
 if `primr` is missing from `PATH` after pip.
 
+Upgrade in a foreground terminal with `primr update`. An approved automated
+upgrade must pass `primr update --yes`; otherwise Primr exits before inspecting
+or running the installation command.
+
 The convenience installers set up pipx and common PATH issues. Download and inspect
 the script before executing it:
 
@@ -156,6 +160,7 @@ Keys and full config: [API Key Setup](docs/API_KEYS.md) ·
 | Skills pack | `primr skills "Company" https://company.com` |
 | Markdown → DOCX/TXT ($0) | `primr render "output/report.md"` |
 | Strategy on existing report | `primr --ai-strategy-only "output/report.md" --dry-run` |
+| Check or install an update | `primr update --check` / `primr update` |
 
 Focused help: `primr --help`. Everything: `primr --help-all`.
 
