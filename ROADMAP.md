@@ -2,7 +2,11 @@
 
 Current State: v1.39.10
 
-Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
+Primr takes a company name and website, researches the company, and produces
+evidence-grounded, long-form strategic reports as polished Word and Markdown
+artifacts. YAML-defined strategies extend the researched company view into
+additional strategy documents. The canonical product and delivery boundary is
+the [Company Analyst Product Contract](docs/design/company-analyst-product-contract.md).
 
 The design is intentionally opinionated and local-first. This roadmap owns
 long-range product direction, release dependencies, exit criteria, and the
@@ -50,14 +54,14 @@ releases inside a band; only cut the major when its pillars hold together.
 | Band | Theme | Why this order |
 |------|--------|----------------|
 | **v1.39.x** (current) | Operator polish, security floors, routing honesty | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. |
-| **v1.40** | Epistemic quality gate readiness | Hard gates and hybrid-routing promotions need a fully decidable production calibration corpus first; without it, quality claims are vibes. |
+| **v1.40** | Epistemic and analyst-quality readiness | Hard gates, report-quality changes, and hybrid-routing promotions need a fully decidable production corpus for the bare company-and-website run first; without it, quality claims are vibes. |
 | **v1.41** | Backend freedom: measured host promotion + residual dual-provider cleanup | Unlocks honest OpenAI-only / Anthropic-only / host / local profiles; depends on 1.40 instruments to judge backends. |
 | **v1.42** | Agent control-plane finish (MCP Tasks, remaining watch items) | Agents can already estimate/approve/read compact artifacts; finish long-running job lifecycle and parity so unattended delegation is safe. |
-| **v1.43** | Research memory layer 1 complete | Compounding value only after claims are measurable (1.40) and jobs are consumable (1.42). |
-| **v1.44-1.49** | Cost levers, progressive early artifacts, coverage ratchet | Mechanical after routing + orchestrator seams; improve time-to-first-useful and economics without changing product identity. |
-| **v2.0** | Backend freedom + memory + control plane as one release | Major bump when all three pillars meet exit criteria together: cost-tunable backends, durable research memory with governance, agent role with authz/budget/audit. |
-| **v2.x** | Strategy Delta Mode, claim store, host/local promotions | Deepen 2.0 pillars without expanding product identity. |
-| **v3.0** | Research frontier | VLM-first extraction, vertical compounding, post-artifact handoff contracts, only after 2.0 memory and control plane exist. |
+| **v1.43** | Research memory layer 1 + shadow run ledger | Attach governed run history plus source receipts, evidence anchors, findings, and strategic inferences only after claims are measurable (1.40) and jobs are consumable (1.42). The ledger remains shadow-only until eval promotes it. |
+| **v1.44-1.49** | Claim-aware writing, cost levers, progressive artifacts, coverage ratchet | Promote ledger-aware section packets only from measured evidence, then improve time-to-first-useful and economics without changing product identity. |
+| **v2.0** | Measured analyst quality + backend freedom + safe delegation | Major bump when the exceptional long-form report holds across validated free-first and paid routes under an agent role with authz, budget, and audit. Repeat-engagement memory joins only after measured report lift. |
+| **v2.x** | Strategy Delta Mode, measured temporal continuity, host/local promotions | Deepen the same company-research product without expanding its identity. |
+| **v3.0** | Research frontier | VLM-first extraction, measured vertical compounding, and post-artifact handoff contracts only where they improve the company report or its downstream use. |
 | **Beyond 3.0** | Consumer-side composition only | No SaaS, no daemon, no generic agent middleware; loops stay outside Primr. |
 
 The exact implementation slice, acceptance criteria, approved spend, and
@@ -447,6 +451,7 @@ for every profile and can set a higher authorization floor from run history.
 - Strategic analysis over raw data - deep outputs you can act on, not link dumps
 - Hypothesis generation over premature conclusions - confidence levels on every claim
 - Transparency about uncertainty - what's confirmed, what's inferred, what's speculation
+- Epistemic separation before prose - captured evidence, source-grounded findings, strategic inferences, and testable hypotheses remain distinct even when the final report reads as one argument
 - Deterministic verification before AI judgment - check structure, citations, and epistemic labels with code before asking a model to score prose quality
 - Local-first, CLI-first - your data stays on your machine
 - Role over tool - Primr is an account strategist, not a "research command." Its outputs should be consumable by both humans and downstream agents.
@@ -514,11 +519,11 @@ The job is "URL in, consultant-grade artifact out," done well.
 | Version | Exit criteria (must hold before the next band) |
 |---------|--------------------------------------------------|
 | **1.39.x** | Current: hybrid default Grok 4.3, MAX pin Grok 4.5, Grok 4.6 and OpenAI GPT-5.6 registered for evaluation, crypto ≥50, truthful dry-run/doctor, Primr Zero front door. |
-| **1.40** | Fully decidable multi-report calibration corpus; hard-gate decision either armed from evidence or deliberately kept report-only with a new decision record. |
+| **1.40** | Fully decidable multi-report corpus for the bare company-and-website run; epistemic hard-gate decision either armed from evidence or deliberately kept report-only, with analyst-quality dimensions recorded for later promotion decisions. |
 | **1.41** | Live host-vs-cloud source-relevance comparison scored; human promotion decision recorded; residual xAI/Gemini-only preflight assumptions removed for pure single-provider profiles. |
 | **1.42** | MCP Tasks (or equivalent durable job handle) + remaining control-plane watch items; A2A/MCP parity frozen as the agent contract. |
-| **1.43** | Memory layer 1 complete: run pointers, claim history, retention/deletion, export without flagged gaps. |
-| **1.44+** | Progressive early artifacts Layer 1; batch API public surface; pipeline overlap where measured; coverage ratchet continues every slice. |
+| **1.43** | Memory layer 1 complete: automatic run pointers, retention/deletion, export, digest-bound source receipts and evidence anchors, plus a shadow run-scoped finding/inference ledger that does not yet drive report prose. |
+| **1.44+** | Claim-aware section packets promoted only after representative eval; progressive artifacts, batch API public surface, measured pipeline overlap, and the coverage ratchet continue. |
 
 **Status (as of v1.39.10):** most of the 1.x engineering backlog is closed -
 artifact pipeline contract (#1-2), cost/observability surface (#5, #7, #8,
@@ -601,11 +606,11 @@ per-module coverage ratchet unlocked by the refactor:
   selected-report counts for agent control planes. Baseline artifacts now also
   include a body-free decision template for operator-supplied gate evidence, and
   the calibration CLI can now write a body-free operator decision record bound
-  to the inspected baseline fingerprint. Remaining:
-  gather a multi-report, agreement-validated baseline (cloud-vs-local
-  concordance), then set the threshold from those numbers; a single small run is too
-  judge-noisy to arm a hard gate on (judge variance is itself a documented
-  failure mode, see
+  to the inspected baseline fingerprint. Remaining: repeat calibration on a
+  fully decidable production corpus and make a new operator decision from those
+  measurements. The existing five-report, agreement-validated baseline is real,
+  but two reports lack a decidable Confirmed floor, so it cannot arm a hard gate
+  (judge variance and incomplete floors are documented failure modes, see
   [`docs/design/agentic-balance.md`](docs/design/agentic-balance.md)). See
   `docs/design/1x-completion.md` workstream 1
 
@@ -616,10 +621,21 @@ monster functions are refactored so the test suite exercises the heart of the
 pipeline, not just its perimeter. Design doc:
 [`docs/design/1x-completion.md`](docs/design/1x-completion.md).
 
-### 2.0 - primr as a composable, cost-tunable research *role*
+### 2.0 - the exceptional company analyst across execution routes
 
 The step-change that earns the major bump is three pillars landing together:
 
+- **Measured analyst quality** - the bare company-and-website invocation still
+  produces the complete long-form Strategic Overview and YAML-defined strategy
+  artifacts, while representative blinded evaluation shows strong company
+  understanding, evidence-grounded strategic insight, contradiction handling,
+  decision usefulness, and reliable Word delivery. The run-scoped ledger and
+  any repeat-engagement memory remain supporting capabilities. Memory is
+  promoted only when it improves a later report without weakening freshness,
+  privacy, uncertainty, or cost. Design docs:
+  [`docs/design/company-analyst-product-contract.md`](docs/design/company-analyst-product-contract.md),
+  [`docs/design/research-tradecraft.md`](docs/design/research-tradecraft.md), and
+  [`docs/design/run-epistemic-ledger.md`](docs/design/run-epistemic-ledger.md).
 - **Backend freedom** - the capability-requirement routing layer (#18) plus
   validated API-keyed cloud, billing-verifiable host runner, gateway, and
   local/hybrid inference profiles, so a run is cost-tunable from proven or
@@ -630,12 +646,7 @@ The step-change that earns the major bump is three pillars landing together:
   that should automatically move up the default order as desktop-class models
   and hardware pass stage-level evals. Design doc:
   [`docs/design/2.0-backend-freedom.md`](docs/design/2.0-backend-freedom.md).
-- **Memory** - research that compounds across runs (cross-run claim store +
-  persistent company tracking + Strategy Delta Mode) instead of starting cold
-  every time, shipped *with* its data-governance story (retention, deletion,
-  classification), not acquiring one later. Design doc:
-  [`docs/design/2.0-research-memory.md`](docs/design/2.0-research-memory.md).
-- **Interoperability** - primr presented as a *role* other agents assign work
+- **Safe delegation** - primr presented as a *role* other agents assign work
   to: per-tool capability-scoped authorization (T8, Stage 1 shipped),
   server-issued approval tokens for MCP cost-cap-governed tools (Stage 2 slice
   shipped), a structured audit log for tool calls and resource reads,
@@ -653,11 +664,13 @@ The step-change that earns the major bump is three pillars landing together:
   Documents on the auth side. Design doc:
   [`docs/design/2.0-agent-control-plane.md`](docs/design/2.0-agent-control-plane.md).
 
-**Exit criteria:** a downstream agent can delegate to primr unattended - on a
-backend the operator chose, under enforced per-tool authorization and budget,
-with an auditable invocation trail - and primr remembers what it already
-learned, while still being the same "serious artifact out" tool when run
-locally by a human.
+**Exit criteria:** the bare company-and-website invocation produces an
+exceptional, evidence-grounded Strategic Overview and selected YAML strategy
+documents as valid long-form Word and Markdown artifacts; a downstream agent
+can delegate that same product to primr on a validated free-first or paid
+backend under enforced per-tool authorization and budget with an auditable
+invocation trail. Repeat-engagement memory is included only if representative
+evaluation proves report lift.
 
 ### 3.0 - the research frontier, same guardrails
 
@@ -700,24 +713,24 @@ points; work can land earlier as 1.39.x patches when it is independently safe.
 1.39.x  polish + truthful surfaces (current)
    │
    ▼
-1.40    measure epistemics on a fully decidable production corpus
+1.40    measure epistemics + analyst quality on a fully decidable corpus
    │      (hard gate stays report-only until this proves readiness)
    ▼
 1.41    promote backends only from measured host/cloud + single-provider cleanup
    │
    ├──────────────────────┐
    ▼                      ▼
-1.42 control plane finish   1.43 memory layer 1 complete
+1.42 control plane finish   1.43 memory L1 + shadow run ledger
    │                      │
    └──────────┬───────────┘
               ▼
-1.44+   cost levers, progressive artifacts, coverage ratchet
+1.44+   measured claim-aware writing, cost levers, progressive artifacts
               │
               ▼
-2.0     backend freedom + memory + control plane exit criteria all hold
+2.0     analyst quality + backend freedom + safe delegation all hold
               │
               ▼
-2.x     claim store, Strategy Delta, further host/local promotions
+2.x     Strategy Delta, temporal compounding, further host/local promotions
               │
               ▼
 3.0     VLM-first extraction · vertical compounding · post-artifact handoff
@@ -726,11 +739,12 @@ points; work can land earlier as 1.39.x patches when it is independently safe.
 later   consumer-side composition only (no SaaS / daemon / generic middleware)
 ```
 
-1. **Measure the epistemics** (**→ 1.40**): label-calibration + evidence-fetching
-   `--verify`. Tooling and a five-report measured baseline are **shipped**; the
-   open slice is a fully decidable production corpus and a re-decision on hard
-   gates / `PRIMR_LABEL_HONESTY`. Everything quality-shaped downstream needs
-   this measurement first.
+1. **Measure epistemics and analyst quality** (**→ 1.40**): label calibration,
+   evidence-fetching `--verify`, and the report-only analyst dimensions in the
+   company-analyst contract. Tooling and a five-report measured baseline are
+   **shipped**; the open slice is a fully decidable production corpus and a
+   re-decision on hard gates / `PRIMR_LABEL_HONESTY`. Everything quality-shaped
+   downstream needs this measurement first.
 2. **Refactor the orchestrators** (#23) (**done in 1.x**): `perform_fast_research`
    extraction complete; keep per-module coverage rising as seams open.
 3. **Evidence-grounded validation** (#4) (**→ 1.40**): opt-in label honesty and
@@ -741,15 +755,27 @@ later   consumer-side composition only (no SaaS / daemon / generic middleware)
 5. **Control plane** (T8 + #21) (**→ 1.42, then 2.0 pillar**): MCP/A2A authz,
    approval tokens, seven compact job resources, and cancellation ownership are
    shipped; remaining: MCP Tasks extension and related watch items.
-6. **Memory layer 1 → 2 → 3** (**→ 1.43 for L1, 2.0 for L1 exit, 2.x for L2/L3**):
-   profiles and no-secret writes started; run pointers and claim history still
-   needed for L1 done.
-7. **Cost levers & progressive artifacts** (**→ 1.44+**): batch API public
-   surface, pipeline overlap, Layer-1 free working brief after scrape/recon.
-8. **2.0 release** when backend freedom, memory L1, and control-plane exit
-   criteria all hold together.
-9. **3.0 workstreams** after 2.0: VLM can start earlier if resourced; compounding
-   needs the claim store; handoff needs the control plane.
+6. **Memory layer 1 + run ledger** (**→ 1.43**): finish automatic run pointers,
+   retention/deletion, and export; add digest-bound source receipts and evidence
+   anchors, then emit run-scoped findings and strategic inferences in shadow
+   mode. The v1.40 corpus remains the prerequisite and is not reopened by this
+   design. See
+   [`docs/design/run-epistemic-ledger.md`](docs/design/run-epistemic-ledger.md).
+7. **Claim-aware writing, cost levers & progressive artifacts** (**→ 1.44+**):
+   promote ledger-backed section packets only after representative eval, then
+   continue the batch API, measured pipeline overlap, and progressive artifacts.
+8. **Measured repeat-engagement continuity** (**→ 2.0 only after report lift**):
+   ingest immutable run records into governed local state, add fenced prior
+   research as validation context, and emit a lossless OKF projection only for
+   explicit export or handoff. Do not make indexed memory a release requirement
+   unless representative evaluation shows that it improves the next company
+   report.
+9. **2.0 release** when analyst quality, backend freedom, and safe-delegation
+   exit criteria all hold together.
+10. **Strategy Delta** (**→ 2.x**): validate a traced delta artifact before
+    allowing section-usage dependencies to drive selective regeneration.
+11. **3.0 workstreams** after 2.0: VLM can start earlier if resourced; vertical
+    compounding needs the claim store; handoff needs the control plane.
 
 ---
 
@@ -838,7 +864,19 @@ Decision principle: final shipping artifacts must read as deliverables, not as i
 Primr needs a sharper separation between **intermediate research artifacts** and **final shipping artifacts**. Research-stage artifacts (scrape summaries, source inventories, contradiction notes, section briefs) are machine-facing inputs to later stages - they need to be consistent, parseable, and provenance-preserving. Final reports and strategy documents need to ship as polished Markdown / TXT / DOCX / PDF with stable section structure, auditable citations, and predictable validation behavior. Treating both classes as "just markdown" creates placeholder leakage, brittle regex repair, false-positive validator blocks, and renderer edge cases that only show up at batch scale.
 
 Planned:
-- Keep intermediate research outputs flexible, but make them more explicitly structured for downstream consumption (evidence packets, source inventories, contradiction records, section briefs). When a consumer needs the *findings graph* (not the prose report), emit it as an OKF bundle (markdown + YAML frontmatter + linked tree), the single shape shared with 2.0 memory export and the 3.0 handoff manifest; see [`docs/design/open-knowledge-format.md`](docs/design/open-knowledge-format.md). The polished MD/DOCX report is unchanged by this.
+- Introduce one native run-scoped epistemic contract rather than another prose
+  intermediate: evolve the existing `source_index.json` with digest-bound
+  source receipts and evidence anchors, then emit `findings.jsonl` and
+  `strategic_inferences.jsonl` in shadow mode. Findings remain observations or
+  attributed source claims; strategic inferences carry premise IDs,
+  assumptions, counterevidence, and disconfirming signals. A small declarative
+  ontology may compile endpoint legality, reference integrity, symmetry, and
+  acyclicity into structural validators, while semantic relations remain
+  model- or human-adjudicated. Topic/section cards are generated views, not a
+  second store. The polished MD/DOCX report is unchanged, and OKF remains the
+  future consumer-facing projection rather than the native run store. See
+  [`docs/design/run-epistemic-ledger.md`](docs/design/run-epistemic-ledger.md)
+  and [`docs/design/open-knowledge-format.md`](docs/design/open-knowledge-format.md).
 - Push more consistency upstream into the long-form writing and regeneration prompts so final-stage cleanup has less arbitrary prose repair to do. **Foundation shipped:** the final-stage cleanup is now *measured* - `report_cleanup.compute_repair_report(before, after)` (reusing the ship-time scaffolding scanner) quantifies how many markers the deterministic cleanup had to strip per run and whether the raw writer output was already clean; wired at the report cleanup seam to log a summary + persist `_shipping_repair.json`. The headline `writer_output_clean` signal turns "is the cleanup load-bearing or a safety net?" from invisible into tracked, so the prompt-hardening can target the repairs that actually fire (and be validated against the metric) rather than guessing. One upstream fix already landed (the plain-text `What to validate:` instruction). **Prompt hardening - DONE:** the writer/regeneration prompts now carry an explicit prohibition against the markers the cleanup strips, sourced from a single shared constant `qa.report_analyzer.SCAFFOLDING_PROHIBITION_GUIDANCE` co-located with `scan_scaffolding_leakage` so the upstream instruction and the downstream ship-time gate cannot drift. It names every category the scanner flags (`[workbook]`/`[Analysis Workbook]`, `[cross-ref ...]`/`[see ## ...]`, informal `[cite: label]`, bold `**What to validate:**`) and gives the writer the substitute behavior (prose references, numeric-only `[cite: N]`). Spliced into both `section_prompts.py` writer prompts (`_build_fast_batch_prompt`, `_build_fast_section_prompt`) and both regeneration prompts (`_fast_regenerate_section`, `_strategy_regenerate_section` - the latter also gained the previously-missing plain-text validate instruction). Parity is locked by a deterministic test (`TestScaffoldingProhibitionParity`: every scanned category must be named in the guidance) plus presence tests on all four prompts; runtime effect is tracked by the `writer_output_clean` signal in `_shipping_repair.json` and the eval `## Artifact Drift` metric. With both the foundation and this hardening shipped, this bullet is complete.
 - Strengthen artifact shipping gates to validate section structure and citation integrity, not just scan for forbidden markdown leftovers. **Citation integrity - DONE:** `_validate_output_markdown` now runs a configurable citation-integrity gate (dangling inline `[cite: N]` with no matching `## Sources` entry) backed by the pure `qa.report_analyzer.scan_citation_integrity()`; default zero-tolerance (`PRIMR_MAX_DANGLING_CITATIONS`), fail-closed, withholds the DOCX (MD/TXT + sidecar still written). This is the deterministic backstop behind the upstream LLM citation repair, which keeps the original (possibly still-dangling) report when it cannot reach zero. Covers both report and strategy docs (both ship through that validator). **Section structure - DONE (safe subset):** a configurable section-structure gate (`scan_section_structure()`, `PRIMR_MAX_STRUCTURE_DEFECTS`, default 0) now blocks the DOCX on the *unambiguous* defects - duplicate top-level `##` headings and empty sections - validated against the regression corpus so it does not false-block clean long-form reports. **Deliberately not gated:** required-section *presence*, which is report-type-dependent and too false-positive-prone to block shipping on; it stays a QA-scoring signal in `analyze_structure`.
 - Build a regression corpus from real shipped and failed artifacts so renderer/validator changes are tested against actual long-form outputs. **DONE (seed + harness):** `tests/fixtures/artifacts/` holds long-form report/strategy fixtures (placeholder companies) with a `manifest.json` of expected gate outcomes; the data-driven harness `tests/test_output/test_artifact_corpus.py` runs each through `_validate_output_markdown` (asserting pass/fail + issue categories) and renders the clean ones end-to-end through `markdown_to_docx` + `_validate_output_docx`. A completeness test fails if a fixture is dropped in without a manifest entry. Sanitized real shipped/failed artifacts can be added later by dropping a file + a manifest row - no test code changes. This unblocks the section-structure gate above.
@@ -873,6 +911,17 @@ Decision principle: a page counts as scraped only when Primr has evidence that t
 Push the standard output from a strong research artifact to a genuinely strategist-grade analysis for pre-discovery preparation.
 
 > **Now pursued via the research-tradecraft workstream** ([`docs/design/research-tradecraft.md`](docs/design/research-tradecraft.md)). **Shipped:** framing as a first-class input (Step 1), the Day-1 hypothesis tree (Step 2), the `--plan` checkpoint (Step 3), and hypothesis-steered, budget-aware deepening (Step 4) - with the rule-vs-judgment guardrails in [`agentic-balance.md`](docs/design/agentic-balance.md). The shape of this work is **better content into a consistent structure**, not per-run structure. **Report section structure stays a curated rule** (the `company_overview.yaml` scaffold), iterated *offline* - consistency is a feature of a strategic deliverable, and the fixed scaffold does not demonstrably fall short (Principle 1). Step 5's original "argument-derived structure" is therefore **DESCOPED**: the agentic judgment lives in the *content within* each section (depth, insight, Pyramid-style "so what", constrained-evidence reasoning) - prompt work fed by Steps 1-4 - not in choosing sections. **Remaining (the heart of #4):** that content-depth prompt work (eval-gated), Step 6 adversarial ACH/pre-mortem refine, and Step 7 two-axis evidence grading. **Eval-measured (June 2026, [`eval-plan.md`](docs/design/eval-plan.md)):** the prose already grades consultant-grade and two evidence-plumbing levers (Step 4 collection-steering, context curation) washed, so the highest-value, evidence-backed remaining work is **epistemic grounding** (the label-honesty pass under Step 7) - labels trace to sources only ~0-8% today - not more prose-prompt tuning. **The label-honesty pass is now shipped opt-in (`PRIMR_LABEL_HONESTY=1`, `qa/label_honesty.py`):** it re-judges each `(Confirmed)`/`(Reported)` claim against its cited source and mechanically downgrades the ones that do not trace to `(Estimated)` (fail-safe: confidence only lowers, uncertain verdicts keep the label, an audit sidecar records every change). It stays default-off and never blocks shipping until an agreement-validated calibration baseline sets the bar; a hard gate is never armed from a lone judge.
+
+The approved structural substrate for later work is the run-scoped epistemic
+ledger in
+[`docs/design/run-epistemic-ledger.md`](docs/design/run-epistemic-ledger.md):
+source-grounded findings remain separate from strategic inferences, which carry
+premises, assumptions, counterevidence, and disconfirming signals. It is not a
+replacement for the v1.40 calibration corpus. It starts shadow-only in v1.43;
+claim-aware section packets inside the fixed scaffold are eligible for v1.44+
+only after representative eval. The optional declarative ontology validates
+type and relation legality, while semantic support, contradiction,
+qualification, and supersession remain model- or human-adjudicated.
 
 - Section prompts tuned around management choices, operating constraints, likely economics, scenario paths, and validation questions
 - Fewer brittle section suppressions, more constrained-evidence reasoning when direct company data is thin
@@ -1697,17 +1746,25 @@ Concepts where the design is sketched but the work isn't queued for the next act
 ### Strategy Delta Mode (incremental re-analysis)
 
 Ongoing monitoring of a company should produce an incremental update against a
-prior run rather than a full re-run. Given a previous report + its run state,
-diff the freshly gathered signals (recon, hiring, external sources) against the
-last snapshot and regenerate only the sections whose evidence materially
-changed, emitting a "what changed since <date>" delta artifact alongside the
-refreshed report.
+prior run rather than only another undifferentiated full report. Given the prior
+run ledger plus fresh source receipts, findings, and strategic inferences,
+reconcile new, strengthened, weakened, contradicted, qualified, superseded,
+stale, and unchanged records. First emit a traced "what changed since <date>"
+artifact while still generating the full report. Selective section regeneration
+is a second promotion, allowed only after section-usage dependencies prove that
+it is cheaper or faster without quality regression.
 
-- Depends on durable per-company run state and a changed-signal layer; connects
-  to vendor-news caching (#13) and the per-user cache (#12).
+- Depends on the run-scoped epistemic ledger, governed claim/proposition store,
+  stable source identity, and section evidence-usage graph; connects to
+  vendor-news caching (#13) and the per-user cache (#12).
+- Every delta row traces to old and new record IDs plus evidence anchors. Same
+  inputs are idempotent; deletion is represented as supersession or a tombstone,
+  never silent disappearance.
 - Must respect the single-job model - delta mode is still one job, not a daemon.
-- Value is real (cheap refreshes, change tracking) but scope is a meaningful
-  build; sketch first, queue once #12/#13 land.
+- Value is real (cheap refreshes, change tracking) but belongs in 2.x after the
+  2.0 indexed-memory exit criteria hold. See
+  [`docs/design/run-epistemic-ledger.md`](docs/design/run-epistemic-ledger.md)
+  and [`docs/design/2.0-research-memory.md`](docs/design/2.0-research-memory.md).
 
 ### Watch / Delta as a Consumed Primitive (not a push daemon)
 
@@ -1811,26 +1868,39 @@ Promotion criteria:
 
 Make research compound across runs by persisting extracted claims, citations, and hypotheses in a searchable store. Currently each run starts fresh. If you research 50 companies in the same industry, each run rediscovers the same industry context. Cross-run memory enables meta-research ("show AI strategy evolution across all fintech targets") and better hypothesis quality for repeat verticals. Three staged layers, build top-down:
 
-**Layer 1 - Persistent company tracking (entry point):**
+**Layer 1 - Persistent company tracking + run-ledger history (v1.43 entry point):**
 - `primr company track <name> <url>` - creates persistent local profile folder; shipped foundation stores URL, freshness status, retention classification, and bounded body-free run pointers under the per-user data directory
 - `primr company list` / `primr company show <name>` - show tracked company profiles; shipped foundation reports tracked freshness once a local run pointer is recorded
 - `primr improve --track` - auto-runs improvement pass on stale profiles (configurable staleness threshold)
-- Profile folder stores bounded body-free run pointers; automatic pipeline attachment, confidence evolution, and gaps flagged across runs remain planned
-- `primr company export <name>` - shipped foundation writes structured MD/JSON with profile metadata, stored run pointers when present, persisted hypotheses, confidence tags, and explicit missing-data gaps; full claim graph waits for layer 2
+- Profile folders store bounded body-free run pointers; automatic pipeline
+  attachment plus pointer/hash metadata for the shadow run ledger remain planned
+- `primr company export <name>` - shipped foundation writes structured MD/JSON with profile metadata, stored run pointers when present, persisted hypotheses, confidence tags, and explicit missing-data gaps. It is an OKF-shaped precursor, not a conformant OKF v0.2 bundle; the full claim graph waits for layer 2
 
-**Layer 2 - Claim store + priming:**
-- SQLite-backed claim store (no external dependencies); each claim stored with company, section, text, confidence, citations, timestamp, embedding
-- Embedding via local model (sentence-transformers) or API (Gemini embedding)
+**Layer 2 - Indexed claim/proposition store + priming (2.0 pillar):**
+- SQLite-backed store under the per-user data directory (no new service) ingests
+  immutable run findings and strategic inferences directly, preserving source
+  receipts, evidence anchors, assertion instances, confidence, verification
+  events, typed relations, and observed/valid time
+- Reconcile assertion instances into semantic propositions without destructive
+  collapse. Embeddings nominate candidates only; model- or human-adjudicated
+  relations decide same proposition, support, contradiction, qualification,
+  supersession, or different scope
 - `primr memory search "AI strategy fintech"` to query across all past runs
 - `primr memory timeline "Company"` to show how understanding evolved across runs
-- When starting a new run, query memory for related companies/industries and inject relevant prior findings as context for the analysis stage
+- When starting a new run, query memory for related companies/industries and
+  inject relevant prior records as fenced "prior research, validate" context.
+  Prior state never re-enters as a fresh finding without current attribution
 
-**Layer 3 - Knowledge compounding + narrative evolution:**
+**Layer 3 - Strategy Delta + deeper compounding (2.x):**
 - `--batch companies.csv --industry-context`: synthesize industry-wide patterns from all scrape results in Phase 0.5, then each company analysis receives industry context as additional input. One extra synthesis call (~$0.05) reused across all company analyses. Invariant: industry synthesis may identify patterns but may NOT introduce claims not present in scraped data; individual company analysis may interpret with industry context but must cite specific scraped content.
 - `primr refine` accepts new information, notes, and follow-up findings; re-synthesizes insights with updated confidence and revised hypotheses; cross-run memory stores the evolution
-- Versioned research artifacts with explicit "what changed and why" sections; diff-style comparison between runs (confidence shifts, new evidence); timeline view of a company over time
+- Versioned delta artifacts reconcile new, strengthened, weakened,
+  contradicted, qualified, superseded, stale, and unchanged records before any
+  selective section regeneration is allowed
 
-Privacy: all data stays local (SQLite in working directory). `primr memory clear` to reset. No data leaves the machine unless explicitly exported.
+Privacy: all data stays local under the per-user data directory. `primr memory
+clear` resets the selected governed state. No data leaves the machine unless
+explicitly exported.
 
 ### Multi-Cloud Deployment Validation (GCP + AWS)
 

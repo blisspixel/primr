@@ -5,6 +5,10 @@ evidence into an executive decision document. They are outside-in analyses, not
 substitutes for internal discovery, implementation design, legal advice, or an
 approved investment case.
 
+Each selected strategy is a long-form extension of the researched company
+view, not a standalone generic template. It ships as aligned Markdown and DOCX,
+with the Word document as the primary human deliverable.
+
 ## Strategy Standards
 
 Every strategy must:

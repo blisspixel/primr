@@ -108,6 +108,45 @@ strict about formatting and structure in the final document pipeline.
   paths and report `truncated: true` when more owned paths exist, preventing
   unbounded hashing work.
 
+## Planned run-scoped epistemic artifacts
+
+Primr will add a native structured layer between captured evidence and report
+prose only after the v1.40 calibration decision. The design target is:
+
+```text
+source_index.json
+findings.jsonl
+strategic_inferences.jsonl
+```
+
+The source index evolves the existing Primr Zero evidence index with same-run
+capture digests and exact evidence anchors where Primr retains the bytes.
+Findings record direct observations or attributed source claims. Strategic
+inferences separately record premise IDs, assumptions, counterevidence,
+disconfirming signals, and bounded external rationale. Unsupported exact
+locators remain explicit capability gaps; URLs and guessed offsets never stand
+in for immutable evidence anchors.
+
+The first implementation is shadow-only and must leave report bytes, dry-run
+estimates, and current verification/calibration sidecars unchanged. If later
+evaluation promotes claim-aware writing, a bounded section evidence-usage
+artifact records allowed and used IDs. Topic cards and section maps are derived
+views, not another canonical artifact class.
+
+When implemented, these files are supporting research artifacts under one
+semantic role such as `research_graph`. They are not working briefs, primary
+reports, or strategy modules. The job-scoped artifact inventory remains the
+first body-free read. A future compact findings summary may expose schema,
+hash, count, anchor-coverage, review, relation, and temporal metadata, but not
+statements, URLs, excerpts, locators, assumptions, or rationales. Raw content
+requires explicit content-read scope or direct local file access.
+
+The native JSON/JSONL snapshot is canonical within one run. The future SQLite
+claim/proposition store is canonical across runs. OKF is the explicit export
+or handoff projection, never a wrapper around the narrative report. See
+[`design/run-epistemic-ledger.md`](design/run-epistemic-ledger.md) and
+[`design/open-knowledge-format.md`](design/open-knowledge-format.md).
+
 ## Downstream document handoff
 
 The artifact inventory is the neutral bridge from Primr into document skills,

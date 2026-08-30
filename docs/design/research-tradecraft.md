@@ -235,6 +235,15 @@ contradiction-resolution (which fixes local inconsistencies, not the thesis).
 Gate acceptance on a signal the discipline score can't see (reuses the
 anti-Goodhart guard from `1x-completion.md` workstream 1).
 
+The planned run-scoped epistemic ledger gives this pass an inspectable unit of
+work: a `StrategicInference` names its finding premises, assumptions,
+counterevidence, disconfirming signals, and bounded external rationale. The
+adversarial reviewer may nominate support, contradiction, qualification, or
+supersession relations, but a small semantic firewall validates only type and
+relation legality. Meaning remains model- or human-adjudicated, and the ledger
+starts shadow-only. See
+[`run-epistemic-ledger.md`](run-epistemic-ledger.md).
+
 - **Validation:** free to wire (mocked judges); quality measured on the same
   corpus passes as step 5.
 
@@ -244,6 +253,12 @@ Upgrade the label system toward intelligence tradecraft: source *reliability* ×
 claim *credibility*, and state *likelihood* separately from *analytic
 confidence* (ICD 203). The calibration harness already audits label
 traceability; extend it to the second axis.
+
+The ledger keeps epistemic kind, the existing four-label display vocabulary,
+verification events, evidence grades, and editorial use as separate fields.
+Claim-aware evidence allocation, if promoted, occurs inside the fixed report
+scaffold and does not revive per-run section selection. Writer-used IDs and
+relation counts are diagnostics, not ship-time content gates.
 
 - **Validation:** harness extension is free; one calibration pass to baseline
   the new axes (~$0.10, per workstream 1's costing).

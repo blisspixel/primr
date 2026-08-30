@@ -29,6 +29,12 @@ risk in the artifact, not only in sidecar JSON. Any hard
 floor of that broader rubric, never from string overlap or an isolated
 citation-presence check.
 
+This v1.40 decision remains report-bound and ledger-independent. The planned
+run-scoped epistemic ledger must reuse the measured vocabulary and baseline
+later; it does not block, reset, or substitute for the representative corpus.
+Its first production phase is shadow-only after the calibration decision. See
+[`run-epistemic-ledger.md`](run-epistemic-ledger.md).
+
 ## Workstreams, in dependency order
 
 ### 1. Measure the epistemics - SHIPPED (post-1.30.0: PRs #27, #28, refine acceptance guard)

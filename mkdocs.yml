@@ -99,8 +99,10 @@ nav:
       - Security policy: SECURITY.md
   - Design notes:
       - Overview: design/README.md
+      - Company analyst product contract: design/company-analyst-product-contract.md
       - "1.x completion": design/1x-completion.md
       - Agentic balance: design/agentic-balance.md
+      - Run-scoped epistemic ledger: design/run-epistemic-ledger.md
       - Open Knowledge Format: design/open-knowledge-format.md
       - Engineering excellence: design/engineering-excellence.md
       - Runtime and language boundaries: design/runtime-language-boundaries.md
