@@ -19,10 +19,12 @@ Conventions:
 
 | Doc | Workstream | Version band |
 |-----|------------|--------------|
+| [company-analyst-product-contract.md](company-analyst-product-contract.md) | Canonical product, artifact, economics, evaluation, feature-admission, and GitHub/PyPI release contract for the company-and-website workflow | cross-cutting |
 | [research-tradecraft.md](research-tradecraft.md) | Collection-first → hypothesis-first: framing, Day-1 hypothesis tree, plan checkpoint; content within a curated structure (deepens #4) | 1.x → 2.0 |
 | [eval-plan.md](eval-plan.md) | Pre-registered, cheapest-first plan for the pending paid evals (calibration baseline, framed-vs-unframed, content-depth): exact commands, instruments, acceptance criteria, cost | 1.x |
 | [premium-quality-eval.md](premium-quality-eval.md) | Blinded five-company Standard/Premium evaluation for epistemic quality, argument coherence, and current writing-topology differentiation | 1.x quality validation |
 | [agentic-balance.md](agentic-balance.md) | Rule vs judgment: when a primr component stays a deterministic workflow vs becomes a Level-2 model decision; the keep-list and budget couplings under the tradecraft work | cross-cutting |
+| [run-epistemic-ledger.md](run-epistemic-ledger.md) | Run-scoped source receipts, evidence anchors, findings, strategic inferences, a small semantic firewall, and the shadow-to-promotion path into claim-aware writing and memory | 1.43 → 2.x |
 | [open-knowledge-format.md](open-knowledge-format.md) | Adopt OKF v0.2 (markdown + YAML frontmatter + linked tree) as the findings-interchange shape, with permissive consumers, a stricter Primr producer contract, and confidence distinct from verification; the polished report stays unchanged | cross-cutting (2.0 / 3.0) |
 | [1x-completion.md](1x-completion.md) | Finishing the excellent single-shot brief; immediate slice is evidence-grounded validation, with label calibration as the first measurable slice | 1.x |
 | [engineering-excellence.md](engineering-excellence.md) | Anti-slop enforcement layer: dev-facing CLAUDE.md contract, architectural fitness functions, file-size ratchet, CLI verb convention, toolchain currency | cross-cutting |
@@ -30,7 +32,7 @@ Conventions:
 | [23-orchestrator-refactor-map.md](23-orchestrator-refactor-map.md) | Working map for the #23 orchestrator refactor (stages, tangles, batch order) | 1.x |
 | [2.0-backend-freedom.md](2.0-backend-freedom.md) | Capability routing + local/hybrid inference; routed utility-stage metadata shipped for `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals`; next slice is provider-health and eval-backed host/local promotion | 2.0 |
 | [provider-expansion.md](provider-expansion.md) | OpenAI/Anthropic recipes, Bedrock/Foundry gateways, $0 local profile (verified provider catalog, June 2026) | 1.x Phase A; 2.0 Phases B/C |
-| [2.0-research-memory.md](2.0-research-memory.md) | Cross-run memory, company tracking, delta mode; layer 1 waits for calibrated claims and artifact-resource boundaries | 2.0 |
+| [2.0-research-memory.md](2.0-research-memory.md) | Company-run continuity and delta mode; indexed memory is a 2.0 candidate only after representative report lift | 1.43, conditional 2.0 / 2.x |
 | [2.0-agent-control-plane.md](2.0-agent-control-plane.md) | Per-tool authz, approval tokens, tool-call, resource-read, and A2A skill-call audit log, job-scoped artifact metadata, QA summary, usage/cost summary, source appendix summary, scrape trace summary, verification summary, calibration summary resources, MCP report-read scope separation, A2A skill-scope parity, A2A compact-resource parity, A2A report-read parity, and A2A research approval/budget parity; next slice is remaining output negotiation | 2.0 |
 | [competitive-positioning.md](competitive-positioning.md) | Plain fit vs chat deep research, enterprise CI, and research APIs; strengths, gaps, and humble talk track (not marketing) | cross-cutting |
 | [progressive-artifacts.md](progressive-artifacts.md) | Time-to-first-useful: working brief layers during long runs without replacing the full Strategic Overview | 1.x usability |

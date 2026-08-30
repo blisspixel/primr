@@ -131,6 +131,16 @@ each section (depth, insight, strategy, industry understanding), not into pickin
 the sections. (This overrides the earlier "argument-derived structure" framing of
 tradecraft Step 5 - see [research-tradecraft.md](research-tradecraft.md).)
 
+The planned run-scoped epistemic ledger follows the same boundary. A small
+declarative ontology may let Python validate node types, relation endpoints,
+references, symmetry, and acyclicity. It must not make Python decide whether
+one claim actually supports, contradicts, qualifies, or supersedes another.
+Models nominate and adjudicate those semantic relations at fixed, budgeted
+decision points; the deterministic semantic firewall returns structural
+`legal`, `illegal`, or `needs_semantic_adjudication`. This remains experimental
+until a measured report-quality or memory benefit justifies it. See
+[`run-epistemic-ledger.md`](run-epistemic-ledger.md).
+
 ### 3. Gate the irreversible actions, not the reasoning (the keep-list).
 
 NVIDIA locates the risk precisely:

@@ -18,9 +18,17 @@ contract.
 
 ## Quick Start
 
-primr turns a company URL into a sourced strategic brief. It is a CLI-first,
-local-first Python package (`src/` layout), an LLM API **client** + adaptive
-scraper + MCP/A2A agent - it trains and serves no models. To work on it:
+primr turns a company name and website into sourced, long-form strategic
+reports. It is a CLI-first, local-first Python package (`src/` layout), an LLM
+API **client** + adaptive scraper + MCP/A2A agent - it trains and serves no
+models. To work on it:
+
+The enduring product boundary is the
+[`Company Analyst Product Contract`](docs/design/company-analyst-product-contract.md):
+the bare company-and-website invocation must produce exceptional researched,
+long-form Strategic Overview and YAML-defined strategy artifacts as reliable
+Word and Markdown files. Architecture, routing, ledgers, memory, and agent
+surfaces are supporting capabilities, not replacement products.
 
 1. Set up the dev env (`uv sync --locked --extra dev --extra api`, then
    `uv run playwright install chromium`) - see

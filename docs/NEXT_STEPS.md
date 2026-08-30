@@ -5,25 +5,36 @@ This is Primr's canonical execution brief. It answers what to implement next.
 rationale and contracts; `docs/CHANGELOG.md` owns completed implementation
 history.
 
-Last reviewed: 2026-08-25.
+Last reviewed: 2026-08-30.
+
+The [Company Analyst Product Contract](design/company-analyst-product-contract.md)
+is the governing feature filter: the bare company-and-website invocation,
+evidence-grounded long-form Strategic Overview, YAML-defined strategy
+documents, reliable Word delivery, and free-first or approximately $1 approved
+execution remain the product. Architecture, backends, ledgers, memory, and
+agent surfaces are supporting work.
 
 ## Current release objective
 
-Keep billable execution and network egress fail closed while architecture
-ownership work proceeds. The v1.39.10 terminal follow-through extends the
-v1.39.9 approval contract to update, init, doctor fix, key setup, shared
-capability detection, and the legacy module launcher. Unavailable input fails
-closed without selecting a default-yes action. The v1.39.7 ownership
-batch removed the fast validation back edge, hardened that optional stage, and
-made external-evidence hostname boundaries consistent without changing report
-behavior. The prior v1.39.5 audit closed cumulative eval
-budgeting across per-run counter resets, direct Gemini compatibility-call
-accounting, Accordion response/current-budget handling, the agentic
+Keep billable execution and network egress fail closed while finishing
+architecture ownership without changing the flagship report behavior. The
+v1.39.10 terminal follow-through extends the v1.39.9 approval contract to
+update, init, doctor fix, key setup, shared capability detection, and the
+legacy module launcher. Unavailable input fails closed without selecting a
+default-yes action. The v1.39.7 ownership batch removed the fast validation
+back edge, hardened that optional stage, and made external-evidence hostname
+boundaries consistent without changing report behavior. The prior v1.39.5
+audit closed cumulative eval budgeting, direct Gemini compatibility-call
+accounting, Accordion response and current-budget handling, the agentic
 orchestrator's SSRF hook input, and URL-secret redaction on browser and A2A
-logs. Approval, provider lifecycle, partial recovery, run-scoped cost
-persistence, and model-backed improvement governance remain complete. The next
-executable product-neutral slice is the architecture ownership work below.
-It stays hermetic and requires no report run or cloud judge.
+logs.
+
+Paid-run governance, approval, provider lifecycle, partial recovery, API
+currency, run-scoped actual-cost persistence, model-backed improvement gates,
+and accepted-job recovery receipts remain complete. The current work is the
+zero-spend architecture-cohesion slice below: make report research, provider
+lifecycle, writing, and delivery easier to maintain and test before adding
+another quality-sensitive stage. No report run or cloud judge is required.
 
 ## Completed foundation: report contract correctness
 
@@ -221,19 +232,41 @@ when those consumers exist. Primr confidence remains distinct from OKF
 verification. See
 [`design/open-knowledge-format.md`](design/open-knowledge-format.md).
 
+**Run-scoped epistemic ledger status:** design adopted, not a current execution
+card. The planned native contract evolves the existing source index with
+digest-bound evidence anchors, then adds run-local findings and strategic
+inferences in shadow mode. A small declarative ontology may compile type and
+relation legality into structural validators, but models or humans still own
+semantic support, contradiction, qualification, and supersession. This does
+not change the current architecture-ownership slice, reopen the v1.40
+calibration decision, advertise new artifacts, or make report prose depend on
+the ledger. See
+[`design/run-epistemic-ledger.md`](design/run-epistemic-ledger.md).
+
 ## Later, in dependency order
 
-1. Controlled live host-versus-cloud source-relevance comparison, after spend
+1. Complete the fully decidable epistemic and analyst-quality baseline for the
+   bare company-and-website run after an exact estimate and explicit spend
+   approval. No budget is currently approved.
+2. Controlled live host-versus-cloud source-relevance comparison, after spend
    approval and the quality instruments above.
-2. Residual single-provider execution cleanup.
-3. MCP Tasks and remaining control-plane parity where client demand is clear.
-4. Research memory layer 1, including retention, deletion, freshness, and
-   source attribution from its first release.
-5. Progressive artifacts, cost levers, and measured runtime overlap.
+3. Residual single-provider execution cleanup.
+4. MCP Tasks and remaining control-plane parity where client demand is clear.
+5. Finish research-memory layer 1: automatic pipeline attachment, retention,
+   deletion, freshness, and export; then add source receipts, exact-when-owned
+   evidence anchors, and a shadow run-scoped finding/inference ledger. Measure
+   it against the v1.40 corpus before any writer promotion.
+6. Promote claim-aware section packets only from representative evidence, then
+   continue progressive artifacts, cost levers, and measured runtime overlap.
+7. Promote repeat-engagement memory only when it improves the next company
+   report without weakening freshness, uncertainty, privacy, or cost. Keep
+   Strategy Delta and selective regeneration in 2.x.
 
 The version ladder remains v1.40 quality readiness, v1.41 backend freedom,
-v1.42 control-plane completion, v1.43 memory, and v2.0 when those pillars meet
-their joint exit criteria.
+v1.42 control-plane completion, and v1.43 run continuity plus the shadow
+ledger. v2.0 requires measured analyst quality, backend freedom, and safe
+delegation together; indexed memory joins that release only if representative
+evaluation proves report lift.
 
 ## Explicitly not next
 
@@ -241,6 +274,11 @@ their joint exit criteria.
 - Naive independent chapter fan-out for lower wall-clock time.
 - A deterministic prose-quality gate or a lone LLM judge.
 - An OKF wrapper around the narrative report or a new OKF platform.
+- Canonical prose memory, report-to-claim re-extraction as the target, or a
+  claim-aware report rewrite before the shadow ledger clears representative
+  evaluation.
+- A generic belief/argument graph, RDF stack, ontology service, or semantic
+  relation validator built before the run finding/inference records exist.
 - Deletion of importable compatibility APIs without a compatibility audit.
 - A generic agent orchestration framework, daemon, or new implementation
   language without a measured product bottleneck.
