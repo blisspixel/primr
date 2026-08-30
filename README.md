@@ -6,16 +6,18 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/blisspixel/primr/badge)](https://securityscorecards.dev/viewer/?uri=github.com/blisspixel/primr)
 
-**Company URL → sourced strategic brief.** Built for agent hosts and the CLI:
-structured collection, confidence labels, and durable artifacts, not a free-form
-chat essay.
+**Company name + website → evidence-grounded, long-form strategic reports.**
+Built for agent hosts and the CLI: structured research, strategic insight,
+confidence labels, and durable Word and Markdown artifacts, not a free-form chat
+essay.
 
 Primr gathers public site pages, DNS/recon, hiring signals, and other open
-sources, then produces a consultant-style Strategic Overview (and optional
-strategy modules) with citations and Confirmed / Reported / Estimated /
-Hypothesis labels. Point an agent at the repo, or run the CLI. Both paths use
-the same evidence and uncertainty contract and can produce the same artifact
-formats, but their execution, model ownership, and assurance are different.
+sources, develops a strategic view of the company, then produces a
+consultant-style Strategic Overview and selected YAML-defined strategy
+documents with citations and Confirmed / Reported / Estimated / Hypothesis
+labels. Point an agent at the repo, or run the CLI. Both paths use the same
+evidence, uncertainty, and long-form artifact contract, but their execution,
+model ownership, and assurance are different.
 
 <p align="center">
   <img
@@ -64,6 +66,13 @@ DOCX (on the Zero path, `primr render <file>.md` converts host Markdown to DOCX
 at `$0`). The provider-backed path additionally owns its measured synthesis,
 cross-validation, usage accounting, and recovery stages. A configured API key
 is capability, not consent to spend.
+
+Primr prefers a validated zero-incremental-cost route when the current agent
+host or local environment can support the full artifact contract honestly.
+When provider APIs are required, the Standard recipe targets the best complete
+report and default strategy artifacts it can produce for approximately `$1`;
+the exact dry-run estimate remains authoritative and execution still requires
+explicit approval.
 
 ### Agent path
 
@@ -175,6 +184,12 @@ as missing approval instead of being recorded as a user cancellation.
 Batch, enrichment, vendor research, and standalone strategy each have their own
 quote path. See [Run Modes and Costs](docs/RUN_MODES.md#cost-controls).
 
+Standard is dollar-disciplined, not a fixed-price promise: it targets roughly
+`$1` for the complete Strategic Overview and default strategy artifacts, then
+reports the live estimate before any provider call. Primr Zero remains the
+free-first agent-host path. Authenticated local agent harnesses are not called
+free unless their billing route is actually known.
+
 ## Outputs
 
 Default: customer-facing files under `output/`, diagnostics under `working/`.
@@ -191,6 +206,7 @@ Agent inventory (paths/roles only, no report body):
 
 | Topic | Guide |
 |-------|-------|
+| Product and delivery contract | [COMPANY_ANALYST_PRODUCT_CONTRACT](docs/design/company-analyst-product-contract.md) |
 | Run modes and costs | [RUN_MODES](docs/RUN_MODES.md) |
 | Primr Zero / host-assisted | [ZERO_COST](docs/ZERO_COST.md) |
 | Agent / MCP / A2A | [AGENT_INTEGRATION](docs/AGENT_INTEGRATION.md) · [API](docs/API.md) |

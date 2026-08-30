@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **Company analyst product contract.** The canonical product direction now
+  keeps the bare company-and-website invocation, evidence-grounded long-form
+  Strategic Overview, YAML-defined strategy documents, Word delivery,
+  free-first routing, approximately $1 approved Standard target, analyst-quality
+  evaluation, and synchronized GitHub/PyPI release discipline ahead of
+  supporting architecture, backend, ledger, memory, or agent work.
+- **Run-scoped epistemic ledger contract.** The design now separates retained
+  evidence, source-grounded findings, strategic inferences, and diagnostic
+  hypotheses before report prose. It specifies digest-bound evidence anchors,
+  bi-temporal fields, shadow-first evaluation, claim-aware section usage, and
+  an experimental declarative semantic firewall without adding a graph
+  platform or changing current report behavior.
+- **Memory and interchange sequencing corrected.** v1.43 now owns governed
+  run-ledger history, v2.0 owns the indexed claim/proposition store and priming,
+  and v2.x owns Strategy Delta. Native run JSON/JSONL and SQLite remain
+  canonical in their scopes; OKF stays an explicit export projection. The
+  shipped profile export is documented as OKF-shaped rather than conformant.
+
 ## [1.39.10] - 2026-08-25
 
 ### Changed

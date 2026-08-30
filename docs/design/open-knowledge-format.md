@@ -52,11 +52,17 @@ shape lets those efforts converge instead of diverging.
    exactly as they are, the human deliverable under its existing strict gates.
    OKF touches none of that pipeline. This is binding (see Explicitly not).
 2. The structured-findings layer is emitted as an OKF bundle wherever it is
-   handed to a consumer: the memory `company export`, the claim store's export
-   form, and the 3.0 handoff package. One shape, reused.
-3. OKF is a representation of structure primr already computes, not a reformat
-   of the prose. A findings bundle decomposes the run into linked, addressable
-   units:
+   handed to a consumer: the conformant memory `company export`, the claim
+   store's export form, and the 3.0 handoff package. One shape, reused. The
+   currently shipped layer-1 profile export is only an OKF-shaped precursor;
+   it does not claim v0.2 conformance until it emits the required root bundle
+   and full linked contract.
+3. OKF is a projection of Primr's native structured state, not its canonical
+   store and not a reformat of prose. Within one run, `source_index.json`,
+   `findings.jsonl`, and `strategic_inferences.jsonl` are the planned native
+   snapshot. Across runs, the governed SQLite claim/proposition store is
+   canonical. A findings bundle projects those records into linked,
+   addressable units:
 
    ```
    acme/
@@ -66,6 +72,7 @@ shape lets those efforts converge instead of diverging.
    |  |- index.md
    |  |- unannounced-ai-product.md   # frontmatter: confidence, supporting links
    |- claims/               # one file per claim: confidence label plus source links
+   |- inferences/           # one file per strategic inference, linked to premises
    |- sources/              # the citation appendix, made addressable
    |- competitors/
    |- signals/              # recon plus hiring signals
@@ -105,10 +112,11 @@ shape lets those efforts converge instead of diverging.
 | Surface | OKF? | Why |
 |---------|------|-----|
 | Final report or strategy (MD, DOCX, PDF) | No | Human deliverable, narrative, strict shipping contract. OKF is for reference structure, not prose. |
-| 2.0 memory `company export` bundle | Yes | Already specced as a "structured MD/JSON bundle." OKF v0.2 is that shape, with provenance, generation, review, and lifecycle in frontmatter. |
+| Current layer-1 `company export` | Not yet | The shipped profile/hypothesis Markdown/JSON is an OKF-shaped precursor, but lacks the conformant root bundle and full linked finding graph. |
+| 2.0 memory `company export` bundle | Yes | OKF v0.2 is the portable shape, with provenance, generation, review, lifecycle, sources, findings, and strategic inferences represented as linked files. |
 | 2.0 claim store export or interchange | Yes | A claim with confidence plus citations plus links is one OKF file. The store's portable form is an OKF bundle. |
 | 3.0 post-artifact handoff manifest | Yes | Workstream C's "versioned artifact manifest", with the OKF bundle as the consumer-consumable package. Generalizes the skill-pack pattern. |
-| Intermediate research artifacts (#2) | Optionally, later | #2 wants these "more explicitly structured for downstream consumption." OKF is a candidate shape, but these are mid-pipeline and machine-facing. Align them only if and when a consumer needs them, not preemptively. |
+| Native run ledger (#2) | No | The versioned source index plus finding/inference JSONL are the machine-facing, run-local source of truth. OKF is emitted only for an explicit consumer boundary. |
 
 Litmus for "should this be OKF": is the artifact a set of addressable, linkable
 knowledge units a consumer will traverse? Then yes. Is it a single narrative
@@ -139,10 +147,12 @@ underlying findings.
 
 The shallow version, dumping the report markdown into a folder with frontmatter,
 is near worthless: it is still narrative an agent must re-read, just relocated.
-Do not ship that. The value is the decomposed graph (claims, hypotheses,
-sources, entities as separate linked units), and that is substantially the same
-object as the 2.0 claim store. So this rides 2.0 memory. Building a throwaway
-exporter in 1.x means rebuilding it when the claim store lands.
+Do not ship that. The value is the decomposed graph (sources, findings,
+strategic inferences, hypotheses, and entities as separate linked units), and
+that is substantially the same object as the 2.0 claim store. The run-scoped
+native ledger may land earlier in shadow mode, but OKF serialization still
+rides on memory or handoff consumer demand. Building a throwaway exporter in
+1.x means rebuilding it when the claim store lands.
 
 ## Validation cost
 
@@ -159,7 +169,9 @@ must cover:
 - valid Primr confidence values without conflating them with `verified`;
 - lifecycle dates and actor forms when those optional fields are present;
 - preservation of unknown frontmatter fields during round trips; and
-- lossless claim store -> OKF -> claim store conversion.
+- lossless supported-field conversion from native run ledger or claim store ->
+  OKF -> claim store, including evidence-anchor references, premise and
+  counterevidence links, typed relations, and observed/valid time.
 
 OKF itself permits broken links and unknown fields. Primr's producer contract is
 deliberately stronger: emitted internal links must resolve because Primr owns

@@ -138,6 +138,11 @@ Do not introduce a second orchestrator or a DAG framework for this.
   collection the same way.  
 - **Memory (2.0):** later, a working brief can seed delta mode; do not wait for
   memory to land Layer 1.  
+- **Run-scoped epistemic ledger:** findings, strategic inferences, and section
+  evidence-usage views are structured supporting artifacts, not another
+  working-brief layer. They remain separate from early-artifact paths and are
+  never classified as `primary_report`; see
+  [run-epistemic-ledger.md](run-epistemic-ledger.md).
 - **Competitive positioning:** this is a usability answer to chat speed, not a
   claim that Primr is faster overall.
 

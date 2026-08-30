@@ -350,6 +350,50 @@ complete:
 Artifact assembly remains a deliberately small inline coordinator step rather
 than a separate stage module.
 
+### Planned Epistemic Data Flow
+
+After the v1.40 calibration decision, Primr will introduce a shadow run-scoped
+intermediate representation between analysis and prose:
+
+```text
+retained evidence
+   |
+   v
+source receipts + digest-bound evidence anchors
+   |
+   v
+ResearchFinding records
+  observations and attributed source claims
+   |
+   v
+StrategicInference records
+  explicit premises, assumptions, counterevidence, disconfirming signals
+   |
+   v
+fixed report scaffold and strategy writers
+   |
+   v
+shipping artifacts
+```
+
+The initial shadow ledger does not drive the writer or change report bytes. A
+later promotion may generate bounded per-section evidence views and collect
+used finding/inference IDs, while the curated `company_overview.yaml` section
+structure stays fixed. Referential checks remain deterministic; whether a
+finding supports an inference or the prose represents it faithfully remains
+agreement-validated model or human judgment.
+
+A small declarative ontology may compile node/relation endpoint legality,
+reference integrity, symmetry, and acyclicity into a semantic firewall. It is
+experimental and arrives only with the typed records. It is not an ontology
+over current report prose, an RDF stack, or a general graph engine.
+
+Within a run, the native source index plus finding/inference JSONL artifacts are
+the planned structured snapshot. Across runs, the 2.0 SQLite
+claim/proposition store is canonical. OKF remains an export/interchange
+projection. See
+[`design/run-epistemic-ledger.md`](design/run-epistemic-ledger.md).
+
 ### Prompt Architecture
 
 The `src/primr/prompts/` directory contains the externalized prompt system (v1.2.5+):
