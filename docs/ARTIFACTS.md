@@ -17,6 +17,10 @@ strict about formatting and structure in the final document pipeline.
 
 - **Final-document canonicalization** before shipping, so report/strategy
   artifacts are normalized into a stable shape before MD/TXT/DOCX rendering.
+  The shared boundary decodes safe named, numeric, and nested presentation
+  entities, turns nonbreaking spaces into ordinary spaces, and leaves encoded
+  angle brackets inert. Prose such as `S&amp;S` therefore ships as `S&S`
+  without activating raw HTML in Markdown.
 - **Zero-cost Markdown rendering** through the `primr render` subcommand, which
   exposes the `markdown_to_docx` renderer so any Markdown report (including
   host-written Primr-Zero dossiers) reaches DOCX/TXT deliverable parity with a

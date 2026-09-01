@@ -8,7 +8,9 @@ before Markdown/TXT/DOCX rendering.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
+from html import unescape as html_unescape
 
 from primr.utils.formatting import remove_em_dashes
 
@@ -20,6 +22,9 @@ _URL_DASH_REPLACEMENTS = {
     "\u2013": "%E2%80%93",
     "\u2012": "%E2%80%92",
 }
+_HTML_ENTITY_RE = re.compile(r"&(?:#[0-9]{1,7}|#[xX][0-9A-Fa-f]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});")
+_PRESENTATION_SPACE_RE = re.compile("[\u00a0\u2007\u202f]")
+_MAX_HTML_ENTITY_PASSES = 4
 
 
 @dataclass(slots=True)
@@ -157,6 +162,35 @@ def normalize_final_punctuation(markdown_content: str) -> str:
     return _remove_em_dashes_around_urls(markdown_content)
 
 
+def normalize_final_html_entities(markdown_content: str) -> str:
+    """Decode presentation-safe HTML entities in final report prose.
+
+    Provider and search-result text can retain encoded punctuation after all
+    research stages. Decode those entities before shipping, but keep encoded
+    angle brackets inert so cleanup cannot activate raw HTML in Markdown.
+    Nested encodings are bounded to avoid attacker-controlled expansion.
+    """
+
+    def _decode(match: re.Match[str]) -> str:
+        raw = match.group(0)
+        decoded = html_unescape(raw)
+        if decoded == raw or "<" in decoded or ">" in decoded:
+            return raw
+        if decoded.isspace():
+            return " "
+        if any(unicodedata.category(char).startswith("C") for char in decoded):
+            return ""
+        return decoded
+
+    normalized = _PRESENTATION_SPACE_RE.sub(" ", markdown_content)
+    for _ in range(_MAX_HTML_ENTITY_PASSES):
+        decoded = _HTML_ENTITY_RE.sub(_decode, normalized)
+        if decoded == normalized:
+            break
+        normalized = decoded
+    return normalized
+
+
 def _restore_collapsed_markdown(content: str) -> str:
     """Reinsert missing line breaks around structural markers in a collapsed
     markdown blob. Only applied when ``_looks_collapsed`` returns True — in
@@ -206,5 +240,6 @@ def _restore_collapsed_markdown(content: str) -> str:
 
 def canonicalize_final_markdown(markdown_content: str) -> str:
     repaired = _restore_collapsed_markdown(markdown_content)
+    repaired = normalize_final_html_entities(repaired)
     repaired = normalize_final_punctuation(repaired)
     return parse_final_markdown(repaired).to_markdown()

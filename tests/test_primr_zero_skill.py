@@ -44,6 +44,25 @@ def test_primr_zero_falls_back_when_the_launcher_cannot_be_used() -> None:
     assert "instead of stopping or switching to a paid run" in normalized
 
 
+def test_primr_zero_makes_noninteractive_confirmation_rules_explicit() -> None:
+    content = (SOURCE / "SKILL.md").read_text(encoding="utf-8")
+    normalized = " ".join(content.split())
+
+    assert "`primr prep` is already noninteractive" in normalized
+    assert "Never pipe `y` into it" in normalized
+    assert "Do not use `--skip-confirm` with `primr prep`" in normalized
+    assert "replace `--dry-run` with `--skip-confirm`" in normalized
+
+
+def test_primr_zero_requires_final_source_markup_hygiene() -> None:
+    content = (SOURCE / "SKILL.md").read_text(encoding="utf-8")
+    normalized = " ".join(content.split())
+
+    assert "inspect every shipped Markdown file" in normalized
+    assert "`&amp;`" in content
+    assert "visible entity strings or source markup" in normalized
+
+
 def test_primr_zero_references_are_present() -> None:
     expected = {
         "host-capabilities.md",

@@ -83,14 +83,10 @@ primr "ExampleCo" https://example.co
 ```
 
 The agent uses Primr Zero unless you explicitly request paid, metered,
-provider-backed, or premium execution. Details, MCP setup, and host handoff:
-[Agent Integration](docs/AGENT_INTEGRATION.md) ·
-[Zero-Cost / Primr Zero](docs/ZERO_COST.md).
-
-The experimental [`agent-plugin/`](agent-plugin/) distribution follows the
-Agent Plugins v1.0.0 Working Draft with a portable root `plugin.json`, Agent
-Skills, and `mcp.json`. The existing [`claude-code/`](claude-code/) package
-remains the Claude-specific adapter.
+provider-backed, or premium execution. Its `primr prep` collection is already
+noninteractive and needs no approval flag. Routing, confirmation rules, MCP
+setup, and host handoff live in [Agent Integration](docs/AGENT_INTEGRATION.md)
+and [Zero-Cost / Primr Zero](docs/ZERO_COST.md).
 
 ### Terminal path
 
@@ -121,30 +117,10 @@ pipx install primr
 primr --version
 ```
 
-Plain `pip install primr` also works. On Windows, prefer pipx or the installer
-if `primr` is missing from `PATH` after pip.
-
-Upgrade in a foreground terminal with `primr update`. An approved automated
-upgrade must pass `primr update --yes`; otherwise Primr exits before inspecting
-or running the installation command.
-
-The convenience installers set up pipx and common PATH issues. Download and inspect
-the script before executing it:
-
-```powershell
-$primrInstaller = Join-Path $env:TEMP "primr-install.ps1"
-Invoke-WebRequest https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.ps1 -OutFile $primrInstaller
-Get-Content $primrInstaller
-powershell -ExecutionPolicy Bypass -File $primrInstaller
-```
-
-```bash
-primr_installer="$(mktemp)"
-trap 'rm -f "$primr_installer"' EXIT
-curl -fsSL https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.sh -o "$primr_installer"
-cat "$primr_installer"
-bash "$primr_installer"
-```
+Plain `pip install primr` also works. Download and inspect convenience installers
+before running them. For those scripts, upgrades, PATH troubleshooting, and
+source-checkout setup, see
+[Installation and Upgrades](docs/INSTALLATION.md).
 
 Provider-backed setup only when you want billable runs:
 
@@ -175,20 +151,11 @@ Focused help: `primr --help`. Everything: `primr --help-all`.
 
 ## Cost gate
 
-Billable runs need a fresh estimate and explicit approval. Use `--dry-run` to
-inspect the plan without starting work; normal execution repeats the quote and
-asks before provider work begins. `--budget N` refuses to start above the cap.
-Without `--skip-confirm`, a noninteractive launch starts no provider work and
-tells the caller how to rerun after approval. A closed input stream is reported
-as missing approval instead of being recorded as a user cancellation.
-Batch, enrichment, vendor research, and standalone strategy each have their own
-quote path. See [Run Modes and Costs](docs/RUN_MODES.md#cost-controls).
-
-Standard is dollar-disciplined, not a fixed-price promise: it targets roughly
-`$1` for the complete Strategic Overview and default strategy artifacts, then
-reports the live estimate before any provider call. Primr Zero remains the
-free-first agent-host path. Authenticated local agent harnesses are not called
-free unless their billing route is actually known.
+Billable runs need a fresh `--dry-run` estimate and explicit approval. A budget
+cap can refuse an oversized plan, and unattended execution stays fail closed
+unless it carries the command-specific approval signal. Standard targets
+roughly `$1`, but the live estimate is authoritative. See
+[Run Modes and Costs](docs/RUN_MODES.md#cost-controls) for the complete policy.
 
 ## Outputs
 
@@ -207,6 +174,7 @@ Agent inventory (paths/roles only, no report body):
 | Topic | Guide |
 |-------|-------|
 | Product and delivery contract | [COMPANY_ANALYST_PRODUCT_CONTRACT](docs/design/company-analyst-product-contract.md) |
+| Installation and upgrades | [INSTALLATION](docs/INSTALLATION.md) |
 | Run modes and costs | [RUN_MODES](docs/RUN_MODES.md) |
 | Primr Zero / host-assisted | [ZERO_COST](docs/ZERO_COST.md) |
 | Agent / MCP / A2A | [AGENT_INTEGRATION](docs/AGENT_INTEGRATION.md) · [API](docs/API.md) |

@@ -61,6 +61,16 @@ primr prep "Company Name" https://company.example --dry-run
 primr prep "Company Name" https://company.example
 ```
 
+`primr prep` is already noninteractive. Run it exactly as shown: it must not
+ask for a yes response, and it does not need `--skip-confirm`. Never pipe `y`
+into it. If a command asks for provider-spend approval, stop without answering;
+the paid research command was selected instead of the Zero collection path.
+
+For a separately requested provider-backed run, first show the fresh dry-run
+quote and wait for explicit user approval. Only then may noninteractive
+automation replace `--dry-run` with `--skip-confirm` in that exact quoted
+command. Do not use `--skip-confirm` with `primr prep`.
+
 In a Primr source checkout where `primr` is not on `PATH`, first try
 `uv run --no-sync primr --version`. If it succeeds, use
 `uv run --no-sync primr` as the launcher for the prep commands. Do not install
@@ -137,6 +147,13 @@ finished work. Then run deterministic artifact QA:
 ```bash
 primr --analyze-report path/to/report.md
 ```
+
+Before handoff, inspect every shipped Markdown file and its rendered TXT/DOCX
+siblings for source-markup residue. Decode presentation entities in prose such
+as `&amp;`, `&nbsp;`, `&quot;`, and numeric character references, and remove
+leaked HTML tags or navigation fragments. Preserve intentional URL and code
+text. Treat visible entity strings or source markup in narrative prose as an
+artifact defect and repair them before delivery.
 
 This checks structure and citation discipline. It is not factual verification.
 Perform a separate evidence review for unsupported claims, contradictions,

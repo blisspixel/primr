@@ -12,7 +12,7 @@ target. Regenerate via [`CONTRIBUTING.md`](CONTRIBUTING.md).*
 
 | Start here | Link |
 |------------|------|
-| Install and shortest path | [Root README](https://github.com/blisspixel/primr/blob/main/README.md) |
+| Install and shortest path | [Root README](https://github.com/blisspixel/primr/blob/main/README.md) · [Installation](INSTALLATION.md) |
 | Agent-host operation (Primr Zero by default) | [AGENTS.md](https://github.com/blisspixel/primr/blob/main/AGENTS.md) · [Agent Integration](AGENT_INTEGRATION.md) · [Zero-cost](ZERO_COST.md) |
 | Modes, costs, cost gate | [Run modes](RUN_MODES.md) |
 | Changing Primr source | [CLAUDE.md](https://github.com/blisspixel/primr/blob/main/CLAUDE.md) · [Contributing](CONTRIBUTING.md) |
@@ -20,7 +20,7 @@ target. Regenerate via [`CONTRIBUTING.md`](CONTRIBUTING.md).*
 The root README is a **front door** only. Operator detail lives in the guides
 below (Diataxis: learning, doing, looking up, understanding).
 
-> **Index currency:** reviewed against primr **1.39.10** on **2026-08-30**. The
+> **Index currency:** reviewed against primr **1.39.11** on **2026-09-01**. The
 > *Updated* column is each document's last substantive revision (git
 > `last-commit` date). `tests/test_docs_index.py` fails CI if a doc under
 > `docs/` is missing from this map or an index link does not resolve, so the
@@ -30,7 +30,8 @@ below (Diataxis: learning, doing, looking up, understanding).
 
 | Document | Description | Updated |
 |----------|-------------|---------|
-| [ZERO_COST](ZERO_COST.md) | Run keyless collection and finish a sourced dossier with an existing agent plan | 2026-08-13 |
+| [INSTALLATION](INSTALLATION.md) | Install, upgrade, and troubleshoot Primr or prepare a source checkout | 2026-09-01 |
+| [ZERO_COST](ZERO_COST.md) | Run keyless collection and finish a sourced dossier with an existing agent plan | 2026-09-01 |
 | [API_KEYS](API_KEYS.md) | API key setup, validation (`primr keys test`), security, and troubleshooting | 2026-08-13 |
 | [CONFIG](CONFIG.md) | First-run configuration and the full settings reference | 2026-08-13 |
 | [RUN_MODES](RUN_MODES.md) | Run modes, costs, strategy selection, output locations, and zero-cost `primr render` (Markdown to DOCX/TXT) | 2026-08-13 |
@@ -46,7 +47,7 @@ below (Diataxis: learning, doing, looking up, understanding).
 | [SKILL_PACK](SKILL_PACK.md) | `primr skills` end to end: planning, curation, artifacts, CLI/MCP | 2026-08-13 |
 | [EVAL](EVAL.md) | Evaluate and compare models with the eval harness | 2026-08-22 |
 | [MODEL_ONBOARDING](MODEL_ONBOARDING.md) | Register and validate a new model | 2026-08-13 |
-| [AGENT_INTEGRATION](AGENT_INTEGRATION.md) | Operate Primr from MCP, A2A, skills, and agent hosts | 2026-08-13 |
+| [AGENT_INTEGRATION](AGENT_INTEGRATION.md) | Operate Primr from MCP, A2A, skills, and agent hosts | 2026-09-01 |
 | [OPENCLAW](OPENCLAW.md) | OpenClaw integration and governed workflows | 2026-08-13 |
 | [COPILOT_COWORK_GUIDE](COPILOT_COWORK_GUIDE.md) | Sideload a skill pack into Microsoft 365 Copilot Cowork | 2026-07-21 |
 | [COPILOT_STUDIO_GUIDE](COPILOT_STUDIO_GUIDE.md) | Use primr from Copilot Studio | 2026-07-21 |
@@ -61,8 +62,8 @@ below (Diataxis: learning, doing, looking up, understanding).
 | [API](API.md) | MCP server and A2A protocol, programmatic usage | 2026-08-13 |
 | [Job Status](JOB_STATUS.md) | Versioned CLI, MCP, A2A, and API lifecycle contract | 2026-07-10 |
 | [STRATEGY_PORTFOLIO](STRATEGY_PORTFOLIO.md) | YAML-defined long-form strategy documents and selection | 2026-08-30 |
-| [NEXT_STEPS](NEXT_STEPS.md) | What to build next, why it comes next, and what not to do yet | 2026-08-30 |
-| [CHANGELOG](CHANGELOG.md) | Version history | 2026-08-30 |
+| [NEXT_STEPS](NEXT_STEPS.md) | What to build next, why it comes next, and what not to do yet | 2026-09-01 |
+| [CHANGELOG](CHANGELOG.md) | Version history | 2026-09-01 |
 | [MIGRATION](MIGRATION.md) | Error-hierarchy migration notes | 2026-02-02 |
 | [EVAL_V1_24_0](EVAL_V1_24_0.md) | Historical decision record: the v1.24.0 cross-provider eval plan | 2026-06-26 |
 | [ROADMAP](https://github.com/blisspixel/primr/blob/main/ROADMAP.md) | Ordered development queue and version plan | — |
@@ -73,7 +74,7 @@ below (Diataxis: learning, doing, looking up, understanding).
 |----------|-------------|---------|
 | [Company Analyst Product Contract](design/company-analyst-product-contract.md) | Canonical product, long-form artifact, free-first economics, evaluation, and release contract | 2026-08-30 |
 | [ARCHITECTURE](ARCHITECTURE.md) | System design and the 9-tier scraping engine | 2026-08-30 |
-| [ARTIFACTS](ARTIFACTS.md) | The research-vs-shipping artifact pipeline and ship-time gates | 2026-08-30 |
+| [ARTIFACTS](ARTIFACTS.md) | The research-vs-shipping artifact pipeline and ship-time gates | 2026-09-01 |
 | [INTERNALS](INTERNALS.md) | Core algorithms and prompt strategy | 2026-08-13 |
 | [STATE_MACHINES](STATE_MACHINES.md) | Tier escalation and job lifecycle | 2026-02-02 |
 | [CONCURRENCY](CONCURRENCY.md) | Threading and concurrency model | 2026-08-13 |
