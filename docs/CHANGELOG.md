@@ -7,7 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.11] - 2026-09-01
+
+### Changed
+
+- **Primr Zero confirmation guidance is unambiguous.** The README, roadmap, and
+  synchronized skill now state that `primr prep` is already noninteractive and
+  never needs a piped yes response or `--skip-confirm`; that flag remains only
+  for an explicitly approved provider-backed automation command.
+
+### Fixed
+
+- **Final reports no longer ship encoded presentation entities.** The shared
+  final-artifact canonicalizer now decodes safe named, numeric, and nested HTML
+  entities and normalizes nonbreaking spaces while keeping encoded angle
+  brackets inert. Provider-backed output paths and the zero-cost renderer now
+  prevent prose such as `S&amp;S` from reaching their customer-facing
+  deliverables.
+
 ### Documentation
+
+- **The root README remains a focused front door.** Installer scripts, upgrade
+  behavior, PATH troubleshooting, and source-checkout setup now live in a
+  linked installation guide; entity-normalization details live in the artifact
+  guide, and confirmation details live in the operator guides.
 
 - **Company analyst product contract.** The canonical product direction now
   keeps the bare company-and-website invocation, evidence-grounded long-form

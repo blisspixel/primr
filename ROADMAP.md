@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.10
+Current State: v1.39.11
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -386,7 +386,9 @@ for every profile and can set a higher authorization floor from run history.
   `--skip-confirm` in the exact quoted command. Noninteractive execution
   without that approval signal starts no provider work, returns actionable
   approval guidance, and is not recorded as a user cancellation. The operator
-  skills and background-launch guidance pin the same transition. Experimental
+  skills and background-launch guidance pin the same transition. Primr Zero's
+  `primr prep` collection is already noninteractive and never uses that paid-run
+  approval flag. Experimental
   `primr orchestrate` remains the explicit exception and uses an approved
   `--max-cost <usd>` ceiling for noninteractive execution.
 - Agent governance surfaces for generic MCP clients: estimate-first prompts/resources, next-action hints, and server-enforced cost caps (`max_estimated_cost_usd`) with matching approval tokens. Enforcement defaults on for every transport; an explicit false `PRIMR_ENFORCE_MCP_COST_CAPS` value is retained only as an unsafe compatibility opt-out (`mcp_server/cost_caps.py`).
@@ -395,6 +397,12 @@ for every profile and can set a higher authorization floor from run history.
 ### Quality & Trust
 
 - Deterministic QA checks: hypothesis coverage, confidence labels, section length, citation density, report-type-aware structure, and appendix/source integrity. **These are soft *signals*, not quality truth** - most are regex/count proxies for editorial discipline, not measures of whether the analysis is good (per [`agentic-balance.md`](docs/design/agentic-balance.md), a regex can't judge quality). Only appendix/source integrity (does `[cite: N]` resolve) is a legitimate structural gate; the rest must never block shipping.
+- Final-artifact canonicalization merges duplicate reference appendices,
+  restores collapsed Markdown structure, normalizes prohibited punctuation,
+  and decodes presentation-safe HTML entities before provider-backed Markdown,
+  TXT, and DOCX artifacts ship. The zero-cost renderer canonicalizes its TXT
+  and DOCX siblings, and Primr Zero guidance applies the same source-markup
+  hygiene to host-written Markdown before handoff.
 - `QAGateHook` with `ReportAnalyzer`-backed scoring (6 checks, penalty system) - an *artifact-discipline* proxy, not a factual-quality score (a self-report dressed as a metric; agentic-balance Principle 4). Use it as a dashboard signal; real quality is the job of the eval/calibration instruments below, not this score.
 - Claim verification via `--verify` flag (~$0.01, 3-5 min) - extracts claims, challenges them with DDG searches, produces trust score
 - Versioned model evaluation harness: `primr eval` with scorecard generation (Markdown + CSV), versioned eval IDs, acceptance gates, and optional LLM-judge overlays
@@ -525,7 +533,7 @@ The job is "URL in, consultant-grade artifact out," done well.
 | **1.43** | Memory layer 1 complete: automatic run pointers, retention/deletion, export, digest-bound source receipts and evidence anchors, plus a shadow run-scoped finding/inference ledger that does not yet drive report prose. |
 | **1.44+** | Claim-aware section packets promoted only after representative eval; progressive artifacts, batch API public surface, measured pipeline overlap, and the coverage ratchet continue. |
 
-**Status (as of v1.39.10):** most of the 1.x engineering backlog is closed -
+**Status (as of v1.39.11):** most of the 1.x engineering backlog is closed -
 artifact pipeline contract (#1-2), cost/observability surface (#5, #7, #8,
 #12, #13), production failover (#6), QA iteration loop (#10), agentic write
 constraints (#11), runtime robustness (#24), and the `perform_fast_research`
@@ -2127,6 +2135,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.11 | Sep 2026 | **Professional artifact hygiene and clearer zero-cost operation.** Final report canonicalization decodes safe presentation entities and normalizes nonbreaking spaces across provider-backed artifacts and zero-cost rendering while preserving encoded angle brackets. Primr Zero guidance now makes clear that `primr prep` is already noninteractive and must not receive a piped yes response or the paid-run `--skip-confirm` signal. The root README remains a concise front door, with installation and artifact detail in linked guides. |
 | 1.39.10 | Aug 2026 | **Terminal and launcher follow-through.** Update, init, doctor fix, and key setup now share safe foreground terminal detection, closed secret-entry streams fail without a traceback, and unavailable input can no longer select a default-yes action. Banner and console capability detection tolerate damaged output streams, while `python -m primr.primr_cli` again delegates to the public CLI entry point. |
 | 1.39.9 | Aug 2026 | **Approval handling across every paid CLI surface.** Interactive confirmation now requires usable input and output terminals. Research, vendor, strategy, batch, enrichment, improvement, orchestration, Accordion, eval, skill-pack, and cloud-calibration background jobs fail before paid work with the exact explicit approval flag required to resume. Closed or detached input is reported as missing approval, while explicit declines remain cancellations. Public guidance now distinguishes standard `--skip-confirm` automation from orchestrator `--max-cost <usd>`. |
 | 1.39.8 | Aug 2026 | **Noninteractive approval transport.** Approved standard provider-backed background runs replace the quoted command's `--dry-run` with `--skip-confirm`; experimental orchestrated runs use an approved `--max-cost` ceiling. Known noninteractive launches without the applicable signal fail before provider work, and closed input is reported as missing approval instead of a user cancellation. The README, roadmap, agent guidance, and portable skill mirrors document the same transition. |

@@ -65,6 +65,12 @@ primr prep "ExampleCo" https://example.co
 Plain `pip install primr` also works. The dry run performs no network requests
 or writes and reports the collection plan. The real command uses public network
 access and normally completes in several minutes, depending on the target.
+`primr prep` is already noninteractive: run it directly, never pipe `y` into
+it, and do not add `--skip-confirm`. If the command asks for provider-spend
+approval, stop because the provider-backed research path was selected instead.
+Only an explicitly requested provider-backed automation run may replace an
+approved dry-run command's `--dry-run` with `--skip-confirm`.
+
 Primr assembles each real bundle in a private same-root staging directory and
 publishes it only after the manifest is complete. An in-process error or
 interruption removes the staging directory, so artifact discovery sees either

@@ -63,6 +63,10 @@ def run_render(args: list[str] | None) -> int:
         console.error(f"Report is empty: {source}")
         return 1
 
+    from primr.output.final_artifact import canonicalize_final_markdown
+
+    markdown_text = canonicalize_final_markdown(markdown_text)
+
     dest_dir = Path(parsed.output_dir) if parsed.output_dir else source.parent
     try:
         dest_dir.mkdir(parents=True, exist_ok=True)

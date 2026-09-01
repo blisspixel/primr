@@ -63,6 +63,7 @@ markdown_extensions:
 nav:
   - Home: README.md
   - Getting started:
+      - Installation and upgrades: INSTALLATION.md
       - Zero-cost and host-assisted research: ZERO_COST.md
       - API keys: API_KEYS.md
       - Configuration: CONFIG.md
