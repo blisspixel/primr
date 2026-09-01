@@ -53,6 +53,24 @@ def test_render_output_dir(tmp_path: Path):
     assert (out / "Acme_Strategic_Overview.docx").exists()
 
 
+def test_render_canonicalizes_entities_in_txt_and_docx(tmp_path: Path):
+    md = tmp_path / "Acme_Strategic_Overview.md"
+    md.write_text("## Executive Summary\n\nImprove S&amp;S distribution.\u00a0\n", encoding="utf-8")
+
+    assert run_render(["render", str(md)]) == 0
+
+    txt = md.with_suffix(".txt").read_text(encoding="utf-8")
+    assert "Improve S&S distribution." in txt
+    assert "&amp;" not in txt
+    assert "\u00a0" not in txt
+
+    from docx import Document
+
+    docx_text = "\n".join(p.text for p in Document(md.with_suffix(".docx")).paragraphs)
+    assert "Improve S&S distribution." in docx_text
+    assert "&amp;" not in docx_text
+
+
 def test_render_missing_file_returns_1(tmp_path: Path):
     rc = run_render(["render", str(tmp_path / "nope.md")])
     assert rc == 1

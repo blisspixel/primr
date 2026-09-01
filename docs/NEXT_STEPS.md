@@ -5,7 +5,7 @@ This is Primr's canonical execution brief. It answers what to implement next.
 rationale and contracts; `docs/CHANGELOG.md` owns completed implementation
 history.
 
-Last reviewed: 2026-08-30.
+Last reviewed: 2026-09-01.
 
 The [Company Analyst Product Contract](design/company-analyst-product-contract.md)
 is the governing feature filter: the bare company-and-website invocation,
@@ -18,12 +18,15 @@ agent surfaces are supporting work.
 
 Keep billable execution and network egress fail closed while finishing
 architecture ownership without changing the flagship report behavior. The
-v1.39.10 terminal follow-through extends the v1.39.9 approval contract to
-update, init, doctor fix, key setup, shared capability detection, and the
-legacy module launcher. Unavailable input fails closed without selecting a
-default-yes action. The v1.39.7 ownership batch removed the fast validation
-back edge, hardened that optional stage, and made external-evidence hostname
-boundaries consistent without changing report behavior. The prior v1.39.5
+v1.39.11 artifact-hygiene release keeps shipped Markdown, TXT, and DOCX free
+of encoded presentation entities and makes Primr Zero's noninteractive
+collection contract explicit. The v1.39.10 terminal follow-through extends
+the v1.39.9 approval contract to update, init, doctor fix, key setup, shared
+capability detection, and the legacy module launcher. Unavailable input fails
+closed without selecting a default-yes action. The v1.39.7 ownership batch
+removed the fast validation back edge, hardened that optional stage, and made
+external-evidence hostname boundaries consistent without changing report
+behavior. The prior v1.39.5
 audit closed cumulative eval budgeting, direct Gemini compatibility-call
 accounting, Accordion response and current-budget handling, the agentic
 orchestrator's SSRF hook input, and URL-secret redaction on browser and A2A
@@ -179,8 +182,8 @@ inconclusive.
 ## Next executable slice: architecture ownership without behavior drift
 
 **Status:** the v1.39.7 architecture batch remains implemented and locally
-validated after the v1.39.10 terminal and launcher polish. The full
-non-integration suite passed with 14,644 tests, 57 skips, and 5 deselections.
+validated after the v1.39.11 artifact and guidance polish. The full
+non-integration suite passed with 14,668 tests, 39 skips, and 5 deselections.
 The most recent measured branch coverage was 86.86 percent against the 81
 percent floor. The
 first P1 batch

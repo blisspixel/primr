@@ -82,6 +82,11 @@ For hard-zero collection:
    so the Zero output set (Strategic Overview + AI Strategy, each `.md` and
    `.docx`) matches a paid run.
 
+`primr prep` is already noninteractive. Never pipe `y` into it and never add
+`--skip-confirm`; either action obscures the boundary between free collection
+and an approved provider-backed launch. If prep unexpectedly presents a spend
+prompt, stop and correct the selected command instead of answering it.
+
 Treat prep exit code 130 as an intentional interruption, not a completed or
 failed bundle. Inspect the configured output root before retrying because
 publication may already have completed at the interruption boundary. If a

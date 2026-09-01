@@ -427,6 +427,42 @@ def test_normalize_final_punctuation_removes_long_dashes_from_urls_and_code():
     assert "code, cleaned" in normalized
 
 
+def test_canonicalize_final_markdown_decodes_presentation_html_entities():
+    content = (
+        "# Report\n\n"
+        "## Executive Summary\n\n"
+        "Capital and its Supplies &amp; Solutions (S&amp;S) business&nbsp;expanded.\u00a0"
+        "Revenue was &#36;10M and the name was &quot;Total Safety&quot;.\n"
+    )
+
+    normalized = canonicalize_final_markdown(content)
+
+    assert "Supplies & Solutions (S&S)" in normalized
+    assert 'business expanded. Revenue was $10M and the name was "Total Safety".' in normalized
+    assert "&amp;" not in normalized
+    assert "&nbsp;" not in normalized
+    assert "\u00a0" not in normalized
+
+
+def test_canonicalize_final_markdown_keeps_encoded_angle_brackets_inert():
+    content = "## Executive Summary\n\nLiteral &lt;script&gt; and &#60;tag&#62;.\n"
+
+    normalized = canonicalize_final_markdown(content)
+
+    assert "&lt;script&gt;" in normalized
+    assert "&#60;tag&#62;" in normalized
+    assert "<script>" not in normalized
+
+
+def test_prepare_strategy_markdown_for_shipping_decodes_nested_ampersand_entity():
+    content = "## AI Strategy\n\nImprove S&amp;amp;S distribution.\n"
+
+    prepared = _prepare_strategy_markdown_for_shipping(content)
+
+    assert "Improve S&S distribution." in prepared
+    assert "&amp;" not in prepared
+
+
 def test_parse_final_markdown_preserves_preamble_and_content_section_order():
     content = (
         "# Strategic Company Overview: DemoCo\n\n"
