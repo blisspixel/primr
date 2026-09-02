@@ -11,6 +11,9 @@ does not yet claim stable or cross-platform 3.15 support. On Windows, the
 locked MCP and DOCX stack currently depends on `pywin32`, whose latest release
 does not yet publish a `cp315` wheel. Keep using Python 3.14 on Windows until
 that upstream dependency is available and the full platform matrix passes.
+The Linux preview lane currently builds `lxml` from source and installs its
+`libxml2`, `libxslt`, and zlib development headers explicitly because a 3.15
+wheel is not yet available.
 
 ## Recommended installation
 
