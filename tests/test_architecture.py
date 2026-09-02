@@ -59,7 +59,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     "core/research_agent.py": 4259,
     "core/cli.py": 2440,
     "ai/deep_research.py": 3812,
-    "data/scraping/browsers.py": 1835,
+    "data/scraping/browsers.py": 1834,
     "data/hiring_signals.py": 1577,
     "core/model_eval.py": 1828,
     "data/scrape.py": 1828,
