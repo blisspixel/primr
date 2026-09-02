@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.12
+Current State: v1.39.13
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -12,8 +12,8 @@ The design is intentionally opinionated and local-first. This roadmap owns
 long-range product direction, release dependencies, exit criteria, and the
 backlog. It is not the next-PR queue. The canonical executable queue lives in
 [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md); completed work belongs in the
-changelog. No time estimates are promises: release bands advance when their
-exit criteria are satisfied.
+changelog. Future work has no target dates or effort estimates: release bands
+advance only when their exit criteria are satisfied.
 
 For completed work, see the canonical [Changelog](docs/CHANGELOG.md), or check
 [GitHub releases](https://github.com/blisspixel/primr/releases) for the latest.
@@ -53,7 +53,7 @@ releases inside a band; only cut the major when its pillars hold together.
 
 | Band | Theme | Why this order |
 |------|--------|----------------|
-| **v1.39.x** (current) | Operator polish, security floors, routing honesty | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. |
+| **v1.39.x** (current) | Operator polish, security floors, routing honesty, maintainable stage ownership | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. The next executable candidate is v1.39.14. |
 | **v1.40** | Epistemic and analyst-quality readiness | Hard gates, report-quality changes, and hybrid-routing promotions need a fully decidable production corpus for the bare company-and-website run first; without it, quality claims are vibes. |
 | **v1.41** | Backend freedom: measured host promotion + residual dual-provider cleanup | Unlocks honest OpenAI-only / Anthropic-only / host / local profiles; depends on 1.40 instruments to judge backends. |
 | **v1.42** | Agent control-plane finish (MCP Tasks, remaining watch items) | Agents can already estimate/approve/read compact artifacts; finish long-running job lifecycle and parity so unattended delegation is safe. |
@@ -68,10 +68,17 @@ The exact implementation slice, acceptance criteria, approved spend, and
 parallel maintenance lanes live only in `docs/NEXT_STEPS.md`. This section
 records dependency order so it does not become a competing current queue.
 
+**Next implementation candidate:** v1.39.14 removes one verified
+`fast_run_sections` orchestration back edge without behavior drift. The ordered
+work and exit criteria live in the [execution brief](docs/NEXT_STEPS.md). A
+candidate version is not a delivery promise and is changed before release if
+the accepted scope requires a different semantic version.
+
 Strategic priority context and implementation history:
 
-The detailed entries below preserve rationale and shipped milestones. They are
-not a substitute for the concise executable cards in `docs/NEXT_STEPS.md`.
+The detailed entries below are a reference backlog and implementation ledger.
+They preserve rationale and shipped milestones, but they do not define current
+work, release timing, or a second version plan.
 
 1. **Evidence-grounded validation and label honesty.** This is the measured
    quality gap: report claims, conclusions, caveats, and confidence labels must
@@ -307,17 +314,21 @@ into generic agent middleware.
 - Circuit breaker pattern (skips failing tiers after 3 failures)
 - Soft block detection (catches "200 OK" traps, browser blocks)
 
-**Standard Mode** (default when `XAI_API_KEY` is set): Grok 4.3 reasoning, with Gemini 3.1 Flash-Lite writing when `GEMINI_API_KEY` is also configured. Base Strategic Overview: ~$0.76-$0.79, ~31-47 min. The default command produces one integrated AI strategy for about ~$0.89 and ~34-53 min. Explicit two-platform fan-out is about ~$1.01 and ~37-59 min. XAI-only setups use the Grok 4.20-NR writing/utility path (current static plan: ~$5.09 base, ~$5.84 with one AI strategy, or ~$6.59 with explicit two-platform fan-out). Research deepening, bounded concurrent section batches with prior-batch context, cross-validation, a guarded coherence pass, and strategy enrichment.
+**Standard Mode** (default when `XAI_API_KEY` is set): Grok 4.3 reasoning,
+with Gemini 3.1 Flash-Lite writing when `GEMINI_API_KEY` is also configured.
+Research deepening, bounded concurrent section batches with prior-batch
+context, cross-validation, a guarded coherence pass, and strategy enrichment.
+Use the command's dry run and [Run Modes and Costs](docs/RUN_MODES.md) for the
+current price and duration contract.
 
 **Deep Mode** (`--mode deep`): Gemini Deep Research plus sequential Flash
 writing, without Premium's structured collection phase. The default command
-also produces one AI Strategy. The current static plan is about $5.38 and
-32-62 minutes, or about $2.88 and 24-47 minutes with `--no-ai-strategy`.
+also produces one AI Strategy.
 
 **Premium Mode** (`--premium`): structured evidence, Gemini Deep Research,
-sequential Flash writing, and one AI Strategy for maximum depth. The current
-static plan is about $6.71 and 74-132 minutes. The live dry-run is authoritative
-for every profile and can set a higher authorization floor from run history.
+sequential Flash writing, and one AI Strategy for maximum depth. The live dry
+run is authoritative for every profile and can set a higher authorization floor
+from run history.
 
 ### AI Strategy & Report Generation
 
@@ -481,11 +492,11 @@ Primr is intentionally not designed as a generic web scraper, a SaaS collaborati
 
 ---
 
-## Release Cadence
+## Release Gate and Version Flow
 
-The queue is worked top-down, but a release is never *only* features. Every
-release cycle folds in a standing **bug-hunt + harden** lane, independent of
-whatever feature lands:
+The queue is worked top-down, but a release is never *only* features. No release
+is assigned a target date or effort estimate. Each candidate follows this
+ordered gate and carries a standing **bug-hunt + harden** lane:
 
 1. **Adversarial review.** A focused sweep for correctness and security bugs
    across the modules touched since the last release, plus a rotating "cold"
@@ -498,11 +509,20 @@ whatever feature lands:
 3. **Coverage ratchet.** The branch-coverage gate only ever rises. New code
    ships with tests, and the ratchet is bumped when a focused push clears
    headroom.
-4. **Release pre-flight.** Version integrity (`pyproject` ↔ `__version__` ↔
-   ROADMAP "Current State"), `ruff` check + format, `mypy`, and a dry-run cost
-   estimate all run locally before any `v*` tag is pushed.
+4. **Release pre-flight.** Version integrity, `ruff` check and format, `mypy`,
+   strict docs, security checks, packaging checks, the full suite, and the
+   coverage floor pass before merge.
+5. **Version synchronization.** The final semantic version moves through the
+   package metadata, lockfile, citation metadata, plugin manifests, container
+   default, roadmap Current State and ledger, docs index, and changelog in one
+   release change.
+6. **Publication proof.** Merge through a green pull request, verify the exact
+   `main` commit, tag that commit, verify GitHub and PyPI artifact hashes, and
+   smoke-test the installed package.
 
-This is why the changelog shows hardening-only points (e.g. 1.29.2, 1.29.3)
+The exact checklist and current candidate live in
+[`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md). This is why the changelog shows
+hardening-only points (e.g. 1.29.2, 1.29.3)
 interleaved with feature points: hardening is a recurring lane, not a one-time
 milestone. A release is "done" when the feature works **and** the harden pass
 is clean - not before.
@@ -526,14 +546,14 @@ The job is "URL in, consultant-grade artifact out," done well.
 
 | Version | Exit criteria (must hold before the next band) |
 |---------|--------------------------------------------------|
-| **1.39.x** | Current: hybrid default Grok 4.3, MAX pin Grok 4.5, Grok 4.6 and OpenAI GPT-5.6 registered for evaluation, crypto ≥50, truthful dry-run/doctor, Primr Zero front door. |
+| **1.39.x** | Current: hybrid default Grok 4.3, governed OpenRouter preview, truthful dry-run and budget decisions, Python 3.15 preview containment, Primr Zero front door, and one-way stage ownership. |
 | **1.40** | Fully decidable multi-report corpus for the bare company-and-website run; epistemic hard-gate decision either armed from evidence or deliberately kept report-only, with analyst-quality dimensions recorded for later promotion decisions. |
 | **1.41** | Live host-vs-cloud source-relevance comparison scored; human promotion decision recorded; residual xAI/Gemini-only preflight assumptions removed for pure single-provider profiles. |
 | **1.42** | MCP Tasks (or equivalent durable job handle) + remaining control-plane watch items; A2A/MCP parity frozen as the agent contract. |
 | **1.43** | Memory layer 1 complete: automatic run pointers, retention/deletion, export, digest-bound source receipts and evidence anchors, plus a shadow run-scoped finding/inference ledger that does not yet drive report prose. |
 | **1.44+** | Claim-aware section packets promoted only after representative eval; progressive artifacts, batch API public surface, measured pipeline overlap, and the coverage ratchet continue. |
 
-**Status (as of v1.39.12):** most of the 1.x engineering backlog is closed -
+**Status (as of v1.39.13):** most of the 1.x engineering backlog is closed -
 artifact pipeline contract (#1-2), cost/observability surface (#5, #7, #8,
 #12, #13), production failover (#6), QA iteration loop (#10), agentic write
 constraints (#11), runtime robustness (#24), and the `perform_fast_research`
@@ -2135,6 +2155,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.13 | Sep 2026 | **Executable roadmap and budget-preview honesty.** The current queue is now one bounded release card with dependency-ordered version gates, explicit exit criteria, and a complete version-update protocol without future delivery dates or effort estimates. OpenRouter dry runs now expose the supplied per-run ceiling, estimated cost, within-budget decision, provider readiness, and final execution readiness; a below-estimate ceiling cannot be reported as launch-ready. A $10 OpenRouter ceiling is covered by regression tests without making a model call. |
 | 1.39.12 | Sep 2026 | **Governed OpenRouter preview.** An optional OpenRouter key can serve the Standard routed pipeline only after a separate paid-routing opt-in and the normal estimate approval. Curated utility, writing, and reasoning models carry explicit catalog pricing; every request enforces rate ceilings, denies data-collection providers, defaults to zero-data-retention endpoints, and records exact gateway cost when available. CLI, MCP, A2A, supervised workers, diagnostics, docs, and secret redaction share the same route. Custom models fail closed unless the operator supplies finite nonnegative prices. |
 | 1.39.11 | Sep 2026 | **Professional artifact hygiene and clearer zero-cost operation.** Final report canonicalization decodes safe presentation entities and normalizes nonbreaking spaces across provider-backed artifacts and zero-cost rendering while preserving encoded angle brackets. Primr Zero guidance now makes clear that `primr prep` is already noninteractive and must not receive a piped yes response or the paid-run `--skip-confirm` signal. The root README remains a concise front door, with installation and artifact detail in linked guides. |
 | 1.39.10 | Aug 2026 | **Terminal and launcher follow-through.** Update, init, doctor fix, and key setup now share safe foreground terminal detection, closed secret-entry streams fail without a traceback, and unavailable input can no longer select a default-yes action. Banner and console capability detection tolerate damaged output streams, while `python -m primr.primr_cli` again delegates to the public CLI entry point. |

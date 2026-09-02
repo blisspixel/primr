@@ -49,13 +49,55 @@ PRIMR_OPENROUTER_ENABLED=1
 Then inspect the exact plan before any billable run:
 
 ```bash
-primr "ExampleCo" https://example.co --dry-run
+primr "ExampleCo" https://example.co --dry-run --budget 10
 ```
 
 The dry run remains network-free and makes no model calls. Normal terminal
 execution still asks for confirmation. Automation may use `--skip-confirm`
 only after a person has reviewed and approved that fresh quote. MCP and A2A
 use the same estimate-bound approval and cost-cap contract.
+
+## Set a per-run ceiling
+
+`--budget` is a maximum for one Primr run. It is not a spending target and does
+not approve the run. For example:
+
+```bash
+primr "ExampleCo" https://example.co --dry-run --budget 10
+```
+
+The human preview shows the $10 ceiling, the estimate, and whether the plan is
+within the ceiling. The JSON preview exposes the same decision:
+
+```json
+{
+  "provider_ready": true,
+  "execution_ready": true,
+  "budget_enforcement": {
+    "ceiling_usd": 10.0,
+    "estimated_cost_usd": 1.05,
+    "within_budget": true
+  }
+}
+```
+
+The shown cost is illustrative. The live dry run is authoritative. If the
+estimate exceeds the ceiling, `execution_ready` and `within_budget` are false,
+and launch refuses before model calls. A valid ceiling is a finite positive
+number.
+
+Primr rechecks the same estimate when execution begins and activates runtime
+accounting at the supplied ceiling. Fast Standard runs checkpoint before
+optional spend stages. A model request that has already started cannot be
+stopped at an exact token boundary, so use a conservative ceiling and also put
+an independent spending limit on the dedicated OpenRouter key. OpenRouter key
+or organization limits reset according to their OpenRouter configuration and
+are separate from Primr's per-run ceiling.
+
+After reviewing the fresh estimate, launch in a foreground terminal by removing
+`--dry-run`; Primr will still ask for confirmation. Approved noninteractive
+automation may also add `--skip-confirm`. Never treat the key, the routing
+opt-in, the ceiling, or an earlier quote as approval by itself.
 
 ## Curated preview recipe
 

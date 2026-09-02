@@ -170,16 +170,38 @@ QA-refined `primr skills` pack workflow shown in the mode matrix.
 Use the built-in control path:
 
 ```bash
-primr "Company" https://company.com --dry-run
-primr "Company" https://company.com --budget 1.25
+primr "Company" https://company.com --dry-run --budget 10
+primr "Company" https://company.com --budget 10
 primr show-usage
 ```
+
+`--budget 10` is a $10 maximum for that run, not a target and not approval.
+Use it on the dry run to preview the decision, then keep the same ceiling on
+the exact approved launch. The human preview shows both values. JSON adds:
+
+```json
+{
+  "provider_ready": true,
+  "execution_ready": true,
+  "budget_enforcement": {
+    "ceiling_usd": 10.0,
+    "estimated_cost_usd": 1.05,
+    "within_budget": true
+  }
+}
+```
+
+The example cost is illustrative. `provider_ready` means the selected recipe
+has a usable provider. `execution_ready` additionally requires the estimate to
+fit the supplied ceiling. An over-ceiling preview sets `within_budget` and
+`execution_ready` to false, and launch refuses before model calls. Invalid,
+zero, negative, or non-finite ceilings also fail closed.
 
 ### Authorization floor (CLI and MCP)
 
 CLI dry-run, `--budget`, and launch quotes use the same shaping kwargs as
 execution. The dollar ceiling is **`max(planning defaults, historical averages)`**
-when enough samples exist — the same rule MCP/A2A already applied — so a few
+when enough samples exist, the same rule MCP/A2A already applied, so a few
 cheap past runs cannot under-approve a full recipe. Unknown estimator modes
 fail closed (they raise); product aliases such as `full` / `deep` / `scrape`
 map to internal mode names.
@@ -209,6 +231,8 @@ Cost behavior:
 
 - Dry-run estimates the run before model calls.
 - `--budget` refuses to start if the estimate exceeds the cap.
+- The per-run Primr ceiling is separate from any provider account or API-key
+  spending limit. Use both when the provider supports an independent limit.
 - Fast full-report runs also consult runtime budget checkpoints before optional stages.
 - Premium, deep, and non-fast complete or hybrid runs checkpoint before and between optional strategy documents after the required Deep Research task completes.
 - Required Deep Research tasks cannot be stopped mid-flight by `--budget`; scrape remains estimate-gated only.

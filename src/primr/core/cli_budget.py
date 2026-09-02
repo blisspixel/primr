@@ -34,6 +34,24 @@ class RuntimeSelection:
     auto_fast_mode: bool
 
 
+def budget_validation_error(budget_usd: float | None) -> str | None:
+    """Return an actionable error when a supplied run ceiling is invalid."""
+    if budget_usd is None:
+        return None
+    if not isfinite(budget_usd) or budget_usd <= 0:
+        return f"--budget must be a finite positive number, got {budget_usd}"
+    return None
+
+
+def estimate_fits_budget(*, estimated_cost_usd: float, budget_usd: float | None) -> bool | None:
+    """Return whether an estimate fits a valid ceiling, or ``None`` when uncapped."""
+    if budget_usd is None:
+        return None
+    if budget_validation_error(budget_usd):
+        return False
+    return estimated_cost_usd <= budget_usd
+
+
 def resolve_runtime_selection(config: CLIConfig) -> RuntimeSelection:
     """Resolve the fast/premium route exactly once for every CLI surface."""
 
@@ -180,16 +198,19 @@ def activate_run_budget(
     """Validate ``--budget``, activate it when present, and explain runtime scope."""
     if config.budget_usd is None:
         return BudgetActivation(ok=True, active=False)
-    if not isfinite(config.budget_usd) or config.budget_usd <= 0:
-        message = f"--budget must be a finite positive number, got {config.budget_usd}"
+    validation_error = budget_validation_error(config.budget_usd)
+    if validation_error:
         if emit_output:
-            console.error(message)
-        return BudgetActivation(ok=False, active=False, error_message=message)
+            console.error(validation_error)
+        return BudgetActivation(ok=False, active=False, error_message=validation_error)
 
     from primr.utils.run_budget import set_run_budget
 
     estimate = build_run_estimate(config, fast_mode=fast_mode, premium_mode=premium_mode)
-    if estimate.total_cost > config.budget_usd:
+    if not estimate_fits_budget(
+        estimated_cost_usd=estimate.total_cost,
+        budget_usd=config.budget_usd,
+    ):
         message = (
             f"Estimated cost ${estimate.total_cost:.2f} exceeds "
             f"--budget ${config.budget_usd:.2f}. Not starting."
