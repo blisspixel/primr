@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import sys
+
+from .models import Attempt, ErrorType, ScrapeResult
 
 SYNC_BROWSER_UNAVAILABLE_REASON = (
     "Playwright and Patchright sync browser tiers are disabled on Python 3.15 "
@@ -18,4 +21,39 @@ def sync_browser_runtime_supported(version: tuple[int, int] | None = None) -> bo
     return runtime < (3, 15)
 
 
-__all__ = ["SYNC_BROWSER_UNAVAILABLE_REASON", "sync_browser_runtime_supported"]
+def resolve_browser_headless(headless: bool | None) -> bool:
+    """Allow CLI or environment policy to force headed browser recovery."""
+
+    if os.getenv("PRIMR_BROWSER_HEADED", "").strip().lower() in {"1", "true", "yes"}:
+        return False
+    return True if headless is None else headless
+
+
+def sync_browser_unavailable_result(url: str, tier: str) -> ScrapeResult:
+    """Return a typed failure before an unsafe sync browser runtime can start."""
+
+    return ScrapeResult(
+        url=url,
+        success=False,
+        error_type=ErrorType.NETWORK_ERROR,
+        error=SYNC_BROWSER_UNAVAILABLE_REASON,
+        tier=tier,
+        elapsed_ms=0,
+        attempts=[
+            Attempt(
+                tier=tier,
+                success=False,
+                error=SYNC_BROWSER_UNAVAILABLE_REASON,
+                error_type=ErrorType.NETWORK_ERROR,
+                elapsed_ms=0,
+            )
+        ],
+    )
+
+
+__all__ = [
+    "SYNC_BROWSER_UNAVAILABLE_REASON",
+    "resolve_browser_headless",
+    "sync_browser_runtime_supported",
+    "sync_browser_unavailable_result",
+]

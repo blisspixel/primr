@@ -34,10 +34,8 @@ from .config import (
 from .models import Attempt, ErrorType, ScrapeResult
 from .net import extract_host
 from .page_snapshots import compare_render_snapshots, html_to_snapshot_text
-from .playwright_compat import (
-    SYNC_BROWSER_UNAVAILABLE_REASON,
-    sync_browser_runtime_supported,
-)
+from .playwright_compat import resolve_browser_headless as _resolve_headless
+from .playwright_compat import sync_browser_runtime_supported, sync_browser_unavailable_result
 from .profiles import (
     BrowserContextProfile,
     get_browser_compatible_http_profile,
@@ -64,35 +62,6 @@ def _browser_session_mode() -> str:
 def _use_persistent_browser_context() -> bool:
     """Whether Playwright should reuse a context per host for the current run."""
     return _browser_session_mode() == "persistent"
-
-
-def _resolve_headless(headless: bool | None) -> bool:
-    """Allow CLI/env to force a headed browser for scrape recovery."""
-    if os.getenv("PRIMR_BROWSER_HEADED", "").strip().lower() in {"1", "true", "yes"}:
-        return False
-    return True if headless is None else headless
-
-
-def _sync_browser_unavailable_result(url: str, tier: str) -> ScrapeResult:
-    """Return a typed failure before an unsafe sync browser runtime can start."""
-
-    return ScrapeResult(
-        url=url,
-        success=False,
-        error_type=ErrorType.NETWORK_ERROR,
-        error=SYNC_BROWSER_UNAVAILABLE_REASON,
-        tier=tier,
-        elapsed_ms=0,
-        attempts=[
-            Attempt(
-                tier=tier,
-                success=False,
-                error=SYNC_BROWSER_UNAVAILABLE_REASON,
-                error_type=ErrorType.NETWORK_ERROR,
-                elapsed_ms=0,
-            )
-        ],
-    )
 
 
 # =============================================================================
@@ -974,7 +943,7 @@ def scrape_with_playwright(
 
     url = normalized_url
     if not sync_browser_runtime_supported():
-        return _sync_browser_unavailable_result(url, "playwright")
+        return sync_browser_unavailable_result(url, "playwright")
     return _scrape_with_playwright_impl(url, timeout, profile, headless)
 
 
@@ -1289,7 +1258,7 @@ def scrape_with_playwright_aggressive(
 
     url = normalized_url
     if not sync_browser_runtime_supported():
-        return _sync_browser_unavailable_result(url, "playwright_aggressive")
+        return sync_browser_unavailable_result(url, "playwright_aggressive")
     egress_plan, egress_error = plan_browser_egress(url)
     if egress_error:
         return ScrapeResult(

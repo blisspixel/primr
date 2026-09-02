@@ -98,7 +98,6 @@ INTENTIONAL_TINY_MODULES: dict[str, str] = {
     "core/cli_help.py": "backward-compatible CLI help import surface",
     "core/strategy_enrichment_contract.py": "strategy review and repair framing policy",
     "data/first_party_url.py": "first-party URL policy seam",
-    "data/scraping/playwright_compat.py": "cross-runtime sync browser safety policy",
     "mcp_server/cloud_detect.py": "cloud-runtime adapter",
     "mcp_server/qa_operations.py": "shared QA operation boundary",
     "mcp_server/resource_summary_utils.py": "compact resource-summary policy",

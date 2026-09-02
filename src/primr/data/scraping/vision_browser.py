@@ -19,8 +19,8 @@ from .chromium_config import SANDBOX_ARGS
 from .config import DEFAULT_TIMEOUT_VISION
 from .models import Attempt, ErrorType, ScrapeResult
 from .playwright_compat import (
-    SYNC_BROWSER_UNAVAILABLE_REASON,
     sync_browser_runtime_supported,
+    sync_browser_unavailable_result,
 )
 
 logger = logging.getLogger(__name__)
@@ -78,23 +78,7 @@ def scrape_with_vision(
         )
 
     if not sync_browser_runtime_supported():
-        return ScrapeResult(
-            url=url,
-            success=False,
-            error_type=ErrorType.NETWORK_ERROR,
-            error=SYNC_BROWSER_UNAVAILABLE_REASON,
-            tier="vision",
-            elapsed_ms=0,
-            attempts=[
-                Attempt(
-                    tier="vision",
-                    success=False,
-                    error=SYNC_BROWSER_UNAVAILABLE_REASON,
-                    error_type=ErrorType.NETWORK_ERROR,
-                    elapsed_ms=0,
-                )
-            ],
-        )
+        return sync_browser_unavailable_result(url, "vision")
     egress_plan, egress_error = plan_browser_egress(url)
     if egress_error:
         return ScrapeResult(
