@@ -386,17 +386,22 @@ class TestCheckProviderAvailability:
 
 class TestCheckDependencies:
     def test_playwright_available(self):
-        with patch("playwright.sync_api.sync_playwright") as pw_mock:
-            pw_mock.return_value.__enter__.return_value = MagicMock()
-            pw_mock.return_value.__exit__.return_value = None
+        completed = MagicMock(returncode=0)
+        with patch("primr.core.cli_doctor.subprocess.run", return_value=completed) as run_mock:
             assert _check_dependencies(0) == 0
+        run_mock.assert_called_once()
 
     def test_playwright_failure_increments_warning(self):
-        with patch(
-            "playwright.sync_api.sync_playwright",
-            side_effect=ImportError("no playwright"),
-        ):
+        completed = MagicMock(returncode=-11)
+        with patch("primr.core.cli_doctor.subprocess.run", return_value=completed):
             assert _check_dependencies(0) == 1
+
+    def test_playwright_timeout_increments_warning(self):
+        with patch(
+            "primr.core.cli_doctor.subprocess.run",
+            side_effect=cli_doctor.subprocess.TimeoutExpired("python", 30),
+        ):
+            assert _check_dependencies(2) == 3
 
 
 # ---------------------------------------------------------------------------

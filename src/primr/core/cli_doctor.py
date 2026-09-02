@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
 import sys
 
 from primr.ai.availability_sanitize import (
@@ -289,16 +290,33 @@ def _provider_availability_status(snapshot: ProviderQuotaSnapshot) -> tuple[str,
 
 
 def _check_dependencies(warnings_count: int) -> int:
-    """Check required dependencies."""
-    try:
-        from playwright.sync_api import sync_playwright
+    """Check required dependencies without risking the doctor process.
 
-        with sync_playwright():
-            console.ok("Playwright browsers available")
-    except Exception as e:
-        console.warn(f"Playwright not ready: {e}")
+    Playwright starts a native driver while entering its context manager. A
+    preview Python or newly released platform wheel can terminate the process
+    before Python has an opportunity to raise an exception. Keep that probe in
+    a short-lived child so doctor can report the failure instead of crashing.
+    """
+    probe = "from playwright.sync_api import sync_playwright\nwith sync_playwright():\n    pass\n"
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", probe],
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        console.warn(f"Playwright not ready: isolated probe failed ({type(e).__name__})")
         console.info("  Run: playwright install chromium")
-        warnings_count += 1
+        return warnings_count + 1
+
+    if result.returncode == 0:
+        console.ok("Playwright runtime available")
+        return warnings_count
+
+    console.warn(f"Playwright not ready: isolated probe exited with status {result.returncode}")
+    console.info("  Run: playwright install chromium")
+    warnings_count += 1
     return warnings_count
 
 

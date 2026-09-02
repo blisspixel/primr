@@ -39,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hard Linux preview lane runs the locked suite on Python 3.15 while the release
   is still a candidate. Stable classifiers remain 3.12 through 3.14, and the
   installation guide records the current Windows `pywin32` wheel blocker.
+- **Doctor contains native dependency failures.** The Playwright runtime probe
+  runs in an isolated child process, so an incompatible preview-runtime wheel
+  becomes an actionable warning instead of terminating `primr doctor`.
 
 ### Documentation
 
