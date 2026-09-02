@@ -385,6 +385,13 @@ class TestCheckProviderAvailability:
 
 
 class TestCheckDependencies:
+    @pytest.fixture(autouse=True)
+    def _assume_supported_sync_runtime(self, monkeypatch):
+        monkeypatch.setattr(
+            "primr.data.scraping.playwright_compat.sync_browser_runtime_supported",
+            lambda: True,
+        )
+
     def test_playwright_available(self):
         completed = MagicMock(returncode=0)
         with patch("primr.core.cli_doctor.subprocess.run", return_value=completed) as run_mock:
