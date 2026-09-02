@@ -6,6 +6,7 @@ import os
 
 from primr.ai.genai_factory import default_genai_http_options
 from primr.config.models import PrimrModels
+from primr.data.scraping.playwright_compat import sync_browser_runtime_supported
 
 FULL_EXECUTION_MODES = ("complete", "hybrid", "structured")
 
@@ -102,6 +103,10 @@ def _check_model_provider_keys(
 
 def _check_playwright(mode: str, errors: list[str]) -> None:
     if mode not in ("scrape-only", *FULL_EXECUTION_MODES):
+        return
+    if not sync_browser_runtime_supported():
+        # Python 3.15 can continue through the HTTP, curl, and DrissionPage
+        # tiers. The unavailable sync tiers are filtered by the registry.
         return
     try:
         from playwright.sync_api import sync_playwright

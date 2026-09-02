@@ -19,6 +19,10 @@ from pathlib import Path
 from typing import Any
 
 from primr.ai.genai_factory import default_genai_http_options
+from primr.data.scraping.playwright_compat import (
+    SYNC_BROWSER_UNAVAILABLE_REASON,
+    sync_browser_runtime_supported,
+)
 from primr.utils.console import console
 from primr.utils.console import prompt_yes_no as _prompt_yes_no
 from primr.utils.terminal import can_prompt_for_input
@@ -136,6 +140,8 @@ def _validate_key_live(provider: str, value: str) -> tuple[bool, str]:
 
 def _playwright_browsers_ready() -> bool:
     """Return whether Playwright can launch Chromium."""
+    if not sync_browser_runtime_supported():
+        return False
     try:
         from playwright.sync_api import sync_playwright
 
@@ -352,6 +358,9 @@ def _run_init_flow(
     console.step("Browser dependencies")
     if skip_browsers:
         console.info("Playwright browser install skipped")
+    elif not sync_browser_runtime_supported():
+        console.warn(SYNC_BROWSER_UNAVAILABLE_REASON)
+        console.info("Safe non-Playwright collection tiers remain available")
     elif _playwright_browsers_ready():
         console.ok("Playwright Chromium available")
     elif non_interactive and not assume_yes:

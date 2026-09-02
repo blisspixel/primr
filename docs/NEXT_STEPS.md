@@ -189,8 +189,10 @@ guidance polish. The full non-integration suite passed with 14,710 tests, 39
 skips, and 5 deselections.
 The most recent measured branch coverage was 86.86 percent against the 81
 percent floor. Python 3.15 remains a pre-release; a hard Linux preview CI lane
-now supplements the supported 3.12, 3.13, and 3.14 matrix while Windows waits
-for upstream `pywin32` wheels. The first P1 batch
+on 3.15.0rc2 now supplements the supported 3.12, 3.13, and 3.14 matrix while
+Windows waits for upstream `pywin32` wheels. Playwright and Patchright sync
+tiers fail closed on the preview until upstream `greenlet` compatibility is
+verified. The first P1 batch
 reduced the largest import-cycle component from 24 modules to 22, the second
 reduced it from 22 to 12, and this batch reduces it
 from 12 to 11. The stage now receives its reviewer through composition and

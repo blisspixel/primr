@@ -15,6 +15,13 @@ The Linux preview lane currently builds `lxml` from source and installs its
 `libxml2`, `libxslt`, and zlib development headers explicitly because a 3.15
 wheel is not yet available.
 
+On Python 3.15 preview, Primr fails closed before starting the Playwright or
+Patchright sync browser tiers because the current `greenlet` runtime can
+terminate the interpreter. Safe HTTP, curl-based, and DrissionPage fallbacks
+remain available, and their absence does not block the run preflight. Use
+Python 3.14 for browser-complete research until the upstream sync runtime is
+compatible and the guard is removed.
+
 ## Recommended installation
 
 Install Primr in an isolated environment with pipx:

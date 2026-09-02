@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from primr.core import cli_preflight
 from primr.core.cli import _run_preflight_checks
 from primr.core.cli_preflight import _run_network_preflight_checks
 
@@ -20,6 +21,7 @@ def _scrub_openrouter_environment(monkeypatch):
         "PRIMR_OPENROUTER_OUTPUT_PRICE",
     ):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(cli_preflight, "sync_browser_runtime_supported", lambda: True)
 
 
 def _mock_playwright_ready():
@@ -188,6 +190,21 @@ class TestPreflightPlaywrightFailure:
         assert any(
             "playwright install" in e.lower() or "browsers not installed" in e for e in errors
         )
+
+    def test_unsupported_sync_runtime_uses_safe_fallbacks(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "not-a-real-xai-test-key")
+        monkeypatch.setattr(cli_preflight, "sync_browser_runtime_supported", lambda: False)
+
+        with patch(
+            "playwright.sync_api.sync_playwright",
+            side_effect=RuntimeError("should not be called"),
+        ) as sync_playwright:
+            ok, errors = _run_preflight_checks("complete", allow_network=False)
+
+        assert ok is True
+        assert errors == []
+        sync_playwright.assert_not_called()
 
 
 class TestPreflightApiConnectivity:

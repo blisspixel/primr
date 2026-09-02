@@ -18,6 +18,10 @@ from .browser_proxy import BrowserEgressProxy
 from .chromium_config import SANDBOX_ARGS
 from .config import DEFAULT_TIMEOUT_VISION
 from .models import Attempt, ErrorType, ScrapeResult
+from .playwright_compat import (
+    SYNC_BROWSER_UNAVAILABLE_REASON,
+    sync_browser_runtime_supported,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,37 @@ def scrape_with_vision(
         )
 
     url = normalized_url
+    from primr.config.settings import get_settings
+
+    settings = get_settings()
+    if not settings.api.gemini_key:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error="Vision tier requires GEMINI_API_KEY",
+            tier="vision",
+            attempts=[],
+        )
+
+    if not sync_browser_runtime_supported():
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=SYNC_BROWSER_UNAVAILABLE_REASON,
+            tier="vision",
+            elapsed_ms=0,
+            attempts=[
+                Attempt(
+                    tier="vision",
+                    success=False,
+                    error=SYNC_BROWSER_UNAVAILABLE_REASON,
+                    error_type=ErrorType.NETWORK_ERROR,
+                    elapsed_ms=0,
+                )
+            ],
+        )
     egress_plan, egress_error = plan_browser_egress(url)
     if egress_error:
         return ScrapeResult(
@@ -80,20 +115,6 @@ def scrape_with_vision(
         egress_proxy = BrowserEgressProxy().start()
         from google import genai
         from playwright.sync_api import sync_playwright
-
-        from primr.config.settings import get_settings
-
-        settings = get_settings()
-
-        if not settings.api.gemini_key:
-            return ScrapeResult(
-                url=url,
-                success=False,
-                error_type=ErrorType.NETWORK_ERROR,
-                error="Vision tier requires GEMINI_API_KEY",
-                tier=tier_name,
-                attempts=[],
-            )
 
         with sync_playwright() as p:
             browser = p.chromium.launch(

@@ -297,6 +297,16 @@ def _check_dependencies(warnings_count: int) -> int:
     before Python has an opportunity to raise an exception. Keep that probe in
     a short-lived child so doctor can report the failure instead of crashing.
     """
+    from primr.data.scraping.playwright_compat import (
+        SYNC_BROWSER_UNAVAILABLE_REASON,
+        sync_browser_runtime_supported,
+    )
+
+    if not sync_browser_runtime_supported():
+        console.warn(SYNC_BROWSER_UNAVAILABLE_REASON)
+        console.info("Safe non-Playwright collection tiers remain available")
+        return warnings_count + 1
+
     probe = "from playwright.sync_api import sync_playwright\nwith sync_playwright():\n    pass\n"
     try:
         result = subprocess.run(

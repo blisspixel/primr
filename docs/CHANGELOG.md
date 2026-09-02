@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Doctor contains native dependency failures.** The Playwright runtime probe
   runs in an isolated child process, so an incompatible preview-runtime wheel
   becomes an actionable warning instead of terminating `primr doctor`.
+- **Python 3.15 browser tiers fail closed.** Primr marks Playwright, Patchright,
+  and the Playwright-backed vision tier unavailable before entering the current
+  incompatible `greenlet` sync runtime. Safe collection tiers continue through
+  the normal fallback chain instead of risking an interpreter crash.
 
 ### Documentation
 

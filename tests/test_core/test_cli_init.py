@@ -22,6 +22,12 @@ from primr.core.cli_init import (
     _validate_key_live,
 )
 
+
+@pytest.fixture(autouse=True)
+def _assume_supported_sync_runtime(monkeypatch):
+    monkeypatch.setattr("primr.core.cli_init.sync_browser_runtime_supported", lambda: True)
+
+
 # ---------------------------------------------------------------------------
 # _prompt_yes_no
 # ---------------------------------------------------------------------------
@@ -237,6 +243,16 @@ class TestPlaywrightHelpers:
         # Patching ImportError on the import path forces the except branch.
         with patch.dict("sys.modules", {"playwright.sync_api": None}):
             assert _playwright_browsers_ready() is False
+
+    def test_browsers_ready_skips_unsupported_runtime(self, monkeypatch):
+        monkeypatch.setattr("primr.core.cli_init.sync_browser_runtime_supported", lambda: False)
+        with patch(
+            "playwright.sync_api.sync_playwright",
+            side_effect=RuntimeError("should not be called"),
+        ) as sync_playwright:
+            assert _playwright_browsers_ready() is False
+
+        sync_playwright.assert_not_called()
 
     def test_install_runs_subprocess_command(self):
         with patch("subprocess.run") as run_mock:

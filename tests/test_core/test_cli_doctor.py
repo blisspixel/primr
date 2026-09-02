@@ -403,6 +403,16 @@ class TestCheckDependencies:
         ):
             assert _check_dependencies(2) == 3
 
+    def test_unsupported_runtime_skips_native_probe(self, monkeypatch):
+        monkeypatch.setattr(
+            "primr.data.scraping.playwright_compat.sync_browser_runtime_supported",
+            lambda: False,
+        )
+        with patch("primr.core.cli_doctor.subprocess.run") as run_mock:
+            assert _check_dependencies(0) == 1
+
+        run_mock.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # _check_filesystem
