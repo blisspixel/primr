@@ -13,7 +13,9 @@ import pytest
 
 from primr.core.cli_budget import (
     activate_run_budget,
+    budget_validation_error,
     build_run_estimate,
+    estimate_fits_budget,
     estimate_strategy_types,
     estimate_vendor_count,
     estimate_vendor_refresh_count,
@@ -67,6 +69,21 @@ class TestEstimateVendorCount:
     def test_vendor_count_floors_at_one(self):
         assert estimate_vendor_count(_config(ai_strategy=True, cloud_vendors=[])) == 1
         assert estimate_vendor_count(_config(ai_strategy=True, cloud_vendors=["azure", "aws"])) == 2
+
+
+class TestBudgetAssessment:
+    def test_uncapped_estimate_has_no_budget_decision(self):
+        assert estimate_fits_budget(estimated_cost_usd=1.05, budget_usd=None) is None
+
+    def test_ten_dollar_ceiling_accepts_lower_estimate(self):
+        assert estimate_fits_budget(estimated_cost_usd=1.05, budget_usd=10.0) is True
+
+    def test_ceiling_below_estimate_rejects(self):
+        assert estimate_fits_budget(estimated_cost_usd=1.05, budget_usd=1.0) is False
+
+    @pytest.mark.parametrize("value", [0.0, -1.0, float("nan"), float("inf")])
+    def test_invalid_ceiling_has_actionable_error(self, value):
+        assert "finite positive number" in (budget_validation_error(value) or "")
 
 
 class TestEstimateVendorRefreshCount:
@@ -271,6 +288,29 @@ class TestActivateRunBudget:
         budget = get_run_budget()
         assert budget is not None
         assert budget.max_cost == 100.0
+
+    def test_openrouter_ten_dollar_budget_activates(self, monkeypatch):
+        for name in (
+            "GEMINI_API_KEY",
+            "XAI_API_KEY",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+        ):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
+        monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "1")
+        config = _config(budget_usd=10.0, ai_strategy=True)
+
+        estimate = build_run_estimate(config, fast_mode=True, premium_mode=False)
+        result = activate_run_budget(config, fast_mode=True, premium_mode=False)
+
+        assert estimate.total_cost < 10.0
+        assert any("OpenRouter routed preview" in note for note in estimate.notes)
+        assert result.ok
+        assert result.active
+        budget = get_run_budget()
+        assert budget is not None
+        assert budget.max_cost == 10.0
 
     def test_machine_mode_activates_without_console_output(self, monkeypatch):
         calls: list[str] = []

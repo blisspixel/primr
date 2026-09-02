@@ -12,6 +12,7 @@ import pytest
 
 from primr.core.cli import CLIConfig, Command
 from primr.core.cli_dryrun import run_dry_run
+from primr.utils.cost_estimator import CostEstimate
 
 
 def _config(**overrides):
@@ -22,12 +23,18 @@ def _config(**overrides):
 
 @pytest.fixture
 def mocks(monkeypatch):
-    estimate = MagicMock()
-    estimate.__str__ = lambda self: "ESTIMATE STRING"
-    # build_run_estimate compares planning vs historical with `>`; keep numeric.
-    estimate.total_cost = 0.76
-    estimate.notes = []
-    estimate.duration_minutes = "30-45 min"
+    estimate = CostEstimate(
+        mode="complete",
+        estimated_input_tokens=1000,
+        estimated_output_tokens=200,
+        estimated_search_queries=0,
+        input_cost=0.5,
+        output_cost=0.26,
+        search_cost=0.0,
+        total_cost=0.76,
+        duration_minutes="30-45 min",
+        notes=[],
+    )
     monkeypatch.setattr(
         "primr.utils.cost_estimator.estimate_cost",
         MagicMock(return_value=estimate),
@@ -183,6 +190,59 @@ class TestDryRunFlags:
         assert "Grok reasoning + Gemini writing" not in output
 
     @pytest.mark.parametrize(
+        ("budget_usd", "within_budget", "execution_ready"),
+        [(10.0, True, True), (0.5, False, False)],
+    )
+    def test_openrouter_json_dry_run_reports_budget_decision(
+        self,
+        mocks,
+        monkeypatch,
+        capsys,
+        budget_usd,
+        within_budget,
+        execution_ready,
+    ):
+        import json
+
+        for name in (
+            "GEMINI_API_KEY",
+            "XAI_API_KEY",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+        ):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key-" + "x" * 20)
+        monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "1")
+
+        assert (
+            run_dry_run(
+                _config(
+                    mode="complete",
+                    budget_usd=budget_usd,
+                    json_output=True,
+                )
+            )
+            == 0
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["mode_label"] == "full (OpenRouter routed preview)"
+        assert payload["provider_ready"] is True
+        assert payload["execution_ready"] is execution_ready
+        assert payload["budget_enforcement"]["ceiling_usd"] == budget_usd
+        assert payload["budget_enforcement"]["estimated_cost_usd"] == 0.76
+        assert payload["budget_enforcement"]["within_budget"] is within_budget
+
+    def test_invalid_budget_is_a_machine_readable_error(self, mocks, capsys):
+        import json
+
+        assert run_dry_run(_config(budget_usd=float("nan"), json_output=True)) == 1
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["error_type"] == "invalid_budget"
+        assert "finite positive number" in payload["message"]
+
+    @pytest.mark.parametrize(
         ("env_name", "expected_fragment"),
         [
             ("OPENAI_API_KEY", "OpenAI estimate only"),
@@ -279,6 +339,13 @@ class TestDryRunFlags:
         out = capsys.readouterr().out
         assert "Checkpointed stages:" in out
         assert "strategy generation" in out
+
+    def test_budget_policy_prints_whether_estimate_fits(self, mocks, capsys):
+        assert run_dry_run(_config(mode="complete", fast_mode=True, budget_usd=0.5)) == 0
+
+        out = capsys.readouterr().out
+        assert "Estimate: $0.76 (exceeds ceiling; launch blocked)" in out
+        assert "Launch is blocked" in out
 
 
 class TestDryRunCostEstimator:

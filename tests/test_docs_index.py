@@ -14,6 +14,7 @@ drift is *coverage* and *link validity*, which is what this test guards.
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -46,3 +47,48 @@ def test_every_relative_index_link_resolves() -> None:
         if not resolved.exists():
             broken.append(target)
     assert not broken, f"docs/README.md has links that do not resolve: {broken}"
+
+
+def test_next_steps_has_one_versioned_executable_card() -> None:
+    brief = (DOCS_DIR / "NEXT_STEPS.md").read_text(encoding="utf-8")
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    released = pyproject["project"]["version"]
+
+    baseline = re.search(r"^Released baseline: \*\*v(?P<version>\d+\.\d+\.\d+)\*\*$", brief, re.M)
+    candidate = re.search(
+        r"^Next implementation candidate: \*\*v(?P<version>\d+\.\d+\.\d+)\*\*$",
+        brief,
+        re.M,
+    )
+
+    assert brief.count("## Current executable card") == 1
+    assert baseline is not None
+    assert baseline.group("version") == released
+    assert candidate is not None
+    assert tuple(map(int, candidate.group("version").split("."))) > tuple(
+        map(int, released.split("."))
+    )
+
+
+def test_current_planning_avoids_delivery_date_and_effort_promises() -> None:
+    brief = (DOCS_DIR / "NEXT_STEPS.md").read_text(encoding="utf-8")
+    prohibited = (
+        r"\bwill take\b",
+        r"\bexpected to take\b",
+        r"\bship by\b",
+        r"\bETA\b",
+        r"\bnext (?:week|month|quarter)\b",
+        r"\b\d+\s+(?:business\s+)?(?:day|week|month)s?\b",
+    )
+
+    matches = [pattern for pattern in prohibited if re.search(pattern, brief, re.I)]
+    assert not matches, f"NEXT_STEPS.md contains delivery-date or effort promises: {matches}"
+
+
+def test_roadmap_delegates_the_current_queue_to_next_steps() -> None:
+    roadmap = (REPO_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+
+    assert "### Version ladder (logical order, no schedules)" in roadmap
+    assert "**Next implementation candidate:** v1.39.14" in roadmap
+    assert "The canonical executable queue lives in" in roadmap
+    assert "[`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md)" in roadmap

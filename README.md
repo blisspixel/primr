@@ -91,7 +91,7 @@ and [Zero-Cost / Primr Zero](docs/ZERO_COST.md).
 ### Terminal path
 
 ```bash
-primr "ExampleCo" https://example.co --dry-run        # always first
+primr "ExampleCo" https://example.co --dry-run --budget 10
 primr "ExampleCo" https://example.co                  # foreground, then approve
 primr "ExampleCo" https://example.co --skip-confirm   # automation, after approval
 ```
@@ -139,7 +139,7 @@ Keys and full config: [API Key Setup](docs/API_KEYS.md) ·
 |------|---------|
 | Agent-host dossier (Zero by default) | `primr "Company" https://company.com` |
 | Keyless evidence bundle | `primr prep "Company" https://company.com` |
-| Estimate a paid run | `primr "Company" https://company.com --dry-run` |
+| Estimate a paid run with a ceiling | `primr "Company" https://company.com --dry-run --budget 10` |
 | Strategic Overview only | `primr "Company" https://company.com --no-ai-strategy` |
 | Site corpus only | `primr "Company" https://company.com --mode scrape` |
 | DNS only (no keys) | `primr recon company.com` |
@@ -152,10 +152,11 @@ Focused help: `primr --help`. Everything: `primr --help-all`.
 
 ## Cost gate
 
-Billable runs need a fresh `--dry-run` estimate and explicit approval. A budget
-cap can refuse an oversized plan, and unattended execution stays fail closed
-unless it carries the command-specific approval signal. Standard targets
-roughly `$1`, but the live estimate is authoritative. See
+Billable runs need a fresh `--dry-run` estimate and explicit approval. A
+`--budget 10` cap sets a $10 ceiling for that Primr run, not a $10 target or
+permission to launch. The preview reports whether the estimate fits, and an
+oversized plan is not launch-ready. Unattended execution stays fail closed
+unless it carries the command-specific approval signal. See
 [Run Modes and Costs](docs/RUN_MODES.md#cost-controls) for the complete policy.
 
 ## Outputs
