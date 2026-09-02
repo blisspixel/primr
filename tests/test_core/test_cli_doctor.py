@@ -31,6 +31,13 @@ from primr.core.cli_doctor import (
     run_doctor,
 )
 
+
+@pytest.fixture(autouse=True)
+def _scrub_openrouter_environment(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("PRIMR_OPENROUTER_ENABLED", raising=False)
+
+
 # ---------------------------------------------------------------------------
 # _check_api_keys
 # ---------------------------------------------------------------------------
@@ -79,7 +86,7 @@ class TestCheckApiKeys:
 
     @pytest.mark.parametrize(
         "env_name",
-        ["XAI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"],
+        ["XAI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"],
     )
     def test_passes_with_non_gemini_cloud_provider_key(self, monkeypatch, env_name):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)

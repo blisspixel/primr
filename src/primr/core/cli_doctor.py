@@ -83,6 +83,19 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
         console.error("OPENAI_API_KEY set but appears too short")
         all_passed = False
 
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if openrouter_key and len(openrouter_key) >= 10:
+        configured_model_keys += 1
+        from primr.ai.providers.openrouter import openrouter_routing_enabled
+
+        if openrouter_routing_enabled():
+            console.ok("OPENROUTER_API_KEY configured (paid gateway routing enabled)")
+        else:
+            console.ok("OPENROUTER_API_KEY configured (routing disabled until explicit opt-in)")
+    elif openrouter_key:
+        console.error("OPENROUTER_API_KEY set but appears too short")
+        all_passed = False
+
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if anthropic_key and len(anthropic_key) >= 10:
         configured_model_keys += 1
@@ -97,7 +110,7 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     if configured_model_keys == 0:
         console.ok("Keyless ready: primr prep · primr recon · primr render")
         console.info("  Provider-backed research needs a cloud LLM key.")
-        console.info("  Run one of: primr keys set gemini | xai | openai | anthropic")
+        console.info("  Run one of: primr keys set gemini | xai | openai | openrouter | anthropic")
 
     search_provider = os.environ.get("SEARCH_PROVIDER", "auto").lower().strip()
     search_key = os.environ.get("SEARCH_API_KEY", "")
@@ -205,7 +218,8 @@ def _check_providers(warnings_count: int) -> int:
         console.warn("No usable LLM providers (provider-backed research unavailable)")
         console.info("  Keyless commands remain ready: primr prep | primr recon")
         console.info(
-            "  Set a provider key (primr keys set gemini|xai|openai|anthropic) + install its SDK"
+            "  Set a provider key (primr keys set gemini|xai|openai|openrouter|anthropic) "
+            "+ install its SDK"
         )
         return warnings_count + 1
 

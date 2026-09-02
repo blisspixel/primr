@@ -21,13 +21,50 @@ from primr.ai.stage_routing import (
     resolve_stage_model,
     stage_usage_delta,
 )
-from primr.config.models import PrimrModels
+from primr.config.models import ModelRegistry, PrimrModels
 from primr.core.run_state_io import _append_recovery_event, _load_run_state
 
 
 def _clear_provider_env(monkeypatch) -> None:
-    for name in ("GEMINI_API_KEY", "XAI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+    for name in (
+        "GEMINI_API_KEY",
+        "XAI_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "OPENROUTER_API_KEY",
+        "PRIMR_OPENROUTER_ENABLED",
+    ):
         monkeypatch.delenv(name, raising=False)
+
+
+def test_openrouter_cloud_route_requires_explicit_opt_in(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter")
+
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="cloud",
+    )
+
+    assert route.routed is False
+
+
+def test_openrouter_cloud_route_is_available_after_opt_in(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter")
+    monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "1")
+
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="cloud",
+    )
+
+    assert route.routed is True
+    assert route.model_name == ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name
+    assert route.availability is not None
+    assert route.availability["provider"] == "openrouter"
 
 
 def test_current_inference_profile_defaults_to_cloud(monkeypatch) -> None:

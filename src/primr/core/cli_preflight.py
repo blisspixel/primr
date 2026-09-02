@@ -10,12 +10,27 @@ from primr.config.models import PrimrModels
 FULL_EXECUTION_MODES = ("complete", "hybrid", "structured")
 
 
+def _selected_openrouter_models() -> tuple[str, ...]:
+    """Return role models that would actually use the enabled gateway."""
+
+    from primr.ai.routing import Role, pick_model_for_role
+
+    selected: list[str] = []
+    for role in (Role.UTILITY, Role.WRITING, Role.REASONING):
+        model = pick_model_for_role(role)
+        config = PrimrModels.get_model_config(model)
+        if config is not None and config.provider == "openrouter":
+            selected.append(model)
+    return tuple(dict.fromkeys(selected))
+
+
 def _check_model_provider_keys(
     mode: str,
     *,
     premium_mode: bool = False,
     fast_mode: bool = False,
     refresh_vendor_research: bool = False,
+    grok_tier: str = "hybrid",
 ) -> tuple[list[str], str, bool, bool]:
     errors = []
 
@@ -23,11 +38,22 @@ def _check_model_provider_keys(
     xai_key = os.environ.get("XAI_API_KEY", "")
     openai_key = os.environ.get("OPENAI_API_KEY", "")
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+    from primr.ai.providers.openrouter import openrouter_routing_enabled
+
+    openrouter_enabled = openrouter_routing_enabled()
     has_gemini = bool(gemini_key and len(gemini_key) >= 10)
     has_xai = bool(xai_key and len(xai_key) >= 10)
+    has_openrouter = bool(openrouter_enabled and openrouter_key and len(openrouter_key) >= 10)
+    if has_openrouter:
+        try:
+            _selected_openrouter_models()
+        except ValueError as exc:
+            errors.append(f"OpenRouter configuration is invalid: {exc}")
+            has_openrouter = False
     is_full_execution = mode in FULL_EXECUTION_MODES
     requires_gemini = mode == "deep-research" or premium_mode or refresh_vendor_research
-    requires_xai = fast_mode
+    requires_xai = fast_mode and (grok_tier == "max" or not has_openrouter)
 
     if requires_gemini:
         if not gemini_key:
@@ -50,18 +76,25 @@ def _check_model_provider_keys(
             errors.append("GEMINI_API_KEY set but appears too short")
         if xai_key and len(xai_key) < 10:
             errors.append("XAI_API_KEY set but appears too short")
-        if not (has_gemini or has_xai):
+        if openrouter_enabled and openrouter_key and len(openrouter_key) < 10:
+            errors.append("OPENROUTER_API_KEY set but appears too short")
+        if not (has_gemini or has_xai or has_openrouter):
+            if openrouter_key and not openrouter_enabled:
+                errors.append(
+                    "OPENROUTER_API_KEY is configured, but paid OpenRouter routing is disabled. "
+                    "Set PRIMR_OPENROUTER_ENABLED=1, then run the exact dry-run again."
+                )
             if openai_key or anthropic_key:
                 errors.append(
                     "Full report execution currently requires XAI_API_KEY or "
-                    "GEMINI_API_KEY. OpenAI/Anthropic are wired for routed "
-                    "dry-runs and eval paths, but full no-XAI execution is "
-                    "still tracked in the roadmap."
+                    "GEMINI_API_KEY, or an explicitly enabled OpenRouter route. "
+                    "OpenAI/Anthropic are wired for routed dry-runs and eval paths, "
+                    "but full single-provider execution is still tracked in the roadmap."
                 )
-            else:
+            elif not openrouter_key:
                 errors.append(
-                    "Full report execution requires XAI_API_KEY or GEMINI_API_KEY. "
-                    "Run 'primr keys set xai' or 'primr keys set gemini'."
+                    "Full report execution requires XAI_API_KEY, GEMINI_API_KEY, or an "
+                    "explicitly enabled OpenRouter route."
                 )
 
     return errors, gemini_key, requires_gemini, is_full_execution
@@ -129,6 +162,31 @@ def _check_gemini_connectivity(
             errors.append(f"Gemini API connection failed: {e}")
 
 
+def _check_openrouter_connectivity(*, is_full_execution: bool, errors: list[str]) -> None:
+    """Validate an enabled OpenRouter key without generating model output."""
+
+    from primr.ai.providers.openrouter import openrouter_routing_enabled
+
+    if not is_full_execution or not openrouter_routing_enabled():
+        return
+    if not os.environ.get("OPENROUTER_API_KEY"):
+        return
+    try:
+        selected_models = _selected_openrouter_models()
+    except ValueError:
+        # Local configuration validation already reports this before network
+        # checks. Do not duplicate the same error.
+        return
+    if not selected_models:
+        return
+    from primr.ai.providers import KNOWN_PROVIDERS, validate_provider_credentials
+
+    entry = next(item for item in KNOWN_PROVIDERS if item.name == "openrouter")
+    result = validate_provider_credentials(entry)
+    if not result.ok:
+        errors.append(f"OpenRouter credential check failed: {result.detail}")
+
+
 def _check_google_search(errors: list[str]) -> None:
     search_provider = os.environ.get("SEARCH_PROVIDER", "auto").lower().strip()
     if search_provider != "google":
@@ -178,6 +236,7 @@ def _run_preflight_checks(
     premium_mode: bool = False,
     fast_mode: bool = False,
     refresh_vendor_research: bool = False,
+    grok_tier: str = "hybrid",
     allow_network: bool = True,
 ) -> tuple[bool, list[str]]:
     """
@@ -194,6 +253,7 @@ def _run_preflight_checks(
         premium_mode=premium_mode,
         fast_mode=fast_mode,
         refresh_vendor_research=refresh_vendor_research,
+        grok_tier=grok_tier,
     )
     _check_playwright(mode, errors)
     _check_fast_dependency(fast_mode, errors)
@@ -204,6 +264,7 @@ def _run_preflight_checks(
             is_full_execution=is_full_execution,
             errors=errors,
         )
+        _check_openrouter_connectivity(is_full_execution=is_full_execution, errors=errors)
         _check_google_search(errors)
 
     return (len(errors) == 0, errors)
@@ -215,6 +276,7 @@ def _run_network_preflight_checks(
     premium_mode: bool = False,
     fast_mode: bool = False,
     refresh_vendor_research: bool = False,
+    grok_tier: str = "hybrid",
 ) -> tuple[bool, list[str]]:
     """Run only provider and search connectivity checks after budget approval."""
 
@@ -223,6 +285,7 @@ def _run_network_preflight_checks(
         premium_mode=premium_mode,
         fast_mode=fast_mode,
         refresh_vendor_research=refresh_vendor_research,
+        grok_tier=grok_tier,
     )
     if not errors:
         _check_gemini_connectivity(
@@ -231,5 +294,6 @@ def _run_network_preflight_checks(
             is_full_execution=is_full_execution,
             errors=errors,
         )
+        _check_openrouter_connectivity(is_full_execution=is_full_execution, errors=errors)
         _check_google_search(errors)
     return (len(errors) == 0, errors)

@@ -120,7 +120,11 @@ def deepen_research(
         "3-5 min",
     )
 
-    with console.timed_operation("Analyzing research gaps via Grok"):
+    from primr.core.cli_labels import model_provider_label
+
+    with console.timed_operation(
+        f"Analyzing research gaps via {model_provider_label(grok_reasoning)}"
+    ):
         gap_queries, gap_text = _fast_gap_analysis(
             company_label,
             website,

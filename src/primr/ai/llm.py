@@ -205,6 +205,7 @@ def llm(
         "openai",
         "anthropic",
         "ollama",
+        "openrouter",
         "bedrock",
         "foundry",
     ):

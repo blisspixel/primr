@@ -200,14 +200,14 @@ def run_strategy_phase(
             refresh_outcome,
         )
 
-    console.phase_banner(
-        6, total_phases, "Strategy (Grok)", "Generating strategy documents", "3-8 min"
-    )
-
     from primr.ai import stage_routing
+    from primr.core.cli_labels import model_provider_label
 
     writing_model = grok_writing
     reasoning_model = grok_reasoning
+    provider_label = model_provider_label(writing_model)
+    phase_label = f"Strategy ({provider_label})"
+    console.phase_banner(6, total_phases, phase_label, "Generating strategy documents", "3-8 min")
     strategy_route = None
     strategy_usage_before = None
     strategy_route_start = time.monotonic()
@@ -386,7 +386,7 @@ def run_strategy_phase(
                         max_tokens=32_000,
                     )
 
-                with console.timed_operation(f"AI Strategy{vendor_label} via Grok"):
+                with console.timed_operation(f"AI Strategy{vendor_label} via {provider_label}"):
                     _strat_result = strategy_with_recovery(
                         recovery_executor, _do_strategy, folder_path
                     )
@@ -609,7 +609,7 @@ def run_strategy_phase(
                         max_tokens=32_000,
                     )
 
-                with console.timed_operation(f"{display_name_strat} via Grok"):
+                with console.timed_operation(f"{display_name_strat} via {provider_label}"):
                     _yaml_strat_result = strategy_with_recovery(
                         recovery_executor, _do_yaml_strategy, folder_path
                     )
@@ -769,7 +769,7 @@ def run_strategy_phase(
                 outcome_tracker.mark_failed(target)
 
     if strategy_paths:
-        console.phase_complete("Strategy (Grok)")
+        console.phase_complete(phase_label)
     else:
         console.warn("Strategy generation skipped - no strategies generated")
 

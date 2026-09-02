@@ -193,6 +193,46 @@ jobs:
           uv run --no-sync pytest tests/property_tests/test_no_hardcoded_secrets_properties.py \
             --tb=short -q
 
+  python-315-preview:
+    # Python 3.15 is a pre-release until 2026-10-01. Keep this as a hard Linux
+    # compatibility lane without adding a stable-support classifier. Windows
+    # remains blocked until pywin32 publishes cp315 wheels.
+    name: python-3.15-preview (linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      UV_PYTHON: "3.15"
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        timeout-minutes: 5
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: "0.11.33"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          cache-suffix: ${{ runner.os }}-py3.15-preview
+
+      - name: Set up Python 3.15 preview
+        timeout-minutes: 10
+        run: uv python install 3.15
+
+      - name: Install locked dependencies
+        timeout-minutes: 10
+        run: uv sync --locked --all-extras
+
+      - name: Test Python 3.15 preview
+        timeout-minutes: 25
+        env:
+          GEMINI_API_KEY: fake-key-for-ci-tests
+        run: |
+          uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q \
+            -k "not test_wait_times_out_when_no_change" -m "not integration"
+
   cross-platform-test:
     # primr advertises Windows + macOS + Linux support; the matrix above only
     # exercises Linux. This job enforces the claim by running the portable test

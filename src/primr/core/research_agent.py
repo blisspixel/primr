@@ -2746,7 +2746,6 @@ def perform_research(
         if context_files is None:
             context_files = []
         context_files.insert(0, recon_context_path)
-
     from primr.core.research_runtime_plan import prepare_research_runtime
 
     preparation = prepare_research_runtime(

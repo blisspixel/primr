@@ -10,6 +10,18 @@ from primr.core.cli import _run_preflight_checks
 from primr.core.cli_preflight import _run_network_preflight_checks
 
 
+@pytest.fixture(autouse=True)
+def _scrub_openrouter_environment(monkeypatch):
+    for name in (
+        "OPENROUTER_API_KEY",
+        "PRIMR_OPENROUTER_ENABLED",
+        "PRIMR_OPENROUTER_MODEL",
+        "PRIMR_OPENROUTER_INPUT_PRICE",
+        "PRIMR_OPENROUTER_OUTPUT_PRICE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 def _mock_playwright_ready():
     pw = MagicMock()
     pw.chromium.launch.return_value = MagicMock()
@@ -100,6 +112,55 @@ class TestPreflightApiKey:
         assert ok is False
         assert any("openai" in error for error in errors)
 
+    def test_openrouter_key_requires_separate_paid_routing_opt_in(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "not-a-real-openrouter-key")
+        with patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()):
+            ok, errors = _run_preflight_checks("complete", allow_network=False)
+
+        assert ok is False
+        assert any("routing is disabled" in error for error in errors)
+
+    def test_openrouter_only_full_mode_passes_local_preflight_after_opt_in(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "not-a-real-openrouter-key")
+        monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "1")
+        with patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()):
+            ok, errors = _run_preflight_checks("complete", allow_network=False)
+
+        assert ok is True
+        assert errors == []
+
+    def test_openrouter_does_not_replace_xai_for_max_tier(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "not-a-real-openrouter-key")
+        monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "1")
+        with patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()):
+            ok, errors = _run_preflight_checks(
+                "complete",
+                fast_mode=True,
+                grok_tier="max",
+                allow_network=False,
+            )
+
+        assert ok is False
+        assert any("XAI_API_KEY" in error for error in errors)
+
+    def test_openrouter_custom_model_requires_valid_prices_before_quote(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "not-a-real-openrouter-key")
+        monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "1")
+        monkeypatch.setenv("PRIMR_OPENROUTER_MODEL", "vendor/unpriced")
+        with patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()):
+            ok, errors = _run_preflight_checks("complete", allow_network=False)
+
+        assert ok is False
+        assert any("configuration is invalid" in error for error in errors)
+
 
 class TestPreflightPlaywrightSkip:
     def test_deep_research_mode_skips_playwright_check(self, monkeypatch):
@@ -179,6 +240,40 @@ class TestPreflightApiConnectivity:
         search.assert_called_once()
         playwright.assert_not_called()
         dependency.assert_not_called()
+
+    def test_openrouter_only_network_preflight_uses_auth_only_probe(self, monkeypatch):
+        from primr.ai.providers import CredentialCheck
+
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "not-a-real-openrouter-key")
+        monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "1")
+        result = CredentialCheck(provider="openrouter", ok=True, detail="authenticated")
+        with (
+            patch("primr.ai.providers.validate_provider_credentials", return_value=result) as probe,
+            patch("primr.core.cli_preflight._check_google_search"),
+        ):
+            ok, errors = _run_network_preflight_checks("complete")
+
+        assert ok is True
+        assert errors == []
+        probe.assert_called_once()
+
+    def test_unselected_openrouter_does_not_block_gemini_route(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "not-a-real-gemini-test-key")
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "stale-openrouter-key")
+        monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "1")
+        with (
+            patch("primr.core.cli_preflight._check_gemini_connectivity"),
+            patch("primr.ai.providers.validate_provider_credentials") as probe,
+            patch("primr.core.cli_preflight._check_google_search"),
+        ):
+            ok, errors = _run_network_preflight_checks("complete")
+
+        assert ok is True
+        assert errors == []
+        probe.assert_not_called()
 
     def test_quota_error_returns_specific_message(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)

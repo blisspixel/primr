@@ -118,6 +118,12 @@ def test_is_retryable_markers():
     assert _is_retryable_error(Exception("connection refused")) is True
 
 
+def test_is_retryable_request_timeout_status():
+    error = RuntimeError("request timed out")
+    error.status_code = 408  # type: ignore[attr-defined]
+    assert _is_retryable_error(error) is True
+
+
 def test_is_retryable_real_openai_connection_error():
     openai = pytest.importorskip("openai")
     request = httpx.Request("POST", "https://example.test/v1/responses")

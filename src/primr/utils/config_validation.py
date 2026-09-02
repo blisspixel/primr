@@ -105,6 +105,7 @@ class APIKeysConfig:
     gemini_api_key: str | None = field(default_factory=lambda: os.getenv("GEMINI_API_KEY"))
     xai_api_key: str | None = field(default_factory=lambda: os.getenv("XAI_API_KEY"))
     openai_api_key: str | None = field(default_factory=lambda: os.getenv("OPENAI_API_KEY"))
+    openrouter_api_key: str | None = field(default_factory=lambda: os.getenv("OPENROUTER_API_KEY"))
     anthropic_api_key: str | None = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY"))
     search_api_key: str | None = field(default_factory=lambda: os.getenv("SEARCH_API_KEY"))
     search_engine_id: str | None = field(default_factory=lambda: os.getenv("SEARCH_ENGINE_ID"))
@@ -114,6 +115,7 @@ class APIKeysConfig:
             "GEMINI_API_KEY": self.gemini_api_key,
             "XAI_API_KEY": self.xai_api_key,
             "OPENAI_API_KEY": self.openai_api_key,
+            "OPENROUTER_API_KEY": self.openrouter_api_key,
             "ANTHROPIC_API_KEY": self.anthropic_api_key,
         }
 
@@ -130,7 +132,8 @@ class APIKeysConfig:
                     suggestion=(
                         "Run 'primr init' for guided setup (paste keys, no .env editing), "
                         "or 'primr keys set gemini', 'primr keys set xai', "
-                        "'primr keys set openai', or 'primr keys set anthropic'"
+                        "'primr keys set openai', 'primr keys set openrouter', "
+                        "or 'primr keys set anthropic'"
                     ),
                 )
             )
@@ -553,6 +556,7 @@ class PrimrConfig:
                 "gemini": bool(self.api_keys.gemini_api_key),
                 "xai": bool(self.api_keys.xai_api_key),
                 "openai": bool(self.api_keys.openai_api_key),
+                "openrouter": bool(self.api_keys.openrouter_api_key),
                 "anthropic": bool(self.api_keys.anthropic_api_key),
                 "search": bool(self.api_keys.search_api_key),
                 "search_engine": bool(self.api_keys.search_engine_id),

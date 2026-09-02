@@ -131,6 +131,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import date
+from math import isfinite
 
 from primr.config.model_registry import (
     DEFAULT_FLASH_MODEL,
@@ -231,6 +232,51 @@ def _foundry_deployment_config(model_name: str) -> "ModelConfig | None":
         )
 
     return None
+
+
+def _openrouter_custom_model_config(model_name: str) -> "ModelConfig | None":
+    """Resolve one explicitly priced custom OpenRouter model.
+
+    ``PRIMR_OPENROUTER_MODEL`` can name any OpenRouter model slug, but a
+    governed run must also declare its input and output prices in USD per one
+    million tokens. The request transport applies those same values as hard
+    provider price ceilings. Missing, invalid, or negative rates make the
+    model unknown and stop cost estimation before provider work.
+    """
+
+    configured = os.getenv("PRIMR_OPENROUTER_MODEL", "").strip()
+    if not configured or configured != model_name:
+        return None
+
+    raw_in = os.getenv("PRIMR_OPENROUTER_INPUT_PRICE", "").strip()
+    raw_out = os.getenv("PRIMR_OPENROUTER_OUTPUT_PRICE", "").strip()
+    if not raw_in or not raw_out:
+        return None
+    try:
+        in_price = float(raw_in)
+        out_price = float(raw_out)
+        max_input = int(os.getenv("PRIMR_OPENROUTER_MAX_INPUT_TOKENS", "128000"))
+        max_output = int(os.getenv("PRIMR_OPENROUTER_MAX_OUTPUT_TOKENS", "16384"))
+    except ValueError:
+        return None
+    if (
+        not isfinite(in_price)
+        or not isfinite(out_price)
+        or in_price < 0
+        or out_price < 0
+        or max_input <= 0
+        or max_output <= 0
+    ):
+        return None
+    return ModelConfig(
+        name=configured,
+        display_name=f"OpenRouter: {configured}",
+        provider="openrouter",
+        cost_per_1m_input_tokens=in_price,
+        cost_per_1m_output_tokens=out_price,
+        max_input_tokens=max_input,
+        max_output_tokens=max_output,
+    )
 
 
 class PrimrModels:
@@ -351,6 +397,12 @@ class PrimrModels:
         ModelRegistry.OPENAI_GPT_5_4_MINI.name: ModelRegistry.OPENAI_GPT_5_4_MINI,
         ModelRegistry.OPENAI_GPT_5_4_NANO.name: ModelRegistry.OPENAI_GPT_5_4_NANO,
         ModelRegistry.OPENAI_O4_MINI.name: ModelRegistry.OPENAI_O4_MINI,
+        # OpenRouter curated gateway route
+        ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name: (
+            ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE
+        ),
+        ModelRegistry.OPENROUTER_GPT_4_1_MINI.name: ModelRegistry.OPENROUTER_GPT_4_1_MINI,
+        ModelRegistry.OPENROUTER_DEEPSEEK_V3_2.name: ModelRegistry.OPENROUTER_DEEPSEEK_V3_2,
         # Anthropic
         ModelRegistry.ANTHROPIC_OPUS.name: ModelRegistry.ANTHROPIC_OPUS,
         ModelRegistry.ANTHROPIC_SONNET.name: ModelRegistry.ANTHROPIC_SONNET,
@@ -411,8 +463,12 @@ class PrimrModels:
 
     @classmethod
     def _resolve_config(cls, model_name: str) -> ModelConfig | None:
-        """Look up a model, falling back to an env-declared Foundry deployment."""
-        return cls.ALL_MODELS.get(model_name) or _foundry_deployment_config(model_name)
+        """Look up a fixed model or one explicitly priced gateway model."""
+        return (
+            cls.ALL_MODELS.get(model_name)
+            or _foundry_deployment_config(model_name)
+            or _openrouter_custom_model_config(model_name)
+        )
 
     @classmethod
     def get_model_config(cls, model_name: str) -> ModelConfig | None:

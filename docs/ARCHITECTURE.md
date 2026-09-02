@@ -796,7 +796,7 @@ src/primr/
 │   └── workspace.py, run_state_io.py # Workspace and durable run state
 │
 ├── ai/                      # Inference, providers, routing, and Deep Research
-│   ├── providers/          # xAI, Gemini, OpenAI-compatible, Anthropic, Bedrock (boto3 converse), Azure Foundry (OpenAI-SDK) adapters
+│   ├── providers/          # xAI, Gemini, OpenAI-compatible/OpenRouter, Anthropic, Bedrock (boto3 converse), Azure Foundry (OpenAI-SDK) adapters
 │   ├── routing.py          # Legacy role-to-provider routing
 │   ├── capability_routing.py, stage_routing.py # Stage capability router
 │   ├── host_agent_runner.py, host_agent_cli.py # Official host-runner seam
@@ -1368,8 +1368,9 @@ gate; see
 XAI-only setups still work with the legacy writing/utility fallback path.
 OpenAI, Anthropic, and local OpenAI-compatible providers remain available for
 fallback, utility, evaluation, and backend-freedom routing. Full-report
-execution still requires XAI or Gemini; OpenAI/Anthropic-only dry-runs quote
-the XAI/Gemini planning floor and set `execution_ready: false` (see
+execution requires xAI, Gemini, or a configured OpenRouter key with the
+separate paid-routing opt-in. OpenAI/Anthropic-only dry-runs quote the
+XAI/Gemini planning floor and set `execution_ready: false` (see
 [Run Modes](RUN_MODES.md)). The first production stages on the capability
 router are `fast.scrape_summary`, `fast.source_relevance`, and
 `fast.hiring_signals` behind `--inference cloud|hybrid`.

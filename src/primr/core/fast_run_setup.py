@@ -73,6 +73,7 @@ def resolve_fast_run_setup(
 
     if grok_tier != "max":
         try:
+            routed_reasoning = pick_model_for_role(Role.REASONING)
             routed_writing = pick_model_for_role(Role.WRITING)
         except Exception as e:
             # Routing failure must not abort the run — fall back to the
@@ -80,6 +81,13 @@ def resolve_fast_run_setup(
             # operator can see why production didn't match the estimate.
             logger.warning("Writing-role routing failed (%s); falling back to %s", e, grok_writing)
         else:
+            if routed_reasoning and routed_reasoning != grok_reasoning:
+                logger.info(
+                    "Cross-provider routing: reasoning %s -> %s",
+                    grok_reasoning,
+                    routed_reasoning,
+                )
+                grok_reasoning = routed_reasoning
             if routed_writing and routed_writing != grok_writing:
                 logger.info(
                     "Cross-provider routing: writing %s -> %s", grok_writing, routed_writing
@@ -118,7 +126,14 @@ def resolve_fast_run_setup(
     # Determine reasoning_effort for the FAST tier — grok-4.3 supports
     # low/medium/high effort levels. FAST uses "low" to reduce cost/latency;
     # HYBRID and MAX use the default (no explicit effort = model decides).
-    grok_reasoning_effort: str | None = "low" if grok_tier == "fast" else None
+    reasoning_config = PrimrModels.get_model_config(grok_reasoning)
+    grok_reasoning_effort: str | None = (
+        "low"
+        if grok_tier == "fast"
+        and reasoning_config is not None
+        and reasoning_config.provider == "xai"
+        else None
+    )
 
     # Continuous reasoning is on by default after the n=3 pilot — see ROADMAP
     # "Continuous Reasoning Session". When on, workbook generation (Phase 3)

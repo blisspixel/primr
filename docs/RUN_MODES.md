@@ -186,12 +186,13 @@ map to internal mode names.
 
 ### Dual-provider dry-run honesty
 
-OpenAI- or Anthropic-only keys (or no XAI/Gemini keys) can still produce a
-full-mode **planning** quote. That quote is the XAI/Gemini full-recipe floor,
-not OpenAI/Anthropic live rates. Dry-run labels say estimate-only / keys
-required; `--dry-run --json` sets `execution_ready: false` and next steps
-point at configuring `XAI_API_KEY` or `GEMINI_API_KEY` before launch. Full
-execution preflight still refuses without XAI or Gemini.
+OpenAI- or Anthropic-only keys, without xAI, Gemini, or an explicitly enabled
+OpenRouter route, can still produce a full-mode **planning** quote. That quote
+is the XAI/Gemini full-recipe floor, not OpenAI/Anthropic live rates. Dry-run
+labels say estimate-only / keys required; `--dry-run --json` sets
+`execution_ready: false` and next steps point at configuring xAI or Gemini, or
+explicitly enabling a configured OpenRouter key before launch. An enabled
+OpenRouter route prices its registered role models directly.
 
 ### Experimental `primr orchestrate`
 

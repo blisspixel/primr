@@ -29,6 +29,7 @@ MODEL_PROVIDER_ENV_NAMES = (
     "GEMINI_API_KEY",
     "XAI_API_KEY",
     "OPENAI_API_KEY",
+    "OPENROUTER_API_KEY",
     "ANTHROPIC_API_KEY",
 )
 
@@ -101,6 +102,33 @@ def _validate_key_live(provider: str, value: str) -> tuple[bool, str]:
                 or "api key" in err
             ):
                 return False, "rejected by xAI (invalid key)"
+            return False, f"could not verify: {exc}"
+
+    if provider == "openrouter":
+        try:
+            import httpx
+
+            from primr.ai.providers.openrouter import OPENROUTER_BASE_URL
+
+            with httpx.Client(follow_redirects=False, timeout=15.0) as http_client:
+                response = http_client.get(
+                    f"{OPENROUTER_BASE_URL}/key",
+                    headers={"Authorization": f"Bearer {value}"},
+                )
+                response.raise_for_status()
+            return True, "verified"
+        except ImportError:
+            return True, "saved without verification (httpx not installed)"
+        except Exception as exc:
+            err = str(exc).lower()
+            if (
+                "401" in err
+                or "403" in err
+                or "unauthorized" in err
+                or "invalid" in err
+                or "api key" in err
+            ):
+                return False, "rejected by OpenRouter (invalid key)"
             return False, f"could not verify: {exc}"
 
     return True, "saved without verification"
@@ -186,6 +214,8 @@ def _ensure_project_env_file() -> tuple[bool, str | None]:
                 "# GEMINI_API_KEY=",
                 "# XAI_API_KEY=",
                 "# OPENAI_API_KEY=",
+                "# OPENROUTER_API_KEY=",
+                "# PRIMR_OPENROUTER_ENABLED=0",
                 "# ANTHROPIC_API_KEY=",
                 "# OLLAMA_BASE_URL=http://localhost:11434",
                 "# OLLAMA_API_KEY=ollama",
@@ -270,6 +300,14 @@ def _run_init_flow(
             "pay as you go",
             False,
         ),
+        (
+            "openrouter",
+            "OPENROUTER_API_KEY",
+            "Optional price-bounded gateway route across multiple model providers",
+            "https://openrouter.ai/settings/keys",
+            "pay as you go; routing remains disabled until explicitly enabled",
+            False,
+        ),
     ]
 
     console.step("API keys")
@@ -309,7 +347,7 @@ def _run_init_flow(
     if not any(_key_looks_configured(env_name) for env_name in MODEL_PROVIDER_ENV_NAMES):
         all_ready = False
         console.warn("No model provider key configured")
-        console.info("  Run one of: primr keys set xai | gemini | openai | anthropic")
+        console.info("  Run one of: primr keys set xai | gemini | openai | openrouter | anthropic")
 
     console.step("Browser dependencies")
     if skip_browsers:

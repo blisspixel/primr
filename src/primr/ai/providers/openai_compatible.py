@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import random
 import time
+from math import isfinite
 from typing import Any
 
 from primr.ai.error_policy import extract_retry_after_seconds as _extract_retry_after_seconds
@@ -34,20 +35,38 @@ logger = get_logger("ai.providers.openai_compatible")
 _LOCAL_INTERNAL_RETRY_CAP_SECONDS = 20.0
 
 
+def _nonnegative_cost(value: Any) -> float | None:
+    """Return one finite nonnegative provider cost, or None when absent."""
+
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        normalized = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not isfinite(normalized) or normalized < 0:
+        return None
+    return normalized
+
+
 def create_openai_sdk_client(
     openai_module: Any,
     *,
     api_key: str,
     base_url: str,
+    default_headers: dict[str, str] | None = None,
 ) -> Any:
     """Create a transport whose retries and redirects are bounded by Primr."""
     http_client = openai_module.DefaultHttpxClient(follow_redirects=False)
-    return openai_module.OpenAI(
-        api_key=api_key,
-        base_url=base_url,
-        max_retries=0,
-        http_client=http_client,
-    )
+    client_kwargs: dict[str, Any] = {
+        "api_key": api_key,
+        "base_url": base_url,
+        "max_retries": 0,
+        "http_client": http_client,
+    }
+    if default_headers:
+        client_kwargs["default_headers"] = default_headers
+    return openai_module.OpenAI(**client_kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +93,7 @@ def _is_retryable_error(error: Exception) -> bool:
     status_code = getattr(error, "status_code", None)
     if status_code is None:
         status_code = getattr(getattr(error, "response", None), "status_code", None)
-    if status_code == 429 or (isinstance(status_code, int) and 500 <= status_code <= 599):
+    if status_code in (408, 429) or (isinstance(status_code, int) and 500 <= status_code <= 599):
         return True
 
     error_type = type(error)
@@ -168,12 +187,14 @@ class OpenAICompatibleProvider(Provider):
         billing_help_url: str | None = None,
         local_capacity: bool | None = None,
         api_style: str = "chat_completions",
+        default_headers: dict[str, str] | None = None,
     ) -> None:
         super().__init__(name)
         self._base_url = base_url
         self._api_key_env = api_key_env
         self._api_key_default = api_key_default
         self._billing_help_url = billing_help_url
+        self._default_headers = dict(default_headers or {})
         self._local_capacity = name == "ollama" if local_capacity is None else local_capacity
         if api_style not in {"chat_completions", "responses"}:
             raise ValueError(f"Unsupported OpenAI-compatible API style: {api_style}")
@@ -222,6 +243,7 @@ class OpenAICompatibleProvider(Provider):
             openai,
             api_key=api_key,
             base_url=self._base_url,
+            default_headers=self._default_headers,
         )
         return self._client
 
@@ -261,6 +283,8 @@ class OpenAICompatibleProvider(Provider):
         self, provider_kwargs: dict[str, Any], *, max_tokens: int
     ) -> dict[str, Any]:
         """Translate the normalized chat knobs into the selected API shape."""
+        raw_extra_body = provider_kwargs.get("extra_body")
+        extra_body = dict(raw_extra_body) if isinstance(raw_extra_body, dict) else {}
         if self._api_style == "responses":
             sdk_kwargs: dict[str, Any] = {
                 "max_output_tokens": max_tokens,
@@ -286,7 +310,9 @@ class OpenAICompatibleProvider(Provider):
                     sdk_kwargs[key] = provider_kwargs[key]
             prompt_cache_key = provider_kwargs.get("prompt_cache_key")
             if prompt_cache_key:
-                sdk_kwargs["extra_body"] = {"prompt_cache_key": str(prompt_cache_key)}
+                extra_body["prompt_cache_key"] = str(prompt_cache_key)
+            if extra_body:
+                sdk_kwargs["extra_body"] = extra_body
             return sdk_kwargs
 
         sdk_kwargs = {}
@@ -303,6 +329,8 @@ class OpenAICompatibleProvider(Provider):
                 sdk_kwargs[key] = provider_kwargs[key]
         output_key = "max_completion_tokens" if self.name == "openai" else "max_tokens"
         sdk_kwargs[output_key] = max_tokens
+        if extra_body:
+            sdk_kwargs["extra_body"] = extra_body
         return sdk_kwargs
 
     def _create_sdk_response(
@@ -357,7 +385,12 @@ class OpenAICompatibleProvider(Provider):
         if cached_input_tokens == 0 and details is not None:
             cached_input_tokens = getattr(details, "cached_tokens", 0) or 0
         billed_ticks = getattr(usage, "cost_in_usd_ticks", None)
-        actual_cost_usd = int(billed_ticks) / 10_000_000_000 if billed_ticks is not None else None
+        normalized_ticks = _nonnegative_cost(billed_ticks)
+        actual_cost_usd = (
+            normalized_ticks / 10_000_000_000
+            if normalized_ticks is not None
+            else _nonnegative_cost(getattr(usage, "cost", None))
+        )
         return ChatResponse(
             text=text,
             input_tokens=input_tokens,

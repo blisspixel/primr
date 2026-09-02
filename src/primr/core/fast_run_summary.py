@@ -20,6 +20,7 @@ from typing import Any
 from primr.config.config import OUTPUT_DIR
 from primr.config.models import PrimrModels
 from primr.core.cli_labels import GROK_TIER_LABELS as _TIER_LABELS
+from primr.core.cli_labels import model_provider_label
 from primr.core.run_state_io import _update_run_state
 from primr.core.strategy_outcome import StrategyOutcome
 from primr.core.vendor_refresh_outcome import VendorRefreshOutcome
@@ -174,8 +175,13 @@ def finalize_fast_run(
             )
         )
 
+    provider_labels = {model_provider_label(model_name) for model_name in by_model}
+    if provider_labels == {"OpenRouter"}:
+        mode_label = "routed (OpenRouter preview)"
+    else:
+        mode_label = "fast (" + _TIER_LABELS.get(grok_tier, "Grok") + ")"
     summary_items: list[tuple[str, Any]] = [
-        ("Mode", "fast (" + _TIER_LABELS.get(grok_tier, "Grok") + ")"),
+        ("Mode", mode_label),
         ("Pages", str(pages_scraped)),
         ("External", str(validated_source_count)),
         ("Duration", time_str),

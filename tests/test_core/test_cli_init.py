@@ -197,6 +197,35 @@ class TestValidateKeyLive:
         assert ok is False
         assert "rejected" in msg
 
+    def test_openrouter_uses_authenticated_key_endpoint(self):
+        response = MagicMock()
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.get.return_value = response
+
+        with patch("httpx.Client", return_value=client) as factory:
+            ok, msg = _validate_key_live("openrouter", "real-key-1234567890")
+
+        assert ok is True
+        assert msg == "verified"
+        factory.assert_called_once_with(follow_redirects=False, timeout=15.0)
+        client.get.assert_called_once_with(
+            "https://openrouter.ai/api/v1/key",
+            headers={"Authorization": "Bearer real-key-1234567890"},
+        )
+        response.raise_for_status.assert_called_once_with()
+
+    def test_openrouter_rejects_unauthorized_key(self):
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.get.side_effect = RuntimeError("401 unauthorized")
+
+        with patch("httpx.Client", return_value=client):
+            ok, msg = _validate_key_live("openrouter", "bogus-1234567890")
+
+        assert ok is False
+        assert "rejected" in msg
+
 
 # ---------------------------------------------------------------------------
 # _playwright_browsers_ready / _install_playwright_browsers

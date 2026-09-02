@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.12] - 2026-09-01
+
+### Added
+
+- **Optional OpenRouter paid gateway preview.** A curated Standard recipe now
+  routes utility, writing, and reasoning through explicitly priced OpenRouter
+  models across CLI, MCP, A2A, and supervised-worker execution. Key setup and
+  auth-only validation are available through `primr keys`.
+
+### Security
+
+- **A stored key is not spend consent.** OpenRouter generation remains disabled
+  until `PRIMR_OPENROUTER_ENABLED=1`, and every paid run still requires the
+  normal fresh estimate and explicit approval.
+- **Gateway requests fail closed on price and privacy.** Each request applies
+  registered input/output price ceilings, denies data-collection providers,
+  defaults to zero-data-retention endpoints, and rejects unpriced custom model
+  slugs before transport. OpenRouter keys are redacted from logs.
+
+### Changed
+
+- **Gateway accounting uses billed cost when supplied.** OpenAI-compatible
+  response normalization now accepts finite nonnegative `usage.cost` metadata,
+  allowing OpenRouter's exact response charge to flow into run accounting while
+  retaining conservative token estimates when exact cost is unavailable.
+- **Provider-facing labels are no longer Grok-specific.** Standard pipeline
+  phase and summary labels name the selected provider while preserving the
+  existing xAI labels for xAI routes.
+- **Python 3.15 compatibility is exercised without overstating support.** A
+  hard Linux preview lane runs the locked suite on Python 3.15 while the release
+  is still a candidate. Stable classifiers remain 3.12 through 3.14, and the
+  installation guide records the current Windows `pywin32` wheel blocker.
+
+### Documentation
+
+- **OpenRouter has a focused operator guide.** The README stays a front door
+  and links to setup, curated pricing, custom-model requirements, privacy
+  controls, current boundaries, and the cost gate in `docs/OPENROUTER.md`.
+
 ## [1.39.11] - 2026-09-01
 
 ### Changed

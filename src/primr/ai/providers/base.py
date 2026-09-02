@@ -32,10 +32,10 @@ class QuotaExhaustedError(RuntimeError):
 class CredentialCheck:
     """Result of a lightweight, auth-only credential validation.
 
-    ``ok`` is True when the key authenticated against the provider (typically a
-    free ``models.list`` call — no model generation, no token spend). ``detail``
-    is a short human-readable status or error class. ``latency_ms`` is the round
-    trip when measured.
+    ``ok`` is True when the key authenticated against a free provider metadata
+    endpoint with no model generation or token spend. ``detail`` is a short
+    human-readable status or error class. ``latency_ms`` is the round trip when
+    measured.
     """
 
     provider: str
@@ -128,7 +128,7 @@ class Provider(ABC):
 
         The default reports "unsupported" so a provider without a cheap probe
         never blocks ``primr keys test``. Implementations must NOT generate
-        model output (no token spend) — use a free endpoint like ``models.list``.
+        model output or spend tokens. Use a free provider metadata endpoint.
         """
         return CredentialCheck(
             provider=self.name,

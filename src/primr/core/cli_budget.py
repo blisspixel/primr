@@ -37,11 +37,13 @@ class RuntimeSelection:
 def resolve_runtime_selection(config: CLIConfig) -> RuntimeSelection:
     """Resolve the fast/premium route exactly once for every CLI surface."""
 
+    from primr.ai.providers.openrouter import openrouter_routing_ready
+
     auto_fast_mode = bool(
         not config.fast_mode
         and not config.premium_mode
         and config.mode in ("complete", "structured", "hybrid")
-        and os.environ.get("XAI_API_KEY")
+        and (os.environ.get("XAI_API_KEY") or openrouter_routing_ready())
     )
     return RuntimeSelection(
         fast_mode=config.fast_mode or auto_fast_mode,
