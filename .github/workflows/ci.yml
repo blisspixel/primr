@@ -215,12 +215,24 @@ jobs:
           cache-dependency-glob: "uv.lock"
           cache-suffix: ${{ runner.os }}-py3.15-preview
 
-      - name: Set up Python 3.15 release candidate
+      - name: Install Python 3.15.0rc2
         timeout-minutes: 10
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: "3.15.0-rc.2"
-          allow-prereleases: true
+        env:
+          PYTHON_ARCHIVE_URL: https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.15.0rc2%2B20260901-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz
+          PYTHON_ARCHIVE_SHA256: 9549c3789acb25209da019cc8506ea5b1684b81fb4b471dc64cb47d1d04d6422
+        run: |
+          archive="$RUNNER_TEMP/cpython-3.15.0rc2.tar.gz"
+          install_dir="$RUNNER_TEMP/cpython-3.15.0rc2"
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+            "$PYTHON_ARCHIVE_URL" --output "$archive"
+          echo "$PYTHON_ARCHIVE_SHA256  $archive" | sha256sum --check --strict
+          mkdir -p "$install_dir"
+          tar -xzf "$archive" -C "$install_dir"
+          python_bin="$install_dir/python/bin/python3.15"
+          "$python_bin" --version
+          "$python_bin" -c \
+            'import sys; assert sys.version_info[:5] == (3, 15, 0, "candidate", 2)'
+          echo "PRIMR_PYTHON_315=$python_bin" >> "$GITHUB_ENV"
 
       - name: Install native preview build prerequisites
         timeout-minutes: 5
@@ -230,10 +242,7 @@ jobs:
 
       - name: Install locked dependencies
         timeout-minutes: 10
-        run: |
-          python --version
-          python_bin="$(python -c 'import sys; print(sys.executable)')"
-          uv sync --python "$python_bin" --locked --all-extras
+        run: uv sync --python "$PRIMR_PYTHON_315" --locked --all-extras
 
       - name: Test Python 3.15 preview
         timeout-minutes: 25
