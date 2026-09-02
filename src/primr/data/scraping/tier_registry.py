@@ -31,6 +31,7 @@ from .http_clients import (
     scrape_with_requests,
 )
 from .models import ScrapeTier
+from .playwright_compat import sync_browser_runtime_supported
 from .stealth_browser import scrape_with_patchright
 
 # =============================================================================
@@ -137,6 +138,8 @@ def get_available_tiers() -> list[ScrapeTier]:
     available = []
 
     for tier in DEFAULT_TIERS:
+        if tier.name == "vision" and not sync_browser_runtime_supported():
+            continue
         if tier.requires is None:
             available.append(tier)
             continue
@@ -148,8 +151,12 @@ def get_available_tiers() -> list[ScrapeTier]:
             elif tier.requires == "curl_cffi":
                 from curl_cffi import requests  # noqa: F401
             elif tier.requires == "playwright":
+                if not sync_browser_runtime_supported():
+                    continue
                 from playwright.sync_api import sync_playwright
             elif tier.requires == "patchright":
+                if not sync_browser_runtime_supported():
+                    continue
                 from patchright.sync_api import sync_playwright  # noqa: F401
             elif tier.requires == "DrissionPage":
                 from DrissionPage import ChromiumPage  # noqa: F401

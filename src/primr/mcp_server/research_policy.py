@@ -43,8 +43,11 @@ def build_research_estimate(arguments: dict[str, Any]) -> dict[str, Any]:
     estimator_mode = mode_mapping.get(mode, "complete")
     verify = bool(arguments.get("verify", False))
     premium_mode = mode == "premium"
-    # Match CLI resolve: full mode with xAI uses the hybrid/fast Grok path.
-    fast_mode = mode == "full" and bool(os.environ.get("XAI_API_KEY"))
+    # Match CLI resolve: full mode uses the routed fast pipeline when xAI is
+    # available or OpenRouter was separately enabled for paid routing.
+    from primr.ai.providers.openrouter import openrouter_routing_ready
+
+    fast_mode = mode == "full" and bool(os.environ.get("XAI_API_KEY") or openrouter_routing_ready())
     # Extra JSON fields are not worker inputs. Pricing only the default
     # hybrid/full shape prevents under-approval via unbound kwargs.
     grok_tier = "hybrid"

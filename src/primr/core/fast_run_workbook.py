@@ -110,8 +110,12 @@ def generate_analysis_workbook(
     form the Day-1 hypothesis tree before the workbook. Both are no-ops when no
     framing was supplied.
     """
+    from primr.core.cli_labels import model_provider_label
+
+    provider_label = model_provider_label(grok_reasoning)
+    phase_label = f"Analysis ({provider_label})"
     console.phase_banner(
-        3, total_phases, "Analysis (Grok)", "Building structured analysis workbook", "2-4 min"
+        3, total_phases, phase_label, "Building structured analysis workbook", "2-4 min"
     )
 
     analysis_system = ANALYSIS_SYSTEM_PROMPT
@@ -170,7 +174,11 @@ def generate_analysis_workbook(
             analysis_workbook = combined_insights
             analysis_degraded = True
             return _finish_workbook(
-                analysis_workbook, reasoning_session, folder_path, analysis_degraded
+                analysis_workbook,
+                reasoning_session,
+                folder_path,
+                analysis_degraded,
+                phase_label,
             )
         if route.model_name:
             preferred_model = route.model_name
@@ -180,7 +188,13 @@ def generate_analysis_workbook(
         console.warn(
             "Analysis workbook skipped (route_resolution_failed) - using collected insights"
         )
-        return _finish_workbook(combined_insights, reasoning_session, folder_path, True)
+        return _finish_workbook(
+            combined_insights,
+            reasoning_session,
+            folder_path,
+            True,
+            phase_label,
+        )
 
     try:
         from primr.pipeline.integration import analysis_with_recovery
@@ -215,7 +229,7 @@ def generate_analysis_workbook(
                 reasoning_effort=grok_reasoning_effort,
             )
 
-        with console.timed_operation("Generating analysis workbook via Grok"):
+        with console.timed_operation(f"Generating analysis workbook via {provider_label}"):
             _analysis_result = analysis_with_recovery(recovery_executor, _do_analysis, folder_path)
             if _analysis_result.success:
                 analysis_workbook = _analysis_result.output
@@ -264,7 +278,13 @@ def generate_analysis_workbook(
         analysis_workbook = combined_insights
         analysis_degraded = True
 
-    return _finish_workbook(analysis_workbook, reasoning_session, folder_path, analysis_degraded)
+    return _finish_workbook(
+        analysis_workbook,
+        reasoning_session,
+        folder_path,
+        analysis_degraded,
+        phase_label,
+    )
 
 
 def _finish_workbook(
@@ -272,16 +292,17 @@ def _finish_workbook(
     reasoning_session: Any,
     folder_path: str | None,
     analysis_degraded: bool,
+    phase_label: str = "Analysis (Grok)",
 ) -> tuple[str, Any]:
     """Persist workbook and emit honest phase completion (warn on fallback)."""
     workbook_path = os.path.join(folder_path or ".", "analysis_workbook.md")
     with open(workbook_path, "w", encoding="utf-8") as f:
         f.write(analysis_workbook)
     if analysis_degraded:
-        console.warn("Analysis (Grok) complete with fallback workbook")
+        console.warn(f"{phase_label} complete with fallback workbook")
         status = "fallback"
     else:
-        console.phase_complete("Analysis (Grok)")
+        console.phase_complete(phase_label)
         status = "completed"
     if folder_path:
         from primr.core.run_state_io import _update_run_state

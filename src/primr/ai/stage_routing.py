@@ -730,6 +730,10 @@ def _provider_configured(config: ModelConfig) -> bool:
         return bool(os.getenv("OPENAI_API_KEY"))
     if provider == "anthropic":
         return bool(os.getenv("ANTHROPIC_API_KEY"))
+    if provider == "openrouter":
+        from primr.ai.providers.openrouter import openrouter_routing_ready
+
+        return openrouter_routing_ready()
     if provider == "bedrock":
         return bool(
             os.getenv("AWS_BEARER_TOKEN_BEDROCK")

@@ -20,7 +20,7 @@ target. Regenerate via [`CONTRIBUTING.md`](CONTRIBUTING.md).*
 The root README is a **front door** only. Operator detail lives in the guides
 below (Diataxis: learning, doing, looking up, understanding).
 
-> **Index currency:** reviewed against primr **1.39.11** on **2026-09-01**. The
+> **Index currency:** reviewed against primr **1.39.12** on **2026-09-01**. The
 > *Updated* column is each document's last substantive revision (git
 > `last-commit` date). `tests/test_docs_index.py` fails CI if a doc under
 > `docs/` is missing from this map or an index link does not resolve, so the
@@ -32,9 +32,10 @@ below (Diataxis: learning, doing, looking up, understanding).
 |----------|-------------|---------|
 | [INSTALLATION](INSTALLATION.md) | Install, upgrade, and troubleshoot Primr or prepare a source checkout | 2026-09-01 |
 | [ZERO_COST](ZERO_COST.md) | Run keyless collection and finish a sourced dossier with an existing agent plan | 2026-09-01 |
-| [API_KEYS](API_KEYS.md) | API key setup, validation (`primr keys test`), security, and troubleshooting | 2026-08-13 |
-| [CONFIG](CONFIG.md) | First-run configuration and the full settings reference | 2026-08-13 |
-| [RUN_MODES](RUN_MODES.md) | Run modes, costs, strategy selection, output locations, and zero-cost `primr render` (Markdown to DOCX/TXT) | 2026-08-13 |
+| [API_KEYS](API_KEYS.md) | API key setup, validation (`primr keys test`), security, and troubleshooting | 2026-09-01 |
+| [OPENROUTER](OPENROUTER.md) | Optional paid gateway preview, explicit opt-in, price ceilings, privacy defaults, and custom models | 2026-09-01 |
+| [CONFIG](CONFIG.md) | First-run configuration and the full settings reference | 2026-09-01 |
+| [RUN_MODES](RUN_MODES.md) | Run modes, costs, strategy selection, output locations, and zero-cost `primr render` (Markdown to DOCX/TXT) | 2026-09-01 |
 | [AZURE_QUICKSTART](AZURE_QUICKSTART.md) | Stand up the team/org Azure deployment end to end | 2026-07-18 |
 
 ## How-to guides (task-oriented)
@@ -73,7 +74,7 @@ below (Diataxis: learning, doing, looking up, understanding).
 | Document | Description | Updated |
 |----------|-------------|---------|
 | [Company Analyst Product Contract](design/company-analyst-product-contract.md) | Canonical product, long-form artifact, free-first economics, evaluation, and release contract | 2026-08-30 |
-| [ARCHITECTURE](ARCHITECTURE.md) | System design and the 9-tier scraping engine | 2026-08-30 |
+| [ARCHITECTURE](ARCHITECTURE.md) | System design and the 9-tier scraping engine | 2026-09-01 |
 | [ARTIFACTS](ARTIFACTS.md) | The research-vs-shipping artifact pipeline and ship-time gates | 2026-09-01 |
 | [INTERNALS](INTERNALS.md) | Core algorithms and prompt strategy | 2026-08-13 |
 | [STATE_MACHINES](STATE_MACHINES.md) | Tier escalation and job lifecycle | 2026-02-02 |

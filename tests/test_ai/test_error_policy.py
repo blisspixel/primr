@@ -3,6 +3,7 @@
 from primr.ai.error_policy import (
     MAX_RETRY_AFTER_SECONDS,
     extract_retry_after_seconds,
+    is_billing_exhausted,
     is_daily_quota_exhausted,
     is_invalid_api_key_error,
     is_timeout_error,
@@ -12,6 +13,11 @@ from primr.ai.error_policy import (
 class _RetryAfterError(Exception):
     def __init__(self, value: object, key: str = "retry-after"):
         self.response = type("Response", (), {"headers": {key: value}})()
+
+
+class _StatusError(Exception):
+    def __init__(self, status_code: int):
+        self.status_code = status_code
 
 
 def test_extract_retry_after_seconds_accepts_header_and_text_delays():
@@ -42,6 +48,10 @@ def test_is_daily_quota_exhausted_patterns():
     assert is_daily_quota_exhausted("quota exceeded")
     assert is_daily_quota_exhausted("rate limit exceeded daily")
     assert not is_daily_quota_exhausted("temporary connection error")
+
+
+def test_is_billing_exhausted_accepts_payment_required_status():
+    assert is_billing_exhausted(_StatusError(402))
 
 
 def test_is_invalid_api_key_error_patterns():

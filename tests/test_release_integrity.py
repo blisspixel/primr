@@ -498,4 +498,4 @@ def test_keys_set_help_mentions_all_common_llm_providers(
 
     assert exc_info.value.code == 0
     help_text = " ".join(capsys.readouterr().out.split())
-    assert "Common choices: xai, gemini, openai, anthropic, ollama" in help_text
+    assert "Common choices: xai, gemini, openai, openrouter, anthropic, ollama" in help_text

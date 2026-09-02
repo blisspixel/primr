@@ -159,6 +159,12 @@ class TestMaskSensitiveData:
         assert key not in result
         assert "[XAI_API_KEY]" in result
 
+    def test_mask_openrouter_api_key(self):
+        key = "sk-or-v1-" + ("A" * 48)
+        result = mask_sensitive_data(f"OpenRouter rejected {key}")
+        assert key not in result
+        assert "[OPENROUTER_API_KEY]" in result
+
     def test_preserve_non_sensitive(self):
         """Non-sensitive data is preserved."""
         text = "mode=full, company=Acme Corp"

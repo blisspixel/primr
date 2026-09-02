@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
 import sys
 
 from primr.ai.availability_sanitize import (
@@ -83,6 +84,19 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
         console.error("OPENAI_API_KEY set but appears too short")
         all_passed = False
 
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if openrouter_key and len(openrouter_key) >= 10:
+        configured_model_keys += 1
+        from primr.ai.providers.openrouter import openrouter_routing_enabled
+
+        if openrouter_routing_enabled():
+            console.ok("OPENROUTER_API_KEY configured (paid gateway routing enabled)")
+        else:
+            console.ok("OPENROUTER_API_KEY configured (routing disabled until explicit opt-in)")
+    elif openrouter_key:
+        console.error("OPENROUTER_API_KEY set but appears too short")
+        all_passed = False
+
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if anthropic_key and len(anthropic_key) >= 10:
         configured_model_keys += 1
@@ -97,7 +111,7 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     if configured_model_keys == 0:
         console.ok("Keyless ready: primr prep · primr recon · primr render")
         console.info("  Provider-backed research needs a cloud LLM key.")
-        console.info("  Run one of: primr keys set gemini | xai | openai | anthropic")
+        console.info("  Run one of: primr keys set gemini | xai | openai | openrouter | anthropic")
 
     search_provider = os.environ.get("SEARCH_PROVIDER", "auto").lower().strip()
     search_key = os.environ.get("SEARCH_API_KEY", "")
@@ -205,7 +219,8 @@ def _check_providers(warnings_count: int) -> int:
         console.warn("No usable LLM providers (provider-backed research unavailable)")
         console.info("  Keyless commands remain ready: primr prep | primr recon")
         console.info(
-            "  Set a provider key (primr keys set gemini|xai|openai|anthropic) + install its SDK"
+            "  Set a provider key (primr keys set gemini|xai|openai|openrouter|anthropic) "
+            "+ install its SDK"
         )
         return warnings_count + 1
 
@@ -275,16 +290,43 @@ def _provider_availability_status(snapshot: ProviderQuotaSnapshot) -> tuple[str,
 
 
 def _check_dependencies(warnings_count: int) -> int:
-    """Check required dependencies."""
-    try:
-        from playwright.sync_api import sync_playwright
+    """Check required dependencies without risking the doctor process.
 
-        with sync_playwright():
-            console.ok("Playwright browsers available")
-    except Exception as e:
-        console.warn(f"Playwright not ready: {e}")
+    Playwright starts a native driver while entering its context manager. A
+    preview Python or newly released platform wheel can terminate the process
+    before Python has an opportunity to raise an exception. Keep that probe in
+    a short-lived child so doctor can report the failure instead of crashing.
+    """
+    from primr.data.scraping.playwright_compat import (
+        SYNC_BROWSER_UNAVAILABLE_REASON,
+        sync_browser_runtime_supported,
+    )
+
+    if not sync_browser_runtime_supported():
+        console.warn(SYNC_BROWSER_UNAVAILABLE_REASON)
+        console.info("Safe non-Playwright collection tiers remain available")
+        return warnings_count + 1
+
+    probe = "from playwright.sync_api import sync_playwright\nwith sync_playwright():\n    pass\n"
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", probe],
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        console.warn(f"Playwright not ready: isolated probe failed ({type(e).__name__})")
         console.info("  Run: playwright install chromium")
-        warnings_count += 1
+        return warnings_count + 1
+
+    if result.returncode == 0:
+        console.ok("Playwright runtime available")
+        return warnings_count
+
+    console.warn(f"Playwright not ready: isolated probe exited with status {result.returncode}")
+    console.info("  Run: playwright install chromium")
+    warnings_count += 1
     return warnings_count
 
 

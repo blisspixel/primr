@@ -33,6 +33,7 @@ from primr.ai.providers.base import (
 from primr.ai.providers.bedrock import BedrockProvider
 from primr.ai.providers.gemini import GeminiProvider
 from primr.ai.providers.openai_compatible import OpenAICompatibleProvider
+from primr.ai.providers.openrouter import OpenRouterProvider
 from primr.ai.providers.registry import (
     KNOWN_PROVIDERS,
     ProviderEntry,
@@ -52,6 +53,7 @@ __all__ = [
     "CredentialCheck",
     "GeminiProvider",
     "OpenAICompatibleProvider",
+    "OpenRouterProvider",
     "Provider",
     "ProviderEntry",
     "ProviderUnavailableError",

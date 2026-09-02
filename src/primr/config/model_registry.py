@@ -4,6 +4,8 @@ from dataclasses import dataclass, replace
 from datetime import date
 from enum import Enum
 
+from primr.config.openrouter_models import build_openrouter_models
+
 
 class GrokTier(str, Enum):
     """Grok model tier — controls quality/cost tradeoff in fast mode."""
@@ -81,6 +83,9 @@ class ModelConfig:
             self.cost_per_1m_output_tokens,
             self.cost_per_1m_input_tokens_cached,
         )
+
+
+_OPENROUTER_MODELS = build_openrouter_models(ModelConfig)
 
 
 class ModelRegistry:
@@ -671,6 +676,11 @@ class ModelRegistry:
         supports_multimodal=False,  # Reasoning models typically text-only
         cost_per_1m_input_tokens_cached=0.11,  # Inferred from 90% cache rule
     )
+
+    # Gateway-qualified names keep routing and accounting at the billing boundary.
+    OPENROUTER_GEMINI_2_5_FLASH_LITE = _OPENROUTER_MODELS[0]
+    OPENROUTER_GPT_4_1_MINI = _OPENROUTER_MODELS[1]
+    OPENROUTER_DEEPSEEK_V3_2 = _OPENROUTER_MODELS[2]
 
     # ANTHROPIC CLAUDE OPUS 4.8 - Most capable (GA May 28, 2026)
     # $5.00 input / $25.00 output per 1M tokens, cached input $0.50 (identical

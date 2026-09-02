@@ -31,6 +31,13 @@ from primr.core.cli_doctor import (
     run_doctor,
 )
 
+
+@pytest.fixture(autouse=True)
+def _scrub_openrouter_environment(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("PRIMR_OPENROUTER_ENABLED", raising=False)
+
+
 # ---------------------------------------------------------------------------
 # _check_api_keys
 # ---------------------------------------------------------------------------
@@ -79,7 +86,7 @@ class TestCheckApiKeys:
 
     @pytest.mark.parametrize(
         "env_name",
-        ["XAI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"],
+        ["XAI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"],
     )
     def test_passes_with_non_gemini_cloud_provider_key(self, monkeypatch, env_name):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -378,18 +385,40 @@ class TestCheckProviderAvailability:
 
 
 class TestCheckDependencies:
+    @pytest.fixture(autouse=True)
+    def _assume_supported_sync_runtime(self, monkeypatch):
+        monkeypatch.setattr(
+            "primr.data.scraping.playwright_compat.sync_browser_runtime_supported",
+            lambda: True,
+        )
+
     def test_playwright_available(self):
-        with patch("playwright.sync_api.sync_playwright") as pw_mock:
-            pw_mock.return_value.__enter__.return_value = MagicMock()
-            pw_mock.return_value.__exit__.return_value = None
+        completed = MagicMock(returncode=0)
+        with patch("primr.core.cli_doctor.subprocess.run", return_value=completed) as run_mock:
             assert _check_dependencies(0) == 0
+        run_mock.assert_called_once()
 
     def test_playwright_failure_increments_warning(self):
-        with patch(
-            "playwright.sync_api.sync_playwright",
-            side_effect=ImportError("no playwright"),
-        ):
+        completed = MagicMock(returncode=-11)
+        with patch("primr.core.cli_doctor.subprocess.run", return_value=completed):
             assert _check_dependencies(0) == 1
+
+    def test_playwright_timeout_increments_warning(self):
+        with patch(
+            "primr.core.cli_doctor.subprocess.run",
+            side_effect=cli_doctor.subprocess.TimeoutExpired("python", 30),
+        ):
+            assert _check_dependencies(2) == 3
+
+    def test_unsupported_runtime_skips_native_probe(self, monkeypatch):
+        monkeypatch.setattr(
+            "primr.data.scraping.playwright_compat.sync_browser_runtime_supported",
+            lambda: False,
+        )
+        with patch("primr.core.cli_doctor.subprocess.run") as run_mock:
+            assert _check_dependencies(0) == 1
+
+        run_mock.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -733,8 +733,8 @@ def _read_research_modes() -> list[ReadResourceContents]:
         "schema_version": "1.0",
         "default_mode": "full",
         "default_mode_behavior": (
-            "Standard research pipeline. When XAI_API_KEY is available, Primr uses the "
-            "Grok hybrid path by default. Use premium to force Gemini Deep Research."
+            "Standard research pipeline. With xAI or explicitly enabled OpenRouter routing, Primr uses the "
+            "routed fast pipeline by default. Use premium to force Gemini Deep Research."
         ),
         "cost_warning": (
             "Research runs incur real API charges. Call estimate_run first and get explicit "

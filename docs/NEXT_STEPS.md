@@ -18,7 +18,9 @@ agent surfaces are supporting work.
 
 Keep billable execution and network egress fail closed while finishing
 architecture ownership without changing the flagship report behavior. The
-v1.39.11 artifact-hygiene release keeps shipped Markdown, TXT, and DOCX free
+v1.39.12 OpenRouter preview adds an optional, explicitly enabled paid gateway
+with request-level price and privacy controls while leaving the measured direct
+provider default unchanged. The v1.39.11 artifact-hygiene release keeps shipped Markdown, TXT, and DOCX free
 of encoded presentation entities and makes Primr Zero's noninteractive
 collection contract explicit. The v1.39.10 terminal follow-through extends
 the v1.39.9 approval contract to update, init, doctor fix, key setup, shared
@@ -182,11 +184,15 @@ inconclusive.
 ## Next executable slice: architecture ownership without behavior drift
 
 **Status:** the v1.39.7 architecture batch remains implemented and locally
-validated after the v1.39.11 artifact and guidance polish. The full
-non-integration suite passed with 14,668 tests, 39 skips, and 5 deselections.
+validated after the v1.39.12 optional gateway work and v1.39.11 artifact and
+guidance polish. The full non-integration suite passed with 14,710 tests, 39
+skips, and 5 deselections.
 The most recent measured branch coverage was 86.86 percent against the 81
-percent floor. The
-first P1 batch
+percent floor. Python 3.15 remains a pre-release; a hard Linux preview CI lane
+on 3.15.0rc2 now supplements the supported 3.12, 3.13, and 3.14 matrix while
+Windows waits for upstream `pywin32` wheels. Playwright and Patchright sync
+tiers fail closed on the preview until upstream `greenlet` compatibility is
+verified. The first P1 batch
 reduced the largest import-cycle component from 24 modules to 22, the second
 reduced it from 22 to 12, and this batch reduces it
 from 12 to 11. The stage now receives its reviewer through composition and

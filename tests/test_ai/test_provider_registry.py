@@ -14,6 +14,7 @@ from primr.ai.providers import (
     KNOWN_PROVIDERS,
     GeminiProvider,
     OpenAICompatibleProvider,
+    OpenRouterProvider,
     build_provider,
     get_available_providers,
     list_known_providers,
@@ -41,7 +42,7 @@ class TestRegistry:
 # Providers like Ollama have a default key (no env var required) and so are
 # always reported as available. The tests below scope assertions to the
 # env-keyed providers we are actually toggling.
-_ENV_KEYED_PROVIDER_NAMES = {"xai", "gemini", "openai", "anthropic"}
+_ENV_KEYED_PROVIDER_NAMES = {"xai", "gemini", "openai", "anthropic", "openrouter"}
 
 
 def _env_keyed_available() -> set[str]:
@@ -55,6 +56,7 @@ _ENV_KEYED_API_KEYS = {
     "GEMINI_API_KEY",
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
+    "OPENROUTER_API_KEY",
 }
 
 
@@ -119,6 +121,13 @@ class TestAvailableProviders:
             available = _env_keyed_available()
         assert available == {"xai", "gemini", "openai", "anthropic"}
 
+    def test_openrouter_key_surfaces_gateway_capability(self) -> None:
+        env = _scrubbed_env()
+        env["OPENROUTER_API_KEY"] = "test-openrouter"
+        with patch.dict("os.environ", env, clear=True):
+            available = _env_keyed_available()
+        assert available == {"openrouter"}
+
 
 class TestBuildProvider:
     def test_xai_entry_builds_openai_compatible(self) -> None:
@@ -138,6 +147,12 @@ class TestBuildProvider:
         provider = build_provider(openai_entry)
         assert isinstance(provider, OpenAICompatibleProvider)
         assert provider._api_style == "responses"
+
+    def test_openrouter_entry_builds_governed_provider(self) -> None:
+        entry = next(p for p in KNOWN_PROVIDERS if p.name == "openrouter")
+        provider = build_provider(entry)
+        assert isinstance(provider, OpenRouterProvider)
+        assert provider.name == "openrouter"
 
     def test_model_provider_resolution_is_cached_without_routing_import(self, monkeypatch) -> None:
         monkeypatch.setattr(registry, "_PROVIDER_INSTANCES", {})

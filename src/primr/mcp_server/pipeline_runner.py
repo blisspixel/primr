@@ -133,9 +133,13 @@ class PipelineRunner:
             }
             research_mode = mode_map.get(mode, ResearchMode.COMPLETE)
 
-            # Determine if fast mode should be used:
-            # "full" + XAI_API_KEY → fast pipeline; "premium" → always Gemini+DR
-            use_fast = mode == "full" and os.environ.get("XAI_API_KEY")
+            # Determine if the routed fast pipeline is executable. Premium
+            # remains on Gemini Deep Research.
+            from primr.ai.providers.openrouter import openrouter_routing_ready
+
+            use_fast = mode == "full" and bool(
+                os.environ.get("XAI_API_KEY") or openrouter_routing_ready()
+            )
 
             # Create progress callback that updates job state
             def on_progress(message: str) -> None:
@@ -718,11 +722,14 @@ class PipelineRunner:
             delta = job.completion_time - job.start_time
             actual_time_minutes = int(delta.total_seconds() / 60)
 
-        resolved_fast_mode = (
-            mode == "full" and bool(os.environ.get("XAI_API_KEY"))
-            if fast_mode is None
-            else fast_mode
-        )
+        if fast_mode is None:
+            from primr.ai.providers.openrouter import openrouter_routing_ready
+
+            resolved_fast_mode = mode == "full" and bool(
+                os.environ.get("XAI_API_KEY") or openrouter_routing_ready()
+            )
+        else:
+            resolved_fast_mode = fast_mode
         resolved_premium_mode = mode == "premium" if premium_mode is None else premium_mode
         budget_policy_mode = {
             "scrape": "scrape-only",

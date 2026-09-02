@@ -29,7 +29,7 @@ def create_keys_parser() -> argparse.ArgumentParser:
     set_parser.add_argument(
         "provider",
         choices=key_choices,
-        help="Key to set. Common choices: xai, gemini, openai, anthropic, ollama",
+        help=("Key to set. Common choices: xai, gemini, openai, openrouter, anthropic, ollama"),
     )
     set_parser.add_argument(
         "provided_value",
@@ -72,7 +72,7 @@ def _run_keys_test(provider_filter: str | None) -> int:
 
     load_primr_env()
     console.banner("Primr Key Validation")
-    console.info("Auth-only checks (free models.list; no model generation, no token spend)")
+    console.info("Auth-only provider metadata checks (no model generation or token spend)")
     console.blank()
 
     if provider_filter:

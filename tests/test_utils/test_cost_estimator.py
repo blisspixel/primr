@@ -1053,6 +1053,30 @@ class TestGrokTier:
         assert "claude-haiku-4-5 utility" in notes
         assert "Sonnet 5 token estimates include a 30% tokenizer safety factor" in notes
 
+    def test_standard_estimate_routes_openrouter_only_after_explicit_opt_in(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-test-key")
+        monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "1")
+
+        est = estimate_cost(
+            "complete",
+            fast_mode=True,
+            include_ai_strategy=True,
+            use_historical=False,
+        )
+
+        notes = " ".join(est.notes)
+        assert est.mode == "full (OpenRouter routed preview)"
+        assert est.total_cost == pytest.approx(1.0485)
+        assert "deepseek/deepseek-v3.2 reasoning" in notes
+        assert "openai/gpt-4.1-mini writing" in notes
+        assert "google/gemini-2.5-flash-lite utility" in notes
+        assert "price ceiling" in notes
+        assert "defaults to ZDR" in notes
+
     def test_max_tier_cost_range(self):
         """Max tier (Grok 4.5 everywhere) is dearer than hybrid; stay under $12."""
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")

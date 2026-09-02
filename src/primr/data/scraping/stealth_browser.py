@@ -45,6 +45,10 @@ from .headed_budget import (
 )
 from .models import Attempt, ErrorType, ScrapeResult
 from .page_snapshots import compare_render_snapshots
+from .playwright_compat import (
+    sync_browser_runtime_supported,
+    sync_browser_unavailable_result,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -477,6 +481,9 @@ def scrape_with_patchright(
     is announced in the primr console so the user understands why a browser
     window opens.
     """
+    if not sync_browser_runtime_supported():
+        return sync_browser_unavailable_result(url, "patchright")
+
     if not _patchright_available():
         return ScrapeResult(
             url=url,

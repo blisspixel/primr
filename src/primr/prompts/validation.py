@@ -74,7 +74,7 @@ class PromptMetaModel(BaseModel):
 
     name: str = Field(..., min_length=1, description="Prompt name")
     version: str = Field(
-        ..., pattern=r"^\d+\.\d+\.\d+$", description="Semantic version (e.g., 1.0.0)"
+        ..., pattern=r"^[0-9]+\.[0-9]+\.[0-9]+$", description="Semantic version (e.g., 1.0.0)"
     )
     description: str = Field(default="", description="Prompt description")
     expected_pages: str = Field(default="", description="Expected page count")

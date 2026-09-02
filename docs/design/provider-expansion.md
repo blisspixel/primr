@@ -1,8 +1,8 @@
 # Provider Expansion: OpenAI, Anthropic, Billing-Verifiable Hosts, Gateways, and Local
 
-Status: STARTED (provider facts refreshed August 13, 2026; Responses adapters,
-the explicitly gated Codex experiment, and host-native handoff shipped; full
-cross-provider recipes remain eval-gated)
+Status: STARTED (provider facts refreshed September 1, 2026; Responses
+adapters, governed OpenRouter preview, explicitly gated Codex experiment, and
+host-native handoff shipped; full recipe promotions remain eval-gated)
 ROADMAP anchor: Active Queue #26. Companion to
 [`2.0-backend-freedom.md`](2.0-backend-freedom.md) (routing architecture);
 this doc is the concrete provider catalog and delivery plan that routing
@@ -59,9 +59,10 @@ will route over.
 
 ## Current state (what already exists in the codebase)
 
-- `Provider` ABC with xAI / Gemini / OpenAI / Anthropic / Ollama providers;
-  `pick_model_for_role` falls through XAI > Gemini > OpenAI > Anthropic by
-  key presence. Current OpenAI GPT-5.6 and current Claude-family candidates are
+- `Provider` ABC with xAI / Gemini / OpenAI / Anthropic / OpenRouter / Ollama providers;
+  `pick_model_for_role` keeps the measured xAI/Gemini route first, then gives
+  explicitly enabled OpenRouter precedence over unpromoted direct OpenAI and
+  Anthropic recipes. Current OpenAI GPT-5.6 and current Claude-family candidates are
   registered, but they have not been validated as full-pipeline recipes. As of
   1.37.0, `ai/providers/azure_foundry.py` and `ai/providers/bedrock.py` also
   exist as real `Provider` classes registered in `KNOWN_PROVIDERS` — wired for
@@ -99,6 +100,30 @@ will route over.
   Separately, `primr prep` plus `primr-zero` provides a host-native evidence
   handoff without passing subscription credentials into Primr. Neither path
   treats subscription credentials as interchangeable with API keys.
+- `OpenRouterProvider` is a Standard-pipeline preview behind both
+  `OPENROUTER_API_KEY` and `PRIMR_OPENROUTER_ENABLED=1`. Its curated role
+  recipe is estimate-bound, applies per-request price ceilings, denies
+  data-collection providers, defaults to zero-data-retention endpoints, and
+  records response-level exact cost. Custom model slugs require explicit
+  finite prices. It remains pending representative report-quality evaluation.
+
+### OpenRouter gateway preview
+
+- OpenRouter exposes an OpenAI-compatible endpoint and a public model catalog.
+  Primr keeps gateway-qualified model names separate from direct-provider rows
+  so estimates and accounting retain the correct billing boundary.
+- The September 1, 2026 curated recipe uses Gemini 2.5 Flash Lite for utility,
+  GPT-4.1 Mini for writing, and DeepSeek V3.2 for reasoning. The catalog rates
+  and context limits are recorded in the central model registry.
+- Provider routing sends registered prompt/completion `max_price` ceilings,
+  `require_parameters=true`, `data_collection=deny`, and ZDR by default.
+  See OpenRouter's [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection),
+  [zero-data retention](https://openrouter.ai/docs/guides/features/zdr),
+  [usage accounting](https://openrouter.ai/docs/cookbook/administration/usage-accounting),
+  and [models API](https://openrouter.ai/docs/api/api-reference/models/get-models).
+- The route is operationally complete across CLI and agent transports, but it
+  is deliberately labeled preview until a representative full-report eval
+  supports quality promotion.
 
 ## Verified provider facts (August 13, 2026)
 

@@ -163,6 +163,25 @@ class TestDryRunFlags:
         result = run_dry_run(_config(mode="complete"))
         assert result == 0
 
+    def test_openrouter_dry_run_names_the_selected_strategy_provider(
+        self, mocks, monkeypatch, capsys
+    ):
+        for name in (
+            "GEMINI_API_KEY",
+            "XAI_API_KEY",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+        ):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key-" + "x" * 20)
+        monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "1")
+
+        assert run_dry_run(_config(mode="complete")) == 0
+
+        output = capsys.readouterr().out
+        assert "Includes AI Strategy (OpenRouter)" in output
+        assert "Grok reasoning + Gemini writing" not in output
+
     @pytest.mark.parametrize(
         ("env_name", "expected_fragment"),
         [

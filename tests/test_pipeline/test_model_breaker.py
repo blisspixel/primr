@@ -15,7 +15,17 @@ from primr.pipeline.model_breaker import (
     UTILITY_FALLBACK_CHAIN,
     ModelCircuitBreaker,
     ModelHealthEvent,
+    _has_api_key,
 )
+
+
+def test_openrouter_key_is_unavailable_to_failover_until_explicitly_enabled(monkeypatch) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter")
+    monkeypatch.delenv("PRIMR_OPENROUTER_ENABLED", raising=False)
+    assert _has_api_key("openrouter") is False
+
+    monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "1")
+    assert _has_api_key("openrouter") is True
 
 
 class TestFallbackChainOrder:

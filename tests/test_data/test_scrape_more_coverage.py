@@ -247,6 +247,11 @@ class TestOrchestratorFactories:
 
     def test_get_orchestrator_can_disable_vision_on_existing_singleton(self, monkeypatch):
         monkeypatch.setattr(scrape, "_orchestrator", None)
+        monkeypatch.setattr(
+            scrape,
+            "get_available_tiers",
+            lambda: [SimpleNamespace(name="vision"), SimpleNamespace(name="requests")],
+        )
         first = get_orchestrator(enable_vision=True)
         assert any(tier.name == "vision" for tier in first.tiers)
         second = get_orchestrator(enable_vision=False)

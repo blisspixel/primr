@@ -43,6 +43,11 @@ def is_billing_exhausted(error: Exception | str) -> bool:
     These are non-retryable — the user must add credits or raise their
     spending limit before any further API calls can succeed.
     """
+    status_code = getattr(error, "status_code", None)
+    if status_code is None:
+        status_code = getattr(getattr(error, "response", None), "status_code", None)
+    if status_code == 402:
+        return True
     text = str(error).lower()
     patterns = (
         "used all available credits" in text,

@@ -136,20 +136,6 @@ GOOGLE_SEARCH_PRICE_PER_1000 = SEARCH_COST_PER_QUERY * 1000  # 35.00
 _SONNET_5_TOKENIZER_MULTIPLIER = 1.30
 
 
-def _provider_label_for_model(model_name: str) -> str:
-    """Return a short display label for the model's provider."""
-    config = PrimrModels.get_model_config(model_name)
-    if config is None:
-        return "LLM"
-    return {
-        "xai": "Grok",
-        "google": "Gemini",
-        "openai": "OpenAI",
-        "anthropic": "Anthropic",
-        "ollama": "Ollama",
-    }.get(config.provider, config.provider.title())
-
-
 def _split_cached_tokens(
     cached_input_tokens: int,
     first_input_tokens: int,
@@ -922,7 +908,9 @@ def _estimate_fast_mode_cost(
 
     # Strategy stages flow through the reasoning stack, so attribute their
     # duration suffix to whichever provider is doing the reasoning.
-    strategy_provider = _provider_label_for_model(reasoning_model)
+    from primr.core.cli_labels import grok_tier_label, model_provider_label
+
+    strategy_provider = model_provider_label(reasoning_model)
 
     duration = f"{duration_min}-{duration_max} min"
     if include_ai_strategy:
@@ -931,18 +919,18 @@ def _estimate_fast_mode_cost(
         duration += f" + {len(yaml_strategy_types)} strategy doc(s)"
     duration += _vendor_refresh_duration_suffix(refresh_tasks)
 
-    from primr.core.cli_labels import grok_tier_label
-
     tier_label = grok_tier_label(grok_tier)
-    mode_provider = _provider_label_for_model(reasoning_model)
+    mode_provider = model_provider_label(reasoning_model)
     # Product CLI mode name is "full"; parenthetical names the priced backend path.
-    estimate_mode = (
-        f"full ({tier_label})"
-        if mode_provider == "Grok" or grok_tier == "max"
-        else f"full ({mode_provider} routed)"
-    )
+    if mode_provider == "Grok" or grok_tier == "max":
+        estimate_mode = f"full ({tier_label})"
+    elif mode_provider == "OpenRouter":
+        estimate_mode = "full (OpenRouter routed preview)"
+    else:
+        estimate_mode = f"full ({mode_provider} routed)"
     tier_desc = f"{reasoning_model} reasoning + {writing_model} writing + {utility_model} utility"
-    if grok_tier == "fast":
+    reasoning_config = PrimrModels.get_model_config(reasoning_model)
+    if grok_tier == "fast" and reasoning_config is not None and reasoning_config.provider == "xai":
         tier_desc = (
             f"{reasoning_model} (reasoning_effort=low) + {writing_model} writing "
             f"+ {utility_model} utility"
@@ -950,6 +938,11 @@ def _estimate_fast_mode_cost(
     elif grok_tier == "max":
         tier_desc = f"{reasoning_model} for all stages (max tier)"
     notes = [f"Full mode: {tier_desc}"]
+    if mode_provider == "OpenRouter":
+        notes.append(
+            "OpenRouter routed preview: each request enforces the registered per-token "
+            "price ceiling, denies data-collection providers, and defaults to ZDR endpoints."
+        )
     if include_ai_strategy:
         notes.append(f"AI Strategy via {strategy_provider} ({num_vendors} vendor(s))")
     if yaml_strategy_types:

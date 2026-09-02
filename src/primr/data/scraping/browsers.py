@@ -34,6 +34,8 @@ from .config import (
 from .models import Attempt, ErrorType, ScrapeResult
 from .net import extract_host
 from .page_snapshots import compare_render_snapshots, html_to_snapshot_text
+from .playwright_compat import resolve_browser_headless as _resolve_headless
+from .playwright_compat import sync_browser_runtime_supported, sync_browser_unavailable_result
 from .profiles import (
     BrowserContextProfile,
     get_browser_compatible_http_profile,
@@ -60,13 +62,6 @@ def _browser_session_mode() -> str:
 def _use_persistent_browser_context() -> bool:
     """Whether Playwright should reuse a context per host for the current run."""
     return _browser_session_mode() == "persistent"
-
-
-def _resolve_headless(headless: bool | None) -> bool:
-    """Allow CLI/env to force a headed browser for scrape recovery."""
-    if os.getenv("PRIMR_BROWSER_HEADED", "").strip().lower() in {"1", "true", "yes"}:
-        return False
-    return True if headless is None else headless
 
 
 # =============================================================================
@@ -947,6 +942,8 @@ def scrape_with_playwright(
         )
 
     url = normalized_url
+    if not sync_browser_runtime_supported():
+        return sync_browser_unavailable_result(url, "playwright")
     return _scrape_with_playwright_impl(url, timeout, profile, headless)
 
 
@@ -1260,6 +1257,8 @@ def scrape_with_playwright_aggressive(
         )
 
     url = normalized_url
+    if not sync_browser_runtime_supported():
+        return sync_browser_unavailable_result(url, "playwright_aggressive")
     egress_plan, egress_error = plan_browser_egress(url)
     if egress_error:
         return ScrapeResult(

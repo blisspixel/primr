@@ -1232,6 +1232,7 @@ def _handle_batch(config: CLIConfig) -> int:
             config.mode,
             premium_mode=use_premium_mode,
             fast_mode=use_fast_mode,
+            grok_tier=config.grok_tier,
             allow_network=False,
         )
         if preflight_ok:
@@ -2002,23 +2003,21 @@ def _handle_research(config: CLIConfig) -> int:
         premium_mode=use_premium_mode,
         fast_mode=use_fast_mode,
         refresh_vendor_research=(config.refresh_vendor_research and config.ai_strategy),
+        grok_tier=config.grok_tier,
         allow_network=False,
     )
     if not preflight_ok:
         return report_preflight_failure(preflight_errors)
 
     if selection.auto_fast_mode and not config.json_output:
-        from primr.core.cli_labels import grok_tier_label
+        from primr.core.cli_labels import auto_fast_mode_message
 
-        console.info(
-            f"Using {grok_tier_label(config.grok_tier)} fast mode; "
-            "for deeper research add --premium"
-        )
+        console.info(auto_fast_mode_message(config.grok_tier))
     elif not use_fast_mode and not config.json_output:
         console.info("Using standard mode (Gemini). Set XAI_API_KEY for faster, cheaper runs.")
 
     if use_fast_mode and config.lite_strategy and not config.json_output:
-        console.warn("--lite is ignored with --fast (fast mode uses Grok for all calls)")
+        console.warn("--lite is ignored with the routed full-report runtime")
 
     context_files = resolve_research_context_files(config)
     if context_files is None:
@@ -2058,6 +2057,7 @@ def _handle_research(config: CLIConfig) -> int:
             premium_mode=use_premium_mode,
             fast_mode=use_fast_mode,
             refresh_vendor_research=(config.refresh_vendor_research and config.ai_strategy),
+            grok_tier=config.grok_tier,
         )
         if not network_ok:
             return report_preflight_failure(network_errors)

@@ -127,12 +127,15 @@ def write_report_sections(
     # Lazy import: research_agent imports this module, so the LLM-backed
     # section writer and coherence pass (which stay there until their own
     # extraction) must be resolved at call time to avoid a circular import.
+    from primr.core.cli_labels import model_provider_label
     from primr.core.research_agent import _fast_coherence_pass, _write_section_with_retry
+
+    phase_label = f"Report Writing ({model_provider_label(grok_writing)})"
 
     console.phase_banner(
         4,
         total_phases,
-        "Report Writing (Grok)",
+        phase_label,
         "Writing sections (parallel within parts)",
         "3-5 min",
     )
@@ -350,7 +353,7 @@ def write_report_sections(
 
     total_words = len(report_content.split())
     console.phase_complete(
-        "Report Writing (Grok)",
+        phase_label,
         [("Sections", str(len(written_sections))), ("Words", f"{total_words:,}")],
     )
 

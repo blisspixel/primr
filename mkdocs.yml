@@ -66,6 +66,7 @@ nav:
       - Installation and upgrades: INSTALLATION.md
       - Zero-cost and host-assisted research: ZERO_COST.md
       - API keys: API_KEYS.md
+      - OpenRouter preview: OPENROUTER.md
       - Configuration: CONFIG.md
       - Run modes and costs: RUN_MODES.md
       - Azure quickstart: AZURE_QUICKSTART.md

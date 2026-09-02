@@ -196,7 +196,11 @@ def cross_validate_and_enrich(
     except Exception as e:
         logger.warning("Cross-validation route resolution failed: %s", e, exc_info=True)
 
-    with console.timed_operation("Reviewing report quality via Grok"):
+    from primr.core.cli_labels import model_provider_label
+
+    with console.timed_operation(
+        f"Reviewing report quality via {model_provider_label(reasoning_model)}"
+    ):
         from primr.pipeline.integration import cross_validate_with_recovery
 
         def _do_cross_validate():

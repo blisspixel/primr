@@ -22,6 +22,25 @@ def grok_tier_label(grok_tier: str) -> str:
     return GROK_TIER_LABELS.get(grok_tier, "Grok")
 
 
+def model_provider_label(model_name: str) -> str:
+    """Return a concise provider label for one registered model."""
+
+    from primr.config.models import PrimrModels
+
+    config = PrimrModels.get_model_config(model_name)
+    provider = config.provider if config is not None else ""
+    return {
+        "xai": "Grok",
+        "google": "Gemini",
+        "openai": "OpenAI",
+        "anthropic": "Anthropic",
+        "openrouter": "OpenRouter",
+        "ollama": "Ollama",
+        "foundry": "Foundry",
+        "bedrock": "Bedrock",
+    }.get(provider, provider.title() or "LLM")
+
+
 def full_mode_label(grok_tier: str, *, has_xai: bool = True) -> str:
     """Human label for the default full research path when xAI is present."""
     if has_xai:
@@ -35,8 +54,22 @@ def resolved_full_mode_label(grok_tier: str) -> str:
         return full_mode_label(grok_tier, has_xai=True)
     if os.environ.get("GEMINI_API_KEY"):
         return "full (Gemini routed)"
+    from primr.ai.providers.openrouter import openrouter_routing_ready
+
+    if openrouter_routing_ready():
+        return "full (OpenRouter routed preview)"
     if os.environ.get("OPENAI_API_KEY"):
         return "full (OpenAI estimate only; execution needs XAI or Gemini)"
     if os.environ.get("ANTHROPIC_API_KEY"):
         return "full (Anthropic estimate only; execution needs XAI or Gemini)"
     return f"full ({grok_tier_label(grok_tier)}; provider keys required)"
+
+
+def auto_fast_mode_message(grok_tier: str) -> str:
+    """Explain an automatically selected routed full-report runtime."""
+
+    from primr.ai.providers.openrouter import openrouter_routing_ready
+
+    if not os.environ.get("XAI_API_KEY") and openrouter_routing_ready():
+        return "Using the opt-in OpenRouter routed preview; for Gemini Deep Research add --premium"
+    return f"Using {grok_tier_label(grok_tier)} fast mode; for deeper research add --premium"

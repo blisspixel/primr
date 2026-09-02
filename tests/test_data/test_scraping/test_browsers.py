@@ -272,6 +272,28 @@ class TestScrapeWithPlaywright:
         assert result.success is False
         assert "playwright" in result.error.lower() or "not installed" in result.error.lower()
 
+    @pytest.mark.parametrize(
+        ("scraper", "tier"),
+        [
+            (scrape_with_playwright, "playwright"),
+            (scrape_with_playwright_aggressive, "playwright_aggressive"),
+        ],
+    )
+    def test_unsupported_runtime_fails_closed(self, monkeypatch, scraper, tier):
+        monkeypatch.setattr(
+            "primr.data.scraping.browsers.sync_browser_runtime_supported",
+            lambda: False,
+        )
+        with patch("primr.data.scraping.browsers.PlaywrightSession") as session:
+            result = scraper("https://example.com")
+
+        assert result.success is False
+        assert result.tier == tier
+        assert "Python 3.15" in result.error
+        assert len(result.attempts) == 1
+        assert result.attempts[0].tier == tier
+        session.assert_not_called()
+
 
 class TestPlaywrightBrowserMode:
     """Tests for browser session mode helpers and persistent contexts."""

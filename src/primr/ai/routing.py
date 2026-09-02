@@ -166,6 +166,28 @@ _ROLE_TO_RECIPE_FIELD: dict[Role, str] = {
 }
 
 
+def _openrouter_model(default_model: str) -> str:
+    """Resolve an explicitly priced OpenRouter model."""
+
+    custom_model = os.getenv("PRIMR_OPENROUTER_MODEL", "").strip()
+    selected = custom_model or default_model
+    config = PrimrModels.get_model_config(selected)
+    if config is None or config.provider != "openrouter":
+        raise ValueError(
+            "PRIMR_OPENROUTER_MODEL requires finite nonnegative "
+            "PRIMR_OPENROUTER_INPUT_PRICE and PRIMR_OPENROUTER_OUTPUT_PRICE values"
+        )
+    return selected
+
+
+def _openrouter_is_ready() -> bool:
+    """Require both a configured key and the separate paid-routing opt-in."""
+
+    from primr.ai.providers.openrouter import openrouter_routing_ready
+
+    return openrouter_routing_ready()
+
+
 def pick_model_for_role(role: Role | str) -> str:
     """Pick the right model name for a named role given configured keys.
 
@@ -180,10 +202,10 @@ def pick_model_for_role(role: Role | str) -> str:
        role. The full per-role priority is in the inline comment below;
        summary:
 
-       - UTILITY: GEMINI > OPENAI > ANTHROPIC > XAI > FLASH fallback.
-       - WRITING: GEMINI > OPENAI > ANTHROPIC > XAI > PRO fallback.
+       - UTILITY: GEMINI > OPENROUTER > OPENAI > ANTHROPIC > XAI > FLASH fallback.
+       - WRITING: GEMINI > OPENROUTER > OPENAI > ANTHROPIC > XAI > PRO fallback.
          (v1.24.0 stage-1 winner: gemini-3.1-flash-lite at $0.79/run.)
-       - REASONING / PRO: XAI > GEMINI > OPENAI > ANTHROPIC > PRO fallback.
+       - REASONING / PRO: XAI > GEMINI > OPENROUTER > OPENAI > ANTHROPIC > PRO fallback.
          (XAI wins on cached-input price when continuous-reasoning session
          lands a high cache hit rate.)
     """
@@ -214,24 +236,28 @@ def pick_model_for_role(role: Role | str) -> str:
     # Priority logic per role:
     #
     # UTILITY  (scrape summaries, link selection, generic "fast"):
-    #   GEMINI > OPENAI > ANTHROPIC > XAI > FLASH_MODEL fallback
+    #   GEMINI > OPENROUTER > OPENAI > ANTHROPIC > XAI > FLASH_MODEL fallback
     #   Cheapest-per-quality wins; Gemini Flash is the validated default.
     #
     # WRITING  (bulk section writing):
-    #   GEMINI > OPENAI > ANTHROPIC > XAI > PRO_MODEL fallback
+    #   GEMINI > OPENROUTER > OPENAI > ANTHROPIC > XAI > PRO_MODEL fallback
     #   Same shape as UTILITY but writes use higher-output models.
     #
     # REASONING / PRO  (analysis, workbook, cross-validation, strategy):
-    #   XAI > GEMINI > OPENAI > ANTHROPIC > PRO_MODEL fallback
+    #   XAI > GEMINI > OPENROUTER > OPENAI > ANTHROPIC > PRO_MODEL fallback
     #   XAI wins because Grok 4.3's $0.20 cached input is unbeatable when
     #   the continuous-reasoning session lands a high cache hit rate.
     #   Without XAI, primr uses each provider's flagship reasoner.
 
     from primr.config.models import ModelRegistry as _Registry
 
+    has_openrouter = _openrouter_is_ready()
+
     if role is Role.UTILITY:
         if os.getenv("GEMINI_API_KEY"):
             return PrimrModels.FLASH_MODEL
+        if has_openrouter:
+            return _openrouter_model(_Registry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name)
         if os.getenv("OPENAI_API_KEY"):
             return _Registry.OPENAI_GPT_5_4_NANO.name
         if os.getenv("ANTHROPIC_API_KEY"):
@@ -247,6 +273,8 @@ def pick_model_for_role(role: Role | str) -> str:
         # docs/EVAL_V1_24_0.md.
         if os.getenv("GEMINI_API_KEY"):
             return _Registry.GEMINI_3_1_FLASH_LITE.name
+        if has_openrouter:
+            return _openrouter_model(_Registry.OPENROUTER_GPT_4_1_MINI.name)
         # OpenAI fallback: gpt-5.4-nano is the cheapest cross-provider writer
         # ($0.20/$1.25). Verified working at $0.78/run in eval as grok43-nano.
         # 16K output cap may force per-section sizing on long reports.
@@ -272,6 +300,8 @@ def pick_model_for_role(role: Role | str) -> str:
         return PrimrModels.GROK_MODEL_43
     if os.getenv("GEMINI_API_KEY"):
         return PrimrModels.PRO_MODEL
+    if has_openrouter:
+        return _openrouter_model(_Registry.OPENROUTER_DEEPSEEK_V3_2.name)
     if os.getenv("OPENAI_API_KEY"):
         return _Registry.OPENAI_O4_MINI.name
     if os.getenv("ANTHROPIC_API_KEY"):
@@ -369,6 +399,10 @@ def get_provider_for_model(model_name: str) -> Provider:
         return _get_anthropic_provider()
     if provider_name == "ollama":
         return _get_ollama_provider()
+    if provider_name == "openrouter":
+        from primr.ai.providers.registry import get_registered_provider_for_model
+
+        return get_registered_provider_for_model(model_name)
     if provider_name in ("bedrock", "foundry"):
         # Bedrock/Foundry credentials live only in the main process; a
         # supervised worker deliberately never inherits AWS/Azure secrets

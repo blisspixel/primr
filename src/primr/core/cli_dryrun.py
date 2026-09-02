@@ -15,10 +15,24 @@ from primr.core.cli_labels import resolved_full_mode_label as _full_mode_label
 
 _NON_EXECUTABLE_FULL_NOTE = (
     "Dollars are the XAI/Gemini full-recipe planning floor, not OpenAI/Anthropic "
-    "live rates. Full execution still needs XAI_API_KEY or GEMINI_API_KEY."
+    "live rates. Full execution needs XAI_API_KEY, GEMINI_API_KEY, or an explicitly "
+    "enabled OpenRouter route."
 )
 
 _UNSUPPORTED_DRY_RUN_MESSAGES: dict[str, tuple[str, str]] = {}
+
+
+def _routed_strategy_label() -> str:
+    """Describe the providers selected for reasoning and writing roles."""
+
+    from primr.ai.routing import Role, pick_model_for_role
+    from primr.core.cli_labels import model_provider_label
+
+    reasoning = model_provider_label(pick_model_for_role(Role.REASONING))
+    writing = model_provider_label(pick_model_for_role(Role.WRITING))
+    if reasoning == writing:
+        return reasoning
+    return f"{reasoning} reasoning + {writing} writing"
 
 
 def reject_unsupported_dry_run(config: object) -> int | None:
@@ -37,10 +51,16 @@ def reject_unsupported_dry_run(config: object) -> int | None:
 
 
 def _is_full_execution_ready(*, mode: str) -> bool:
-    """False for full recipes when XAI/Gemini are not configured (cannot launch)."""
+    """Return whether the selected full recipe has an executable provider."""
     if mode not in ("complete", "structured", "hybrid"):
         return True
-    return bool(os.environ.get("XAI_API_KEY") or os.environ.get("GEMINI_API_KEY"))
+    from primr.ai.providers.openrouter import openrouter_routing_ready
+
+    return bool(
+        os.environ.get("XAI_API_KEY")
+        or os.environ.get("GEMINI_API_KEY")
+        or openrouter_routing_ready()
+    )
 
 
 def _annotate_non_executable_full_estimate(estimate, *, mode: str) -> None:
@@ -163,7 +183,7 @@ def run_dry_run(config: CLIConfig) -> int:
         )
         console.muted(f"Includes {strategy_label}")
     elif use_fast_mode and config.ai_strategy:
-        console.muted("Includes AI Strategy (hybrid: Grok reasoning + Gemini writing)")
+        console.muted(f"Includes AI Strategy ({_routed_strategy_label()})")
     console.blank()
     # CostEstimate.__str__ is the multi-line planning breakdown operators expect.
     for line in str(estimate).splitlines():
@@ -217,8 +237,8 @@ def run_dry_run(config: CLIConfig) -> int:
     console.step("Next steps")
     if not execution_ready:
         console.muted(
-            "  1. Configure XAI_API_KEY or GEMINI_API_KEY before launching "
-            "(OpenAI/Anthropic alone cannot run full research)."
+            "  1. Configure XAI_API_KEY or GEMINI_API_KEY, or explicitly enable "
+            "an OpenRouter route before launching."
         )
         console.muted(
             "  2. Re-run this dry-run after keys are set to confirm the executable recipe."

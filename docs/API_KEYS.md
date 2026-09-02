@@ -18,8 +18,9 @@ Grok + Gemini is the measured default, but it is not the only supported provider
 
 | Credential | Purpose | Console |
 |------------|---------|---------|
-| `OPENAI_API_KEY` | Optional OpenAI GPT/o-series fallback for routed utility, writing, reasoning, and registered premium-research candidates; the current full launch path still requires xAI or Gemini | [OpenAI Platform](https://platform.openai.com/api-keys) |
+| `OPENAI_API_KEY` | Optional OpenAI GPT/o-series fallback for routed utility, writing, reasoning, and registered premium-research candidates; this key alone does not enable full execution | [OpenAI Platform](https://platform.openai.com/api-keys) |
 | `ANTHROPIC_API_KEY` | Optional Claude fallback for writing, reasoning, and pro roles | [Anthropic Console](https://console.anthropic.com/settings/keys) |
+| `OPENROUTER_API_KEY` | Optional multi-provider paid gateway; key validation is independent from the separate paid-routing opt-in | [OpenRouter Keys](https://openrouter.ai/settings/keys) |
 | `OLLAMA_API_KEY` | Optional local/OpenAI-compatible endpoint key; Ollama uses `ollama` by default | Local runtime |
 | `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_BASE_URL`/`AZURE_OPENAI_ENDPOINT` | Microsoft Foundry / Azure OpenAI via the OpenAI-compatible `/openai/v1/` endpoint (Phi-4, GPT, Llama, DeepSeek) | [Azure AI Foundry](https://ai.azure.com/) |
 | `AWS_BEARER_TOKEN_BEDROCK` *or* AWS credential chain (`AWS_ACCESS_KEY_ID`/`AWS_PROFILE` + `AWS_REGION`) | Amazon Bedrock via `converse` (Claude, Nova, Llama, Gemma, DeepSeek); needs `pip install 'primr[bedrock]'` | [AWS Bedrock](https://console.aws.amazon.com/bedrock/) |
@@ -27,6 +28,11 @@ Grok + Gemini is the measured default, but it is not the only supported provider
 | `SEARCH_ENGINE_ID` | Custom Search Engine config (only if `SEARCH_PROVIDER=google`) | [Programmable Search Engine](https://programmablesearchengine.google.com/) |
 
 Primr uses DuckDuckGo for web search by default, so no search API key is needed unless you opt into `SEARCH_PROVIDER=google`.
+
+OpenRouter is an explicitly enabled preview route. A stored key never changes
+the active model recipe or authorizes spend by itself. Setup, curated models,
+price ceilings, privacy defaults, and custom-model rules are documented in
+[OpenRouter Preview](OPENROUTER.md).
 
 ### Deployment surfaces: Foundry and Bedrock
 
@@ -41,8 +47,8 @@ Azure Foundry (Bicep) and AWS Bedrock (CloudFormation).
 
 ### Validate that keys actually work
 
-`primr keys test` runs a free, auth-only check (a `models.list`-style call — no
-model generation, no token spend) against every configured provider and reports
+`primr keys test` runs a free, auth-only provider metadata request with no model
+generation or token spend against every configured provider and reports
 per-provider OK/FAIL with latency. `primr keys test <provider>` checks just one.
 This is separate from `primr doctor`, which never makes a live model call.
 
@@ -340,10 +346,12 @@ primr "Company Name" https://company.com --dry-run --json
 ```
 
 Dry-run and `--budget` use `max(planning, historical)` so cheap past runs
-cannot understate the approval floor. Full-mode quotes with only OpenAI or
-Anthropic keys (or with no XAI/Gemini key) are **planning-only**: the dollars
-are the XAI/Gemini full-recipe floor, JSON sets `execution_ready: false`, and
-launch still requires `XAI_API_KEY` or `GEMINI_API_KEY`.
+cannot understate the approval floor. Full-mode quotes with only direct OpenAI
+or Anthropic keys, and without xAI, Gemini, or an explicitly enabled
+OpenRouter route, are **planning-only**. The dollars are the XAI/Gemini
+full-recipe floor, JSON sets `execution_ready: false`, and launch remains
+disabled. An enabled OpenRouter route instead prices its registered model
+recipe directly.
 
 ### Typical Costs
 
@@ -353,6 +361,7 @@ launch still requires `XAI_API_KEY` or `GEMINI_API_KEY`.
 | deep | Sequential Flash writing and strategy included | ~$2.50 planning point | -- | ~$5.38 with one integrated AI Strategy; ~$2.88 base |
 | full, xAI plus Gemini | provider-token based | -- | DuckDuckGo default | ~$0.89 with one integrated AI Strategy |
 | full, xAI only | provider-token based | -- | DuckDuckGo default | ~$5.84 with one integrated AI Strategy |
+| full, OpenRouter preview | provider-token based | -- | DuckDuckGo default | ~$1.05 with one integrated AI Strategy |
 | premium | Structured collection, sequential Flash writing, and strategy included | ~$2.50 planning point | DuckDuckGo default | ~$6.71 with one integrated AI Strategy |
 
 Gemini Deep Research is billed from the underlying model tokens and tools, so

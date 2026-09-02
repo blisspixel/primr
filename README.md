@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/blisspixel/primr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/primr/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/primr.svg)](https://pypi.org/project/primr/)
-[![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12-3.14](https://img.shields.io/badge/Python-3.12--3.14-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/blisspixel/primr/badge)](https://securityscorecards.dev/viewer/?uri=github.com/blisspixel/primr)
 
@@ -107,9 +107,10 @@ Mode matrix, platforms, strategy types, and cost controls:
 
 ## Install
 
-- Python 3.12+
+- Python 3.12 through 3.14; see the installation guide for the 3.15 preview lane
 - No API key or GPU for `primr recon` / `primr prep`
-- Keys only for provider-backed research (measured default: xAI + Gemini)
+- Keys only for provider-backed research (measured default: xAI + Gemini;
+  optional [OpenRouter preview](docs/OPENROUTER.md))
 - `primr init` installs browser deps for scrape tiers
 
 ```bash
@@ -130,7 +131,7 @@ primr doctor
 ```
 
 Keys and full config: [API Key Setup](docs/API_KEYS.md) ·
-[Configuration](docs/CONFIG.md).
+[OpenRouter Preview](docs/OPENROUTER.md) · [Configuration](docs/CONFIG.md).
 
 ## Common commands
 
@@ -179,6 +180,7 @@ Agent inventory (paths/roles only, no report body):
 | Primr Zero / host-assisted | [ZERO_COST](docs/ZERO_COST.md) |
 | Agent / MCP / A2A | [AGENT_INTEGRATION](docs/AGENT_INTEGRATION.md) · [API](docs/API.md) |
 | API keys | [API_KEYS](docs/API_KEYS.md) |
+| Optional OpenRouter gateway | [OPENROUTER](docs/OPENROUTER.md) |
 | Configuration | [CONFIG](docs/CONFIG.md) |
 | Artifacts | [ARTIFACTS](docs/ARTIFACTS.md) |
 | Skill packs | [SKILL_PACK](docs/SKILL_PACK.md) |

@@ -128,13 +128,14 @@ class TestRetirementMigration:
 
 
 class TestRegistryExpansion:
-    """Task 3.6 — Verify the provider registry contains all seven providers."""
+    """Task 3.6: verify the provider registry contains each supported provider."""
 
-    def test_known_providers_has_seven_entries(self) -> None:
-        """KNOWN_PROVIDERS contains exactly 7 entries."""
+    def test_known_providers_have_unique_names(self) -> None:
+        """Each provider has one unambiguous registry name."""
         from primr.ai.providers.registry import KNOWN_PROVIDERS
 
-        assert len(KNOWN_PROVIDERS) == 7
+        names = [provider.name for provider in KNOWN_PROVIDERS]
+        assert len(names) == len(set(names))
 
     def test_known_providers_names(self) -> None:
         """KNOWN_PROVIDERS contains the direct APIs plus the deployment surfaces."""
@@ -146,6 +147,7 @@ class TestRegistryExpansion:
             "gemini",
             "openai",
             "anthropic",
+            "openrouter",
             "ollama",
             "foundry",
             "bedrock",
@@ -191,6 +193,7 @@ class TestRegistryExpansion:
         from primr.ai.providers.azure_foundry import AzureFoundryProvider
         from primr.ai.providers.bedrock import BedrockProvider
         from primr.ai.providers.gemini import GeminiProvider
+        from primr.ai.providers.openrouter import OpenRouterProvider
         from primr.ai.providers.registry import KNOWN_PROVIDERS, build_provider
 
         type_map = {
@@ -198,6 +201,7 @@ class TestRegistryExpansion:
             "gemini": GeminiProvider,
             "openai": OpenAICompatibleProvider,
             "anthropic": AnthropicProvider,
+            "openrouter": OpenRouterProvider,
             "ollama": OpenAICompatibleProvider,
             "foundry": AzureFoundryProvider,
             "bedrock": BedrockProvider,

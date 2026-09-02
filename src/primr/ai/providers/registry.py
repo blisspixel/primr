@@ -69,6 +69,12 @@ KNOWN_PROVIDERS: tuple[ProviderEntry, ...] = (
         roles=("reasoning", "writing", "pro"),
     ),
     ProviderEntry(
+        name="openrouter",
+        api_key_env="OPENROUTER_API_KEY",
+        description="OpenRouter gateway (opt-in utility, reasoning, writing)",
+        roles=("utility", "reasoning", "writing"),
+    ),
+    ProviderEntry(
         name="ollama",
         api_key_env="OLLAMA_API_KEY",
         api_key_default="ollama",
@@ -131,6 +137,10 @@ def build_provider(entry: ProviderEntry) -> Provider:
         from primr.ai.providers.anthropic import AnthropicProvider
 
         return AnthropicProvider()
+    if entry.name == "openrouter":
+        from primr.ai.providers.openrouter import OpenRouterProvider
+
+        return OpenRouterProvider()
     if entry.name == "ollama":
         return OpenAICompatibleProvider(
             name="ollama",
@@ -152,10 +162,10 @@ def build_provider(entry: ProviderEntry) -> Provider:
 def validate_provider_credentials(entry: ProviderEntry) -> CredentialCheck:
     """Live, auth-only validation for one provider.
 
-    Builds the provider and runs its ``validate_credentials`` probe (a free
-    ``models.list``-style call — no model generation, no token spend). Every
-    failure class is captured and returned as a result rather than raised, so a
-    caller can report on all providers uniformly.
+    Builds the provider and runs its free metadata probe with no model
+    generation or token spend. Every failure class is captured and returned as
+    a result rather than raised, so a caller can report on all providers
+    uniformly.
     """
     try:
         provider = build_provider(entry)
