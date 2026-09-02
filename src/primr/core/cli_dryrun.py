@@ -1,9 +1,8 @@
 """The ``--dry-run`` handler (cost estimate + recovery table preview).
 
-Extracted from ``cli.py`` to keep that file under its size ceiling. Behavior is
-unchanged from the inline version, plus a ``--json`` branch: with ``--json`` the
-estimate is emitted as a single JSON object (estimate-first for agents) and the
-human table/recovery preview is skipped.
+Extracted from ``cli.py`` to keep that file under its size ceiling. With
+``--json`` the estimate and readiness decision are emitted as one JSON object
+and the human table/recovery preview is skipped.
 """
 
 from __future__ import annotations
@@ -135,7 +134,12 @@ def run_dry_run(config: CLIConfig) -> int:
     else:
         mode_label = config.mode
 
-    from primr.core.cli_budget import build_run_estimate, strategy_runtime_error
+    from primr.core.cli_budget import (
+        budget_validation_error,
+        build_run_estimate,
+        estimate_fits_budget,
+        strategy_runtime_error,
+    )
 
     runtime_error = strategy_runtime_error(config, fast_mode=use_fast_mode)
     if runtime_error:
@@ -148,7 +152,20 @@ def run_dry_run(config: CLIConfig) -> int:
 
     estimate = build_run_estimate(config, fast_mode=use_fast_mode, premium_mode=use_premium_mode)
     _annotate_non_executable_full_estimate(estimate, mode=config.mode)
-    execution_ready = _is_full_execution_ready(mode=config.mode)
+    provider_ready = _is_full_execution_ready(mode=config.mode)
+    budget_error = budget_validation_error(config.budget_usd)
+    if budget_error:
+        return report_command_error(
+            json_output=config.json_output,
+            operation="research_estimate",
+            error_type="invalid_budget",
+            message=budget_error,
+        )
+    within_budget = estimate_fits_budget(
+        estimated_cost_usd=estimate.total_cost,
+        budget_usd=config.budget_usd,
+    )
+    execution_ready = provider_ready and within_budget is not False
 
     # Machine-readable path: emit the estimate as JSON and stop.
     if getattr(config, "json_output", False):
@@ -163,6 +180,13 @@ def run_dry_run(config: CLIConfig) -> int:
                 fast_mode=use_fast_mode,
                 premium_mode=use_premium_mode,
             ).as_dict()
+            budget_enforcement.update(
+                {
+                    "ceiling_usd": config.budget_usd,
+                    "estimated_cost_usd": estimate.total_cost,
+                    "within_budget": within_budget,
+                }
+            )
         payload = cost_estimate_json(
             estimate,
             mode_label=mode_label,
@@ -170,6 +194,7 @@ def run_dry_run(config: CLIConfig) -> int:
             budget_enforcement=budget_enforcement,
             inference=inference_estimate_metadata(config),
         )
+        payload["provider_ready"] = provider_ready
         payload["execution_ready"] = execution_ready
         emit_json(payload)
         return 0
@@ -199,6 +224,9 @@ def run_dry_run(config: CLIConfig) -> int:
         )
         console.blank()
         console.step("Budget policy")
+        budget_state = "within ceiling" if within_budget else "exceeds ceiling; launch blocked"
+        console.detail("Ceiling", f"${config.budget_usd:.2f}")
+        console.detail("Estimate", f"${estimate.total_cost:.2f} ({budget_state})")
         console.detail("Pre-flight", budget_policy.preflight)
         console.detail("Runtime", budget_policy.runtime)
         if budget_policy.checkpointed_stages:
@@ -235,7 +263,7 @@ def run_dry_run(config: CLIConfig) -> int:
 
     console.blank()
     console.step("Next steps")
-    if not execution_ready:
+    if not provider_ready:
         console.muted(
             "  1. Configure XAI_API_KEY or GEMINI_API_KEY, or explicitly enable "
             "an OpenRouter route before launching."
@@ -247,6 +275,13 @@ def run_dry_run(config: CLIConfig) -> int:
             "  3. Launch: repeat without --dry-run once execution_ready is true "
             "(optional: --budget <usd>)."
         )
+    elif within_budget is False:
+        console.muted(
+            f"  1. Launch is blocked because ${estimate.total_cost:.2f} exceeds "
+            f"--budget ${config.budget_usd:.2f}."
+        )
+        console.muted("  2. Raise the ceiling or choose a cheaper route, then repeat this dry-run.")
+        console.muted("  3. Launch only after the estimate is within the approved ceiling.")
     else:
         console.muted("  1. Launch: repeat this command without --dry-run.")
         console.muted("     Optional: add --budget <usd> to enforce a run ceiling.")

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.13] - 2026-09-02
+
+### Fixed
+
+- **Budgeted dry runs report launch readiness honestly.** A dry run whose
+  estimate exceeds `--budget` now sets `execution_ready: false` instead of
+  reporting a launch-ready provider recipe. Invalid ceilings also return a
+  structured error before any model call.
+
+### Changed
+
+- **Budget previews expose the complete decision.** Human output shows the
+  supplied ceiling and estimate. JSON distinguishes provider readiness from
+  final execution readiness and includes the ceiling, estimated cost, and
+  `within_budget` result. The same validation and comparison functions now
+  serve the preview and execution preflight.
+
+### Documentation
+
+- **The active queue is executable and versioned.** The roadmap now owns
+  dependency order and long-range gates, while `NEXT_STEPS.md` contains one
+  bounded implementation card, exit criteria, and the release-version update
+  protocol. Future work uses readiness gates instead of delivery dates or
+  effort estimates.
+- **OpenRouter's $10 ceiling path is explicit.** The README and operator guides
+  show the separate routing opt-in, per-run ceiling behavior, approval gate,
+  runtime checkpoint limits, and independent provider-side spending control.
+
 ## [1.39.12] - 2026-09-01
 
 ### Added
