@@ -44,6 +44,22 @@ def test_premium_prevents_automatic_fast_selection():
     assert plan.use_fast is False
 
 
+def test_explicitly_enabled_openrouter_auto_selects_routed_fast_pipeline():
+    plan = resolve_research_runtime_plan(
+        mode="complete",
+        explicit_fast_mode=False,
+        premium_mode=False,
+        xai_available=False,
+        openrouter_available=True,
+        platform_count=1,
+        ai_strategy=True,
+        strategy_types=None,
+        refresh_vendor_research=False,
+    )
+
+    assert plan.use_fast is True
+
+
 @pytest.mark.parametrize(
     ("strategy_types", "platform_count", "message_fragment"),
     [
@@ -125,6 +141,36 @@ def test_preparation_forwards_the_resolved_shape_to_confirmation(monkeypatch):
     assert calls[0][1]["fast_mode"] is True
     assert calls[0][1]["num_vendors"] == 2
     assert calls[0][1]["vendor_research_refreshes"] == 2
+
+
+def test_preparation_detects_enabled_openrouter_when_caller_omits_capability(monkeypatch):
+    monkeypatch.setattr(
+        "primr.ai.providers.openrouter.openrouter_routing_ready",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "primr.utils.cost_display.display_cost_estimate",
+        lambda *args, **kwargs: True,
+    )
+
+    preparation = prepare_research_runtime(
+        mode="complete",
+        display_name="ExampleCo",
+        explicit_fast_mode=False,
+        premium_mode=False,
+        xai_available=False,
+        platform_count=1,
+        ai_strategy=False,
+        strategy_types=None,
+        refresh_vendor_research=False,
+        skip_confirm=False,
+        lite_strategy=False,
+        verify=False,
+        grok_tier="hybrid",
+    )
+
+    assert preparation.status == "ready"
+    assert preparation.plan.use_fast is True
 
 
 def test_closed_confirmation_input_requires_noninteractive_approval(monkeypatch):

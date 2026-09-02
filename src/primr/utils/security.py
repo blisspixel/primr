@@ -131,6 +131,7 @@ SENSITIVE_PATTERNS = [
     # Specific prefixes before the generic sk- rule so Anthropic keys are not
     # labelled as OpenAI.
     (re.compile(r"\b(sk-ant-[a-zA-Z0-9-]+)\b"), "[ANTHROPIC_API_KEY]"),
+    (re.compile(r"\b(sk-or-v1-[a-zA-Z0-9_-]+)\b"), "[OPENROUTER_API_KEY]"),
     # Covers both the classic 48-char form (sk-<48 alnum>) and the modern
     # prefixed/variable-length forms (sk-proj-, sk-svcacct-, sk-admin-, ...),
     # which contain hyphens/underscores and would slip past a fixed [a-zA-Z0-9]{48}.

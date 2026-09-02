@@ -27,8 +27,9 @@ import uuid
 from typing import Any
 
 from primr.ai.error_policy import extract_retry_after_seconds
-from primr.ai.providers import XAIProvider
+from primr.ai.providers import Provider, XAIProvider
 from primr.ai.providers.openai_compatible import create_openai_sdk_client
+from primr.config.models import PrimrModels
 from primr.utils.logging_config import get_logger
 from primr.utils.model_policy import require_model_calls_allowed
 
@@ -398,7 +399,7 @@ def grok_llm(
 
 
 class ContinuousReasoningSession:
-    """Multi-turn Grok session that preserves message history across stages.
+    """Multi-turn single-model session that preserves history across stages.
 
     Use one session per primr run. Each `.send()` call appends a user turn
     and an assistant turn to the history, so the next stage's call sees all
@@ -441,7 +442,7 @@ class ContinuousReasoningSession:
         max_tokens: int = 16_000,
         retries: int = 4,
     ) -> str:
-        """Append a user turn, call Grok, append the assistant reply, return it."""
+        """Append a user turn, call the bound model, then retain its reply."""
         require_model_calls_allowed("continuous reasoning generation")
         self.history.append({"role": "user", "content": prompt})
 
@@ -449,13 +450,24 @@ class ContinuousReasoningSession:
         # OpenAICompatibleProvider. Errors propagate after rolling back the
         # user turn so the session stays consistent with what the model
         # actually saw.
-        provider = _get_provider()
-        provider._client = _get_grok_client()
+        model_config = PrimrModels.get_model_config(self.model)
+        if model_config is None:
+            self.history.pop()
+            raise KeyError(f"Unknown continuous-reasoning model: {self.model}")
+        provider: Provider
+        if model_config.provider == "xai":
+            provider = _get_provider()
+            provider._client = _get_grok_client()
+        else:
+            from primr.ai.providers.registry import get_registered_provider_for_model
+
+            provider = get_registered_provider_for_model(self.model)
         try:
             provider_kwargs: dict[str, Any] = {}
             if self.reasoning_effort is not None:
                 provider_kwargs["reasoning_effort"] = self.reasoning_effort
-            provider_kwargs["prompt_cache_key"] = self._prompt_cache_key
+            if model_config.provider == "xai":
+                provider_kwargs["prompt_cache_key"] = self._prompt_cache_key
 
             response = provider.chat(
                 list(self.history),

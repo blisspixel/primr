@@ -621,8 +621,10 @@ class TestVisionTier:
 
     def test_vision_included_by_default(self):
         """Vision tier should be included by default (enable_vision=True)."""
+        vision_tier = make_mock_tier("vision")
         with tempfile.TemporaryDirectory() as tmpdir:
             orchestrator = ScrapeOrchestrator(
+                tiers=[vision_tier],
                 cache=ScrapeCache(cache_dir=tmpdir),
                 rate_limiter=NoOpRateLimiter(),
             )
@@ -632,8 +634,10 @@ class TestVisionTier:
 
     def test_vision_excluded_when_disabled(self):
         """Vision tier should be excluded when enable_vision=False."""
+        vision_tier = make_mock_tier("vision")
         with tempfile.TemporaryDirectory() as tmpdir:
             orchestrator = ScrapeOrchestrator(
+                tiers=[vision_tier],
                 cache=ScrapeCache(cache_dir=tmpdir),
                 rate_limiter=NoOpRateLimiter(),
                 enable_vision=False,

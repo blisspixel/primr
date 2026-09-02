@@ -26,7 +26,14 @@ def test_full_mode_label_with_xai():
 
 
 def test_resolved_full_mode_label_matches_configured_provider(monkeypatch):
-    for name in ("XAI_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+    for name in (
+        "XAI_API_KEY",
+        "GEMINI_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "OPENROUTER_API_KEY",
+        "PRIMR_OPENROUTER_ENABLED",
+    ):
         monkeypatch.delenv(name, raising=False)
 
     assert resolved_full_mode_label("hybrid") == ("full (Grok 4.3 hybrid; provider keys required)")
@@ -34,3 +41,12 @@ def test_resolved_full_mode_label_matches_configured_provider(monkeypatch):
     assert resolved_full_mode_label("hybrid") == "full (Gemini routed)"
     monkeypatch.setenv("XAI_API_KEY", "configured")
     assert resolved_full_mode_label("hybrid") == "full (Grok 4.3 hybrid)"
+
+
+def test_resolved_full_mode_label_names_enabled_openrouter(monkeypatch):
+    for name in ("XAI_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "configured")
+    monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "1")
+
+    assert resolved_full_mode_label("hybrid") == "full (OpenRouter routed preview)"

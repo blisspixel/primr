@@ -39,6 +39,7 @@ def resolve_research_runtime_plan(
     explicit_fast_mode: bool,
     premium_mode: bool,
     xai_available: bool,
+    openrouter_available: bool = False,
     platform_count: int,
     ai_strategy: bool,
     strategy_types: Sequence[str] | None,
@@ -47,19 +48,21 @@ def resolve_research_runtime_plan(
     """Resolve runtime behavior before the confirmation and dispatch gates."""
 
     use_fast = explicit_fast_mode or (
-        not premium_mode and mode in ("complete", "structured", "hybrid") and xai_available
+        not premium_mode
+        and mode in ("complete", "structured", "hybrid")
+        and (xai_available or openrouter_available)
     )
     legacy_structured = not use_fast and mode == "structured"
     error_message: str | None = None
     if legacy_structured and strategy_types:
         error_message = (
             "Explicit strategy types are not supported by the legacy structured runtime. "
-            "Use complete mode or XAI fast mode."
+            "Use complete mode or the routed fast pipeline."
         )
     elif legacy_structured and platform_count > 1:
         error_message = (
             "Multiple strategy platforms are not supported by the legacy structured runtime. "
-            "Use complete mode or XAI fast mode."
+            "Use complete mode or the routed fast pipeline."
         )
 
     runtime_platform_count = 1 if legacy_structured else platform_count
@@ -84,6 +87,7 @@ def prepare_research_runtime(
     explicit_fast_mode: bool,
     premium_mode: bool,
     xai_available: bool,
+    openrouter_available: bool | None = None,
     platform_count: int,
     ai_strategy: bool,
     strategy_types: Sequence[str] | None,
@@ -95,11 +99,17 @@ def prepare_research_runtime(
 ) -> ResearchRuntimePreparation:
     """Resolve a route and run the exact matching cost-confirmation gate."""
 
+    if openrouter_available is None:
+        from primr.ai.providers.openrouter import openrouter_routing_ready
+
+        openrouter_available = openrouter_routing_ready()
+
     plan = resolve_research_runtime_plan(
         mode=mode,
         explicit_fast_mode=explicit_fast_mode,
         premium_mode=premium_mode,
         xai_available=xai_available,
+        openrouter_available=openrouter_available,
         platform_count=platform_count,
         ai_strategy=ai_strategy,
         strategy_types=strategy_types,

@@ -113,6 +113,7 @@ PROVIDER_API_KEY_ENV: dict[str, str] = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
     "ollama": "OLLAMA_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
 }
 
 
@@ -124,6 +125,11 @@ def _has_api_key(provider: str) -> bool:
     """
     from primr.ai.providers.registry import KNOWN_PROVIDERS
 
+    if provider == "openrouter":
+        from primr.ai.providers.openrouter import openrouter_routing_enabled
+
+        if not openrouter_routing_enabled():
+            return False
     env_var = PROVIDER_API_KEY_ENV.get(provider)
     if env_var is None:
         return False

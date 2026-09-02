@@ -193,6 +193,65 @@ jobs:
           uv run --no-sync pytest tests/property_tests/test_no_hardcoded_secrets_properties.py \
             --tb=short -q
 
+  python-315-preview:
+    # Python 3.15 is a pre-release until 2026-10-01. Keep this as a hard Linux
+    # compatibility lane without adding a stable-support classifier. Windows
+    # remains blocked until pywin32 publishes cp315 wheels.
+    name: python-3.15-preview (linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        timeout-minutes: 5
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: "0.11.33"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          cache-suffix: ${{ runner.os }}-py3.15-preview
+
+      - name: Install Python 3.15.0rc2
+        timeout-minutes: 10
+        env:
+          PYTHON_ARCHIVE_URL: https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.15.0rc2%2B20260901-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz
+          PYTHON_ARCHIVE_SHA256: 9549c3789acb25209da019cc8506ea5b1684b81fb4b471dc64cb47d1d04d6422
+        run: |
+          archive="$RUNNER_TEMP/cpython-3.15.0rc2.tar.gz"
+          install_dir="$RUNNER_TEMP/cpython-3.15.0rc2"
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+            "$PYTHON_ARCHIVE_URL" --output "$archive"
+          echo "$PYTHON_ARCHIVE_SHA256  $archive" | sha256sum --check --strict
+          mkdir -p "$install_dir"
+          tar -xzf "$archive" -C "$install_dir"
+          python_bin="$install_dir/python/bin/python3.15"
+          "$python_bin" --version
+          "$python_bin" -c \
+            'import sys; assert sys.version_info[:5] == (3, 15, 0, "candidate", 2)'
+          echo "PRIMR_PYTHON_315=$python_bin" >> "$GITHUB_ENV"
+
+      - name: Install native preview build prerequisites
+        timeout-minutes: 5
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libxml2-dev libxslt1-dev zlib1g-dev
+
+      - name: Install locked dependencies
+        timeout-minutes: 10
+        run: uv sync --python "$PRIMR_PYTHON_315" --locked --all-extras
+
+      - name: Test Python 3.15 preview
+        timeout-minutes: 25
+        env:
+          GEMINI_API_KEY: fake-key-for-ci-tests
+        run: |
+          uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q \
+            -k "not test_wait_times_out_when_no_change" -m "not integration"
+
   cross-platform-test:
     # primr advertises Windows + macOS + Linux support; the matrix above only
     # exercises Linux. This job enforces the claim by running the portable test

@@ -48,6 +48,8 @@ def test_normalize_key_name_accepts_provider_aliases():
     assert normalize_key_name("claude") == "ANTHROPIC_API_KEY"
     assert normalize_key_name("openai") == "OPENAI_API_KEY"
     assert normalize_key_name("gpt") == "OPENAI_API_KEY"
+    assert normalize_key_name("openrouter") == "OPENROUTER_API_KEY"
+    assert normalize_key_name("router") == "OPENROUTER_API_KEY"
     assert normalize_key_name("ollama") == "OLLAMA_API_KEY"
     assert normalize_key_name("local") == "OLLAMA_API_KEY"
     assert normalize_key_name("OLLAMA_API_KEY") == "OLLAMA_API_KEY"

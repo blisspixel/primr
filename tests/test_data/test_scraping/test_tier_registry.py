@@ -1,5 +1,6 @@
 """Tests for tier registry."""
 
+from primr.data.scraping import tier_registry
 from primr.data.scraping.models import ScrapeTier
 from primr.data.scraping.tier_registry import (
     DEFAULT_TIERS,
@@ -105,6 +106,14 @@ class TestGetAvailableTiers:
 
         for tier in available:
             assert isinstance(tier, ScrapeTier)
+
+    def test_unsupported_sync_runtime_keeps_safe_fallbacks(self, monkeypatch):
+        monkeypatch.setattr(tier_registry, "sync_browser_runtime_supported", lambda: False)
+
+        names = {tier.name for tier in get_available_tiers()}
+
+        assert "requests" in names
+        assert names.isdisjoint({"playwright", "playwright_aggressive", "patchright", "vision"})
 
 
 class TestGetTierNames:
