@@ -40,7 +40,7 @@ section_name_strategy = st.text(
 part_number_strategy = st.integers(min_value=1, max_value=5)
 
 # Strategy for generating valid semantic versions
-version_strategy = st.from_regex(r"\d{1,2}\.\d{1,2}\.\d{1,2}", fullmatch=True)
+version_strategy = st.from_regex(r"[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2}", fullmatch=True)
 
 
 def generate_v1_0_section(
