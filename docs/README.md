@@ -63,8 +63,8 @@ below (Diataxis: learning, doing, looking up, understanding).
 | [API](API.md) | MCP server and A2A protocol, programmatic usage | 2026-08-13 |
 | [Job Status](JOB_STATUS.md) | Versioned CLI, MCP, A2A, and API lifecycle contract | 2026-07-10 |
 | [STRATEGY_PORTFOLIO](STRATEGY_PORTFOLIO.md) | YAML-defined long-form strategy documents and selection | 2026-08-30 |
-| [NEXT_STEPS](NEXT_STEPS.md) | One executable release card, dependency gates, and version update protocol | 2026-09-02 |
-| [CHANGELOG](CHANGELOG.md) | Version history | 2026-09-02 |
+| [NEXT_STEPS](NEXT_STEPS.md) | 2026-09-09 |
+| [CHANGELOG](CHANGELOG.md) | 2026-09-09 |
 | [MIGRATION](MIGRATION.md) | Error-hierarchy migration notes | 2026-02-02 |
 | [EVAL_V1_24_0](EVAL_V1_24_0.md) | Historical decision record: the v1.24.0 cross-provider eval plan | 2026-06-26 |
 | [ROADMAP](https://github.com/blisspixel/primr/blob/main/ROADMAP.md) | Release dependencies, long-range gates, and implementation ledger | 2026-09-02 |
@@ -86,5 +86,5 @@ below (Diataxis: learning, doing, looking up, understanding).
 
 | Document | Description | Updated |
 |----------|-------------|---------|
-| [CONTRIBUTING](CONTRIBUTING.md) | Dev environment setup and the contribution workflow | 2026-08-13 |
+| [CONTRIBUTING](CONTRIBUTING.md) | 2026-09-09 |
 | [CLAUDE.md](https://github.com/blisspixel/primr/blob/main/CLAUDE.md) | The development contract: seams, constraints, verification gates | — |

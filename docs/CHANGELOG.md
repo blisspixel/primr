@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   updates, resolving the cross-platform CI failures in the separate updates.
 - **Release tooling uses an available, non-yanked build frontend.** Replaced
   the yanked `build` 1.5.1 lock with 1.6.0.
+- **Provider-readiness tests isolate local gateway configuration.** The
+  no-provider and OpenAI-only regressions clear OpenRouter settings so an
+  operator's enabled gateway cannot change their expected results.
 
 ### Documentation
 
