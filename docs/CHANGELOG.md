@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.14] - 2026-09-09
+
+### Security
+
+- **Dependency floors cover the published package as well as CI.** The search
+  stack now requires `httpx2>=2.12.0`, covering CVE-2026-84379, CVE-2026-84380,
+  and CVE-2026-84382. Documentation builds require `mkdocs-material>=9.7.7`
+  for CVE-2026-73295. The locked HTTP client and transport both use 2.12.0.
+
+### Fixed
+
+- **Container dependency exports match the reviewed lockfile.** Regenerated
+  the hash-locked deployment requirements alongside the HTTP dependency
+  updates, resolving the cross-platform CI failures in the separate updates.
+- **Release tooling uses an available, non-yanked build frontend.** Replaced
+  the yanked `build` 1.5.1 lock with 1.6.0.
+
+### Documentation
+
+- **Maintenance and planned architecture work remain distinct.** The release
+  records and package versions agree on 1.39.14. The orchestration back-edge
+  work remains open as the 1.39.15 candidate with its original exit criteria.
+- **Dependency maintenance includes container exports.** The contributor guide
+  records the pinned uv version and both regeneration commands. The roadmap
+  consistency test reads the current candidate instead of pinning an old one.
+
 ## [1.39.13] - 2026-09-02
 
 ### Fixed
