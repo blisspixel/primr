@@ -34,8 +34,10 @@ Source: `docs/images/primr-demo-terminal.html`. Requires Playwright Chromium
    `uv sync --locked` rejects a lockfile that is stale relative to
    `pyproject.toml`, then installs its exact pinned set so your environment
    matches CI and other contributors. After changing dependencies in
-   `pyproject.toml`, run `uv lock` and commit the updated `uv.lock`. Install uv
-   from https://docs.astral.sh/uv/ if you don't have it.
+   `pyproject.toml`, run `uv lock` and regenerate the container exports below.
+   Use **uv 0.11.33**, the version pinned in CI; export formatting is part of
+   the reproducibility check. Install uv from https://docs.astral.sh/uv/ if you
+   don't have it.
 
    **Option B - manual pip (cross-platform):**
    ```bash
@@ -58,6 +60,25 @@ Source: `docs/images/primr-demo-terminal.html`. Requires Playwright Chromium
 4. Copy `.env.example` to `.env` and add your API keys (or run `primr init` to walk through it).
 
 ## Development Workflow
+
+### Dependency maintenance
+
+`main` is the only long-lived branch. Review dependency updates together when
+they share a resolver constraint, merge through a passing pull request, and
+delete the completed feature branches. Scheduled pip-audit and Trivy checks
+remain active; automatic dependency-fix PRs are disabled by repository policy.
+
+After changing the dependency lock with uv 0.11.33, regenerate both checked-in
+container exports before running the release gate:
+
+```bash
+uv export --locked --no-dev --extra api --no-emit-project --no-header --no-annotate --output-file deploy/runtime-requirements.lock
+uv export --locked --only-group release --prune cyclonedx-bom --prune twine --no-emit-project --no-header --no-annotate --output-file deploy/build-requirements.lock
+uv run --no-sync pytest tests/test_supply_chain_pins.py -q
+```
+
+Commit `pyproject.toml`, `uv.lock`, and any changed exports together. A lockfile
+update alone can leave the container build on older dependencies and fail CI.
 
 ### Running Tests
 

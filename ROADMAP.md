@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.13
+Current State: v1.39.14
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -53,7 +53,7 @@ releases inside a band; only cut the major when its pillars hold together.
 
 | Band | Theme | Why this order |
 |------|--------|----------------|
-| **v1.39.x** (current) | Operator polish, security floors, routing honesty, maintainable stage ownership | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. The next executable candidate is v1.39.14. |
+| **v1.39.x** (current) | Operator polish, security floors, routing honesty, maintainable stage ownership | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. The next executable candidate is v1.39.15. |
 | **v1.40** | Epistemic and analyst-quality readiness | Hard gates, report-quality changes, and hybrid-routing promotions need a fully decidable production corpus for the bare company-and-website run first; without it, quality claims are vibes. |
 | **v1.41** | Backend freedom: measured host promotion + residual dual-provider cleanup | Unlocks honest OpenAI-only / Anthropic-only / host / local profiles; depends on 1.40 instruments to judge backends. |
 | **v1.42** | Agent control-plane finish (MCP Tasks, remaining watch items) | Agents can already estimate/approve/read compact artifacts; finish long-running job lifecycle and parity so unattended delegation is safe. |
@@ -68,7 +68,7 @@ The exact implementation slice, acceptance criteria, approved spend, and
 parallel maintenance lanes live only in `docs/NEXT_STEPS.md`. This section
 records dependency order so it does not become a competing current queue.
 
-**Next implementation candidate:** v1.39.14 removes one verified
+**Next implementation candidate:** v1.39.15 removes one verified
 `fast_run_sections` orchestration back edge without behavior drift. The ordered
 work and exit criteria live in the [execution brief](docs/NEXT_STEPS.md). A
 candidate version is not a delivery promise and is changed before release if
@@ -2155,6 +2155,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.14 | Sep 2026 | **Dependency maintenance and release consistency.** Updated the search HTTP stack and documentation theme, raised affected dependency floors, and regenerated container requirements from the same lockfile. Consolidated the dependency branches into main. The architecture card remains open for v1.39.15. |
 | 1.39.13 | Sep 2026 | **Executable roadmap and budget-preview honesty.** The current queue is now one bounded release card with dependency-ordered version gates, explicit exit criteria, and a complete version-update protocol without future delivery dates or effort estimates. OpenRouter dry runs now expose the supplied per-run ceiling, estimated cost, within-budget decision, provider readiness, and final execution readiness; a below-estimate ceiling cannot be reported as launch-ready. A $10 OpenRouter ceiling is covered by regression tests without making a model call. |
 | 1.39.12 | Sep 2026 | **Governed OpenRouter preview.** An optional OpenRouter key can serve the Standard routed pipeline only after a separate paid-routing opt-in and the normal estimate approval. Curated utility, writing, and reasoning models carry explicit catalog pricing; every request enforces rate ceilings, denies data-collection providers, defaults to zero-data-retention endpoints, and records exact gateway cost when available. CLI, MCP, A2A, supervised workers, diagnostics, docs, and secret redaction share the same route. Custom models fail closed unless the operator supplies finite nonnegative prices. |
 | 1.39.11 | Sep 2026 | **Professional artifact hygiene and clearer zero-cost operation.** Final report canonicalization decodes safe presentation entities and normalizes nonbreaking spaces across provider-backed artifacts and zero-cost rendering while preserving encoded angle brackets. Primr Zero guidance now makes clear that `primr prep` is already noninteractive and must not receive a piped yes response or the paid-run `--skip-confirm` signal. The root README remains a concise front door, with installation and artifact detail in linked guides. |

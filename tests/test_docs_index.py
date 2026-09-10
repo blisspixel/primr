@@ -87,8 +87,11 @@ def test_current_planning_avoids_delivery_date_and_effort_promises() -> None:
 
 def test_roadmap_delegates_the_current_queue_to_next_steps() -> None:
     roadmap = (REPO_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+    brief = (DOCS_DIR / "NEXT_STEPS.md").read_text(encoding="utf-8")
+    candidate = re.search(r"^Next implementation candidate: \*\*(v\d+\.\d+\.\d+)\*\*$", brief, re.M)
 
     assert "### Version ladder (logical order, no schedules)" in roadmap
-    assert "**Next implementation candidate:** v1.39.14" in roadmap
+    assert candidate is not None
+    assert f"**Next implementation candidate:** {candidate.group(1)}" in roadmap
     assert "The canonical executable queue lives in" in roadmap
     assert "[`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md)" in roadmap
