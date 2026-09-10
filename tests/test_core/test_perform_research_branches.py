@@ -54,7 +54,9 @@ class TestEarlyReturns:
         self, isolated_run, monkeypatch, overrides
     ):
         monkeypatch.delenv("XAI_API_KEY", raising=False)
-        fast_mock = MagicMock(side_effect=AssertionError("Legacy mode must not start fast research"))
+        fast_mock = MagicMock(
+            side_effect=AssertionError("Legacy mode must not start fast research")
+        )
         monkeypatch.setattr("primr.core.research_agent.perform_fast_research", fast_mock)
 
         result = perform_research(
