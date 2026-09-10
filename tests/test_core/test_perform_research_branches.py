@@ -17,7 +17,9 @@ from primr.core.research_agent import _generate_strategy_section, perform_resear
 
 @pytest.fixture
 def isolated_run(tmp_path, monkeypatch):
-    """Redirect WORKING_DIR/OUTPUT_DIR/LOGS_DIR to tmp_path."""
+    """Isolate run paths and keep local gateway settings out of dispatch tests."""
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "0")
     monkeypatch.setattr("primr.core.research_agent.WORKING_DIR", str(tmp_path / "wk"))
     monkeypatch.setattr("primr.core.research_agent.OUTPUT_DIR", str(tmp_path / "out"))
     monkeypatch.setattr("primr.core.research_agent.LOGS_DIR", str(tmp_path / "logs"))
@@ -52,6 +54,8 @@ class TestEarlyReturns:
         self, isolated_run, monkeypatch, overrides
     ):
         monkeypatch.delenv("XAI_API_KEY", raising=False)
+        fast_mock = MagicMock(side_effect=AssertionError("Legacy mode must not start fast research"))
+        monkeypatch.setattr("primr.core.research_agent.perform_fast_research", fast_mock)
 
         result = perform_research(
             company_name="ExampleCo",
@@ -63,6 +67,7 @@ class TestEarlyReturns:
         )
 
         assert result is None
+        fast_mock.assert_not_called()
 
 
 class TestDispatch:
