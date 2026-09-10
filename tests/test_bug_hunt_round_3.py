@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from primr.core.cli import CLIConfig, Command
 from primr.core.cli_dryrun import (
     _NON_EXECUTABLE_FULL_NOTE,
@@ -30,8 +32,6 @@ def _estimate(total: float = 0.76) -> CostEstimate:
 
 class TestUnknownEstimateModeFailsClosed:
     def test_normalize_rejects_typos(self):
-        import pytest
-
         with pytest.raises(ValueError, match="Unknown estimate mode"):
             normalize_estimate_mode("compleet")
 
@@ -45,6 +45,12 @@ class TestUnknownEstimateModeFailsClosed:
 
 
 class TestDualProviderEstimateHonesty:
+    @pytest.fixture(autouse=True)
+    def disable_openrouter(self, monkeypatch):
+        """Exercise direct-provider readiness independently of local gateway setup."""
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "0")
+
     def test_without_xai_gemini_gets_non_executable_note(self, monkeypatch):
         for key in ("XAI_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
             monkeypatch.delenv(key, raising=False)

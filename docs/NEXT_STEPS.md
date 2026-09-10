@@ -1,8 +1,8 @@
 # Next Steps
 
-Released baseline: **v1.39.13**
+Released baseline: **v1.39.14**
 
-Next implementation candidate: **v1.39.14**
+Next implementation candidate: **v1.39.15**
 
 This is Primr's canonical executable queue. It states the next bounded change,
 the order in which later release gates unlock, and the evidence required to
@@ -37,7 +37,11 @@ product.
 
 ## Current executable card
 
-### v1.39.14 candidate: remove one orchestration back edge
+v1.39.14 consolidated the dependency maintenance branches and refreshed the
+release. The architecture objective below remains open as the v1.39.15
+candidate; the maintenance release did not change its exit criteria.
+
+### v1.39.15 candidate: remove one orchestration back edge
 
 **Objective:** reduce the remaining 11-module core import-cycle component by
 moving one behavior-owned dependency in `fast_run_sections` to its proper
@@ -56,8 +60,8 @@ architecture slice and requires no provider call or paid evaluation.
 4. Remove the back edge without adding a forwarding-only module.
 5. Add direct owner tests and preserve compatibility tests at the public seam.
 6. Run focused architecture tests, then the complete release gate.
-7. Ship as v1.39.14 only if every exit criterion below passes. Otherwise keep
-   v1.39.13 current and update this card with the observed blocker.
+7. Ship as v1.39.15 only if every exit criterion below passes. Otherwise keep
+   v1.39.14 current and update this card with the observed blocker.
 
 **Exit criteria:**
 
@@ -128,7 +132,7 @@ Every user-facing patch updates the smallest appropriate surface:
 - Move completed implementation detail to the changelog.
 - Update examples whenever the CLI or machine-readable contract changes.
 
-## Version gates after v1.39.14
+## Version gates after v1.39.15
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.

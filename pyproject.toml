@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.39.13"
+version = "1.39.14"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = "Apache-2.0"
@@ -65,6 +65,9 @@ dependencies = [
     "rich>=13.0.0",
     "python-dotenv>=1.0.0",
     "httpx[http2]>=0.24.0",
+    # Security floor for the search stack's transitive HTTP client:
+    # CVE-2026-84379/84380/84382 are fixed together in 2.12.0.
+    "httpx2>=2.12.0",
     "playwright>=1.40.0",
     "patchright",
     "docx2pdf>=0.1.8",
@@ -163,7 +166,8 @@ docs = [
     # lightweight — it renders the existing docs/*.md prose and does NOT import
     # the primr package, so the docs build stays fast and free of the native
     # runtime stack (playwright/pymupdf/curl_cffi).
-    "mkdocs-material>=9.5.0",
+    # Security floor (CVE-2026-73295): search suggestion XSS fixed in 9.7.7.
+    "mkdocs-material>=9.7.7",
     # Security floor (CVE-2026-61632): patched in 11.0.0.
     "pymdown-extensions>=11.0.0",
 ]

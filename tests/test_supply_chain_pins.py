@@ -10,6 +10,9 @@ import tempfile
 import tomllib
 from pathlib import Path
 
+import pytest
+from packaging.requirements import Requirement
+
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_DIR = ROOT / ".github" / "workflows"
 ACTION_USE_RE = re.compile(r"\buses:\s+([^\s@]+)@([^\s#]+)")
@@ -88,6 +91,30 @@ def test_pillow_security_floor_excludes_known_vulnerable_release() -> None:
     }
 
     assert "pillow>=12.3.0" in dependencies
+
+
+@pytest.mark.parametrize(
+    ("extra", "package", "vulnerable", "patched"),
+    [
+        (None, "httpx2", "2.9.1", "2.12.0"),
+        (None, "httpx2", "2.10.0", "2.12.0"),
+        (None, "httpx2", "2.11.0", "2.12.0"),
+        ("docs", "mkdocs-material", "9.7.6", "9.7.7"),
+    ],
+)
+def test_dependency_security_floors_exclude_affected_versions(
+    extra: str | None, package: str, vulnerable: str, patched: str
+) -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    requirements = (
+        project["dependencies"] if extra is None else project["optional-dependencies"][extra]
+    )
+    requirement = next(
+        Requirement(value) for value in requirements if Requirement(value).name == package
+    )
+
+    assert vulnerable not in requirement.specifier
+    assert patched in requirement.specifier
 
 
 def test_dependency_audits_run_on_a_schedule_without_bot_authored_prs() -> None:
