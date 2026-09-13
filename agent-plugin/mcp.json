@@ -6,7 +6,8 @@
       "command": "primr",
       "args": [
         "mcp"
-      ]
+      ],
+      "cwd": "${PLUGIN_DATA}"
     }
   }
 }

@@ -172,11 +172,50 @@ The most-cited long-running-agent failure is self-declared done. Anthropic,
 The fix is external verification: "Only mark features as 'passing' after careful
 testing," validated against real behaviour. The primr analogue is the
 `core/refine.py` "artifact-discipline score" - a *proxy* for quality, and a
-proxy is a self-report dressed as a metric. Tradecraft Step 7 is the
-ground-truth gate: a run is done when the governing thesis has survived an
-adversarial pass (Step 6) and each claim carries a likelihood/confidence grade,
-not when the pipeline reaches its last stage. Build completion checks that read
-the artifact's *substance*, not its *form*.
+proxy cannot establish factual correctness. An adversarial pass and confidence
+labels can help examine substance, but are not ground truth themselves.
+Validate artifact structure and execution outcomes deterministically; assess
+evidence support, reasoning, and uncertainty through calibrated evaluators and
+source-grounded human review. Keep structural completion distinct from the
+strength of the report's quality evidence.
+
+### Evaluator agreement needs independent validation
+
+Several judges can make the same mistake. Cloud/local agreement and different
+model families are useful diagnostic signals, but neither makes unanimous
+verdicts true. Before promoting a quality gate or backend, freeze clean cases
+and controlled known-error variants with independent human labels. Measure
+error-detection precision and recall by category, abstention and missing-evidence
+rates, sample counts, and uncertainty. Include false facts, omitted contradictions,
+unsupported inferences, and incorrect source attribution. Review consequential
+disagreements and a pre-registered random sample of unanimous approvals against
+the sources. Preserve shared-error counts alongside agreement rates.
+
+[REFLECT](https://arxiv.org/abs/2605.19196) (May 18, 2026) found poor detection
+of controlled research-agent failures even among its strongest tested judges.
+[Nine Judges, Two Effective Votes](https://arxiv.org/abs/2605.29800) (May 28,
+2026) found substantial correlated error in a panel from multiple model
+families. These preprints concern their own benchmarks; they motivate Primr
+evaluator tests, not an assumed Primr error rate or a universal threshold.
+
+Separate claim entailment from source-authority and stylistic trust judgments.
+The August 21, 2026 preprint
+[Trust-Truth Separability](https://arxiv.org/abs/2608.21097) found that source
+labels changed truth judgments for identical QA. Blind model/provider identity
+and do not count correlated rubric dimensions as independent confirmation.
+Measure coverage of material facts, relationships, and caveats as well as
+precision: [VeriFact](https://aclanthology.org/2025.emnlp-main.905/) (EMNLP,
+November 2025) demonstrates why fact extraction and factual recall matter.
+
+An observed minimum traceability rate is a candidate regression floor, not the
+desired quality bar. Establish acceptable material-error risk and analyst
+usefulness independently. Do not add artificial Confirmed claims to sparse
+reports merely to obtain a decidable denominator; record the evidence gap and
+keep the result report-only when readiness requires it. The
+[evaluation protocol](eval-plan.md)
+requires readiness inspection and an explicit operator decision, never
+automatic threshold arming. Implementation order remains in
+[Next Steps](../NEXT_STEPS.md).
 
 ## The failure mode in both directions - and which one to fear here
 

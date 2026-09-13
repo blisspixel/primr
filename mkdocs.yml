@@ -86,6 +86,7 @@ nav:
       - Security operations: SECURITY_OPS.md
   - Reference:
       - Next steps: NEXT_STEPS.md
+      - Roadmap and compatibility review: ROADMAP_REVIEW.md
       - MCP & A2A API: API.md
       - Job Status Contract: JOB_STATUS.md
       - Strategy portfolio: STRATEGY_PORTFOLIO.md

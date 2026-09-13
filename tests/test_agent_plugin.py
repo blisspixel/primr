@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
+import subprocess
+import sys
+import textwrap
 import tomllib
 from pathlib import Path
 
@@ -75,6 +80,7 @@ def test_agent_plugin_exposes_only_the_intended_stdio_server() -> None:
                 "type": "stdio",
                 "command": "primr",
                 "args": ["mcp"],
+                "cwd": "${PLUGIN_DATA}",
             }
         },
     }
@@ -130,9 +136,141 @@ def test_agent_plugin_documents_experimental_scope_and_spend_boundary() -> None:
     operator = (PLUGIN_ROOT / "skills" / "primr" / "SKILL.md").read_text(encoding="utf-8")
     normalized_operator = " ".join(operator.split())
 
-    assert "v1.0.0 Working Draft" in readme
+    assert "published [Agent Plugins v1.0.0" in readme
+    assert "Working Draft" not in readme
     assert "Claude Code is not claimed as a portable-v1 client" in readme
     assert "does not authorize a paid Primr run" in readme
     assert "Configured API keys are capability, not consent to spend" in readme
     assert "## The billable cost gate (non-negotiable)" in operator
     assert "fresh estimate and explicit approval" in normalized_operator
+
+
+def test_vscode_native_config_uses_servers_instead_of_portable_mcp_servers() -> None:
+    config = _load_json(REPO_ROOT / "clients" / "vscode" / "mcp.json")
+    portable = _load_json(PLUGIN_ROOT / "mcp.json")["mcpServers"]["primr"]
+
+    # VS Code's workspace schema differs from portable Agent Plugins and
+    # Windsurf. Keep this directly usable at .vscode/mcp.json.
+    assert set(config) == {"servers"}
+    assert config["servers"] == {
+        "primr": {key: portable[key] for key in ("type", "command", "args")}
+    }
+    readme = (REPO_ROOT / "clients" / "README.md").read_text(encoding="utf-8")
+    assert "[`vscode/mcp.json`](vscode/mcp.json)" in readme
+
+
+def test_installed_controller_preserves_state_across_plugin_replacement(tmp_path: Path) -> None:
+    # Copy the package to an installed layout so repository-root detection
+    # cannot conceal writes to the plugin directory. Use the current
+    # interpreter's dependencies without installing or downloading anything.
+    installed = tmp_path / "installed" / "site-packages"
+    shutil.copytree(
+        REPO_ROOT / "src" / "primr",
+        installed / "primr",
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
+    )
+    plugin_data = tmp_path / "persistent data"
+    plugin_data.mkdir()
+    script = textwrap.dedent(
+        """\
+        import asyncio
+        import json
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, sys.argv[1])
+        # Windows creates an internal loopback socket pair for the event
+        # loop. Initialize that before denying application network calls.
+        runner = asyncio.Runner()
+        runner.get_loop()
+
+        def deny_egress(event, args):
+            if event in {"socket.connect", "socket.getaddrinfo", "subprocess.Popen"}:
+                raise AssertionError(f"Controller startup attempted egress: {event}")
+
+        sys.addaudithook(deny_egress)
+        from primr.config.config import OUTPUT_DIR, PROJECT_ROOT, WORKING_DIR
+        from primr.mcp_server.server import create_mcp_server
+        from primr.mcp_server.types import ResearchStage
+
+        async def inspect_controller():
+            server = create_mcp_server(skip_background_tasks=True)
+            async with server.controller_lifecycle():
+                ready, _ = server.readiness_snapshot()
+                assert ready
+                if sys.argv[2] == "plugin v1":
+                    # Persist a synthetic terminal record without dispatching
+                    # a worker, research tool, or provider call.
+                    job = server.job_store.create("ExampleCo", "full")
+                    job.advance_stage(ResearchStage.CANCELLED)
+                    server.job_store.update(job)
+                else:
+                    job = server.job_store.get_latest_terminal()
+                    assert job is not None
+                    assert job.company_name == "ExampleCo"
+                    assert job.current_stage == ResearchStage.CANCELLED
+                result = {
+                    "job_id": job.job_id,
+                    "root": str(PROJECT_ROOT),
+                    "output": str(Path(OUTPUT_DIR).resolve()),
+                    "working": str(Path(WORKING_DIR).resolve()),
+                    "journal": str(server.job_store.journal_path.resolve()),
+                    "audit": str(server.audit_log.path.resolve()),
+                }
+            print(json.dumps(result))
+
+        with runner:
+            runner.run(inspect_controller())
+        """
+    )
+    expected = {
+        "root": str(plugin_data),
+        "output": str(plugin_data / "output"),
+        "working": str(plugin_data / "working"),
+        "journal": str(plugin_data / "output" / ".mcp_job_journal.json"),
+        "audit": str(plugin_data / "output" / ".mcp_audit_log.jsonl"),
+    }
+    retained_report = plugin_data / "output" / "retained-report.md"
+    retained_job_id = None
+    for installation in ("plugin v1", "plugin v2"):
+        plugin_root = tmp_path / installation
+        shutil.copytree(PLUGIN_ROOT, plugin_root)
+        # Portable package directories may be immutable. File blockers make
+        # accidental state creation fail on Windows as well as POSIX.
+        for directory in ("output", "working", "logs"):
+            (plugin_root / directory).write_text("package content", encoding="utf-8")
+        manifest = _load_json(plugin_root / "mcp.json")["mcpServers"]["primr"]
+        cwd = manifest.get("cwd", str(plugin_root)).replace("${PLUGIN_DATA}", str(plugin_data))
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PATH"}
+        }
+        environment.update(
+            PLUGIN_ROOT=str(plugin_root),
+            PLUGIN_DATA=str(plugin_data),
+            PRIMR_CONFIG_DIR=str(tmp_path / "empty-config"),
+        )
+        process = subprocess.run(
+            [sys.executable, "-I", "-c", script, str(installed), installation],
+            cwd=cwd,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=45,
+            check=False,
+        )
+        assert process.returncode == 0, process.stdout + process.stderr
+        observed = json.loads(process.stdout.strip().splitlines()[-1])
+        job_id = observed.pop("job_id")
+        assert observed == expected
+        assert Path(expected["journal"]).is_file()
+        assert Path(expected["audit"]).is_file()
+        if installation == "plugin v1":
+            retained_job_id = job_id
+            retained_report.write_text("retained deliverable", encoding="utf-8")
+        else:
+            assert job_id == retained_job_id
+            assert retained_report.read_text(encoding="utf-8") == "retained deliverable"
+        for directory in ("output", "working", "logs"):
+            assert (plugin_root / directory).read_text(encoding="utf-8") == "package content"

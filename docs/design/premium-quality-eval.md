@@ -69,6 +69,12 @@ Before estimating the run set:
   available verification or calibration sidecars needed by the rubric.
 - The exact commit, configuration fingerprint, prompt/config fingerprints, and
   model registry entries are frozen in the private run ledger.
+- The evaluator protocol is frozen and passes its pre-registered validation
+  tolerances on human-adjudicated clean and known-error cases. Validate error
+  detection by category, including false numbers, wrong entities/dates,
+  unsupported inference, omitted contradictions, and misattributed citations.
+  Record precision, recall, abstentions, missing-evidence rates, sample counts,
+  and uncertainty intervals. Judge agreement alone does not clear this condition.
 
 If an entry condition fails, stop and fix the contract. Do not reinterpret a
 misconfigured run as evidence about report quality.
@@ -135,9 +141,9 @@ file-name, and pipeline-stage disclosures that reveal the arm. Preserve report
 content, confidence labels, citations, source appendix, headings, and all
 quality-relevant defects.
 
-Judges receive one pair at a time and do not receive the arm map. Half of the
-pairs present A first and half present B first. Re-score a randomly selected
-two-pair subset with the order reversed to expose position sensitivity. The
+Judges receive one pair at a time and do not receive the arm map. Randomize which
+arm appears first, balancing the five pairs as closely as possible. Re-score a
+randomly selected two-pair subset with the order reversed to expose position sensitivity. The
 arm map is opened only after judge output and human adjudication are frozen.
 
 ## Rubric
@@ -149,6 +155,7 @@ location. Evidence dimensions also require source references.
 | Dimension | Evaluation question |
 |-----------|---------------------|
 | Evidence support | Do material factual and strategic claims follow from the cited or supplied evidence? |
+| Material evidence coverage | Does the report preserve decision-relevant facts, relationships, caveats, and contrary evidence instead of improving precision by omission? |
 | Contradiction handling | Does the report surface, reconcile, or appropriately preserve conflicting evidence instead of choosing silently? |
 | Source authority and independence | Are important claims grounded in suitable first-party or authoritative sources, with independent support where the claim warrants it? |
 | Uncertainty and label honesty | Do Confirmed, Reported, Estimated, and Hypothesis labels match the strength of the evidence and the wording of the claim? |
@@ -168,12 +175,23 @@ includes the executive summary, every high-confidence material claim, and a
 fixed number of claims sampled across early, middle, and late sections. Score
 document dimensions against the complete artifact, not isolated excerpts.
 
+Measure evidence coverage against a frozen, human-reviewed reference set for
+each company; count omissions separately from unsupported assertions. Sparse
+public evidence can warrant a report with no Confirmed claims. Do not introduce
+artificial Confirmed labels to satisfy a calibration denominator. Record why a
+floor is unavailable and retain report-only status where readiness requires it.
+
+The minimum observed traceability rate is a candidate regression floor, not the
+desired analyst-quality bar. Pre-register the acceptable material-error risk
+and usefulness criteria independently of that observed minimum. A relative
+Premium win does not establish that either profile meets an absolute quality bar.
+
 ## Judge agreement and human adjudication
 
-Use at least three independent judge configurations, preferably spanning two
-model families. Keep prompts and temperature settings fixed. A local panel may
-be used at zero API cost, but local agreement is evidence, not automatic proof
-of correctness.
+Use at least three distinct judge configurations, preferably spanning two
+model families. Distinct configurations do not establish statistical
+independence. Keep prompts and temperature settings fixed. A local panel may be
+used at zero API cost, but agreement is evidence, not proof of correctness.
 
 Report:
 
@@ -181,13 +199,34 @@ Report:
 - unanimous, majority, and no-agreement counts;
 - order-reversal consistency on the repeated subset;
 - judge-family agreement;
-- abstentions and missing-evidence rates.
+- abstentions and missing-evidence rates;
+- known-error detection precision/recall by category, counts, and uncertainty;
+- shared errors found in human audits of unanimous approvals.
 
 A human reviewer adjudicates every no-agreement result, every order-sensitive
 result, every material contradiction finding, and every difference of two or
 more rubric points between judges. The reviewer examines the cited source or
 receipt, records the reason, and may choose Standard, Premium, tie, or
 insufficient evidence. Human adjudication is frozen before the arm map opens.
+
+Also audit a random sample of unanimous approvals in each pair, selected using
+a sampling rule and sample size frozen before judging. Inspect the cited
+evidence and reference facts, record shared false positives and missed errors,
+and apply the pre-registered escalation rule when the audit finds a material
+defect. A panel's agreement must not exempt its decisions from source review.
+Assess evidence entailment separately from source authority or stylistic trust
+cues, with model/provider identity hidden. Correlated rubric scores do not count
+as independent confirmations.
+
+This requirement follows the risks identified by
+[REFLECT](https://arxiv.org/abs/2605.19196) (May 18, 2026) and
+[Nine Judges, Two Effective Votes](https://arxiv.org/abs/2605.29800) (May 28,
+2026): research-agent judges can miss controlled failures, and multiple judges
+can share errors. Both are preprints on other benchmarks, not measurements of
+Primr. [VeriFact](https://aclanthology.org/2025.emnlp-main.905/) (EMNLP, November
+2025) additionally motivates measuring factual recall and relational context
+alongside precision. See the shared
+[evaluator validation protocol](eval-plan.md#validate-the-evaluators).
 
 ## Pre-registered acceptance criteria
 
@@ -198,16 +237,19 @@ lift only when all of the following hold:
    five company pairs.
 2. Premium improves argument arc in at least three pairs and is not materially
    worse in any pair.
-3. Premium is not materially worse on evidence support, contradiction handling,
-   source authority and independence, or uncertainty and label honesty in any
-   pair.
+3. Premium is not materially worse on evidence support, material evidence
+   coverage, contradiction handling, source authority and independence, or
+   uncertainty and label honesty in any pair.
 4. Premium is not worse on repetition or terminology consistency in more than
    one pair, and any regression has a documented stage-level cause.
 5. Both profiles have complete citation resolution, or every unresolved
    citation is classified as a product defect rather than excluded from the
    score.
 6. A majority result is supported by at least two judge configurations and is
-   not reversed by human source review.
+   not reversed by human source review, including the unanimous-approval audit.
+7. Evaluator validation meets the frozen tolerances, and audit findings are
+   resolved under the pre-registered escalation rule. Otherwise record
+   `evaluation_inconclusive` rather than treating unreliable scores as a win.
 
 For this five-company sample, "materially worse" means a human-adjudicated
 difference of at least one rubric point with a concrete report example. These
@@ -247,8 +289,9 @@ Write one private, body-free decision record containing:
 - commit, configuration, prompt/config, and model-registry fingerprints;
 - quoted and actual cost/runtime by arm;
 - artifact and sidecar hashes;
-- blinded judge results, agreement statistics, order-sensitivity results, and
-  human adjudications;
+- blinded judge results, agreement statistics, order-sensitivity results,
+  evaluator-validation metrics, unanimous-audit sample counts and shared-error
+  counts, and human adjudications;
 - acceptance-criterion result for each numbered criterion;
 - one decision: `premium_quality_lift_supported`,
   `premium_differentiation_not_demonstrated`, `premium_pipeline_rework_needed`,
@@ -257,8 +300,8 @@ Write one private, body-free decision record containing:
 
 Do not store report bodies, raw source corpora, company names, URLs, secrets,
 or judge credentials in the record. The result is report-only evidence until a
-larger repeated corpus and acceptable judge agreement justify any product or
-quality gate.
+larger repeated corpus, validated error detection, source-grounded human review,
+and an explicit operator decision justify any product or quality gate.
 
 ## Explicitly not part of this evaluation
 

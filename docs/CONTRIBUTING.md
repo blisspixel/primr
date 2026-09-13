@@ -24,12 +24,12 @@ Source: `docs/images/primr-demo-terminal.html`. Requires Playwright Chromium
    **Option A - uv (recommended, fastest, reproducible):**
    ```bash
    cd primr
-   uv sync --locked --extra dev --extra api   # validates and installs uv.lock
+   uv sync --locked --all-extras   # matches the primary CI environment
    uv run playwright install chromium
    # run tooling without activating a venv:
-   uv run pytest tests/ -q
-   uv run ruff check src/primr/
-   uv run mypy src/primr/ --ignore-missing-imports
+   uv run --no-sync pytest tests/test_architecture.py -q
+   uv run --no-sync ruff check src/primr/
+   # Complete verification: CLAUDE.md, including filtered tests and coverage.
    ```
    `uv sync --locked` rejects a lockfile that is stale relative to
    `pyproject.toml`, then installs its exact pinned set so your environment
@@ -83,8 +83,8 @@ update alone can leave the container build on older dependencies and fail CI.
 ### Running Tests
 
 ```bash
-# Run all tests
-python -m pytest tests/ -v
+# Run the ordinary local suite without manual or provider integration tests
+uv run --no-sync pytest tests/ --ignore=tests/manual -m "not integration" -v
 
 # Run a specific test file
 uv run --no-sync pytest tests/test_core/test_cli.py -v
@@ -103,7 +103,7 @@ ordinary code changes:
 
 ```bash
 # Linting
-uv run --no-sync ruff check src/primr/ tests/
+uv run --no-sync ruff check src/primr/
 
 # Formatting
 uv run --no-sync ruff format --check src/primr/ tests/

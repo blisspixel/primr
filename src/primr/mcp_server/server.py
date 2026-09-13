@@ -465,8 +465,11 @@ class PrimrMCPServer:
             StreamableHTTPASGIApp,
             StreamableHTTPSessionManager,
         )
+        from mcp.server.transport_security import TransportSecuritySettings
         from starlette.applications import Starlette
         from starlette.routing import Mount
+
+        from primr.config.mcp import mcp_http_allowlists
 
         configure_http_logging(self.log_level)
         self._setup_signal_handlers()
@@ -508,9 +511,15 @@ class PrimrMCPServer:
         # 2026-07-28 clients speak statelessly per-request, legacy clients
         # get the initialize handshake and a session. Its run() context owns
         # per-session task lifecycles, entered from the app lifespan below.
+        allowed_hosts, allowed_origins = mcp_http_allowlists(self.host, self.port)
         session_manager = StreamableHTTPSessionManager(
             app=self.server,
             json_response=False,
+            security_settings=TransportSecuritySettings(
+                enable_dns_rebinding_protection=True,
+                allowed_hosts=allowed_hosts,
+                allowed_origins=allowed_origins,
+            ),
         )
         transport_asgi = StreamableHTTPASGIApp(session_manager)
 

@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.14
+Current State: v1.39.15
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -53,7 +53,7 @@ releases inside a band; only cut the major when its pillars hold together.
 
 | Band | Theme | Why this order |
 |------|--------|----------------|
-| **v1.39.x** (current) | Operator polish, security floors, routing honesty, maintainable stage ownership | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. The next executable candidate is v1.39.15. |
+| **v1.39.x** (current) | Operator polish, security floors, routing honesty, maintainable stage ownership | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. The next executable candidate is v1.39.16. |
 | **v1.40** | Epistemic and analyst-quality readiness | Hard gates, report-quality changes, and hybrid-routing promotions need a fully decidable production corpus for the bare company-and-website run first; without it, quality claims are vibes. |
 | **v1.41** | Backend freedom: measured host promotion + residual dual-provider cleanup | Unlocks honest OpenAI-only / Anthropic-only / host / local profiles; depends on 1.40 instruments to judge backends. |
 | **v1.42** | Agent control-plane finish (MCP Tasks, remaining watch items) | Agents can already estimate/approve/read compact artifacts; finish long-running job lifecycle and parity so unattended delegation is safe. |
@@ -68,11 +68,19 @@ The exact implementation slice, acceptance criteria, approved spend, and
 parallel maintenance lanes live only in `docs/NEXT_STEPS.md`. This section
 records dependency order so it does not become a competing current queue.
 
-**Next implementation candidate:** v1.39.15 removes one verified
-`fast_run_sections` orchestration back edge without behavior drift. The ordered
-work and exit criteria live in the [execution brief](docs/NEXT_STEPS.md). A
+**Next implementation candidate:** v1.39.16 removes the deferred
+`fast_run_sections` ownership back edge with its original graph-reduction
+criteria. v1.39.15 closes the verified MCP transport and Agent Plugins runtime gaps.
+The ordered work and exit criteria live in the [execution brief](docs/NEXT_STEPS.md). A
 candidate version is not a delivery promise and is changed before release if
 the accepted scope requires a different semantic version.
+
+The [current-source review](docs/ROADMAP_REVIEW.md) distinguishes protocol
+revisions, SDK support, plugin schema conformance, and actual runtime evidence.
+It also strengthens quality readiness: judge agreement requires independently
+grounded correctness checks, including a sample of unanimous decisions. The
+minimum observed traceability floor is a regression diagnostic, not the desired
+quality standard. These are promotion requirements, not claims of completion.
 
 Strategic priority context and implementation history:
 
@@ -149,7 +157,8 @@ work, release timing, or a second version plan.
    decidable Confirmed floor. Raw report-bound sidecars preserve each
    disagreement as a body-free claim-index and verdict pointer while compact
    MCP and A2A summaries remain body-free. Recalibration on a fully decidable
-   production corpus is follow-up work, not a blocker to priority 2.
+   production corpus remains required before backend promotion. Provider wiring
+   and deterministic readiness work may proceed without claiming promotion.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, and `core/stage_inventory.py` now records router-ready
    capability requirements and promotion gates for fast-mode and premium
@@ -2155,6 +2164,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.15 | Sep 2026 | **Agent interoperability and development guidance.** Enabled exact MCP HTTP Host and Origin trust, verified current and legacy transports, moved portable plugin state to persistent client storage, corrected VS Code configuration, and aligned Azure ingress. Updated the research-backed queue, evaluator requirements, and coding contract. |
 | 1.39.14 | Sep 2026 | **Dependency maintenance and release consistency.** Updated the search HTTP stack and documentation theme, raised affected dependency floors, and regenerated container requirements from the same lockfile. Consolidated the dependency branches into main. The architecture card remains open for v1.39.15. |
 | 1.39.13 | Sep 2026 | **Executable roadmap and budget-preview honesty.** The current queue is now one bounded release card with dependency-ordered version gates, explicit exit criteria, and a complete version-update protocol without future delivery dates or effort estimates. OpenRouter dry runs now expose the supplied per-run ceiling, estimated cost, within-budget decision, provider readiness, and final execution readiness; a below-estimate ceiling cannot be reported as launch-ready. A $10 OpenRouter ceiling is covered by regression tests without making a model call. |
 | 1.39.12 | Sep 2026 | **Governed OpenRouter preview.** An optional OpenRouter key can serve the Standard routed pipeline only after a separate paid-routing opt-in and the normal estimate approval. Curated utility, writing, and reasoning models carry explicit catalog pricing; every request enforces rate ceilings, denies data-collection providers, defaults to zero-data-retention endpoints, and records exact gateway cost when available. CLI, MCP, A2A, supervised workers, diagnostics, docs, and secret redaction share the same route. Custom models fail closed unless the operator supplies finite nonnegative prices. |
