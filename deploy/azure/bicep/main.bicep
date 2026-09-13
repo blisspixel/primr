@@ -40,7 +40,7 @@ param imageName string
 param imageTag string = 'latest'
 
 @description('CORS allowed origins')
-param corsOrigins string = '*'
+param corsOrigins string = ''
 
 @description('Contact emails for budget alerts')
 param contactEmails array

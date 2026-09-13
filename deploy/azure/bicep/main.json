@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "13142184112219072207"
+      "templateHash": "16997364884297842014"
     }
   },
   "parameters": {
@@ -86,7 +86,7 @@
     },
     "corsOrigins": {
       "type": "string",
-      "defaultValue": "*",
+      "defaultValue": "",
       "metadata": {
         "description": "CORS allowed origins"
       }
@@ -883,7 +883,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "3498016012094233083"
+              "templateHash": "14458202691786705956"
             }
           },
           "parameters": {
@@ -1014,17 +1014,24 @@
                     "transport": "http",
                     "allowInsecure": false,
                     "corsPolicy": {
-                      "allowedOrigins": [
-                        "[parameters('corsOrigins')]"
-                      ],
+                      "allowedOrigins": "[if(empty(parameters('corsOrigins')), createArray(), split(parameters('corsOrigins'), ','))]",
                       "allowedMethods": [
                         "GET",
                         "POST",
+                        "DELETE",
                         "OPTIONS"
                       ],
                       "allowedHeaders": [
                         "Authorization",
-                        "Content-Type"
+                        "Content-Type",
+                        "MCP-Protocol-Version",
+                        "Mcp-Method",
+                        "Mcp-Name",
+                        "Mcp-Session-Id"
+                      ],
+                      "exposeHeaders": [
+                        "Mcp-Session-Id",
+                        "WWW-Authenticate"
                       ],
                       "maxAge": 3600
                     }
@@ -1080,6 +1087,14 @@
                         },
                         {
                           "name": "PRIMR_CORS_ORIGINS",
+                          "value": "[parameters('corsOrigins')]"
+                        },
+                        {
+                          "name": "MCP_ALLOWED_HOSTS",
+                          "value": "[format('{0}.{1}', variables('appName'), reference(resourceId('Microsoft.App/managedEnvironments', variables('envName')), '2024-03-01').defaultDomain)]"
+                        },
+                        {
+                          "name": "MCP_ALLOWED_ORIGINS",
                           "value": "[parameters('corsOrigins')]"
                         },
                         {

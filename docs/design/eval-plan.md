@@ -1,94 +1,137 @@
-# Eval plan: what to spend on, in what order, and what counts as a pass
+# Evaluation protocols and historical results
 
 > **Purpose.** primr's quality changes are validated by eval, not unit tests, and
-> evals cost real money. This doc **pre-registers** the pending evals - the
-> hypothesis, the exact commands, the instruments, and the acceptance criteria -
-> *before* any spend, so a paid run gives a decision instead of a post-hoc
-> argument. Cheapest-first; stop early if a cheap step fails to justify the next.
+> model-backed evals can cost real money. This doc records protocols and results.
+> Freeze the hypothesis, exact commands, instruments, and acceptance criteria
+> before new spend so a paid run gives a decision instead of a post-hoc argument.
+> Start with low-cost checks and stop if they fail to justify further spend.
 >
 > No corpus is committed (the no-real-company-data rule): the operator supplies
-> real companies locally. Pick a **fixed** set and reuse it across runs so
-> results are comparable. A good minimal set is two companies - one *sparse*
-> (thin public signal) and one *rich* (filings, postings, press) - so both ends
-> of the depth range are covered.
+> real companies locally. Freeze representative selection before evaluation.
+> A sparse/rich pair can expose pilot defects; it does not establish readiness
+> for a production quality gate or a backend promotion.
 
-All commands assume `GEMINI_API_KEY` + `XAI_API_KEY` are set (the sub-$1 default
-recipe). Free local judges (`--judges "ollama:<model>"`) keep grading at $0.
+The executable queue lives only in [Next Steps](../NEXT_STEPS.md). The numbered
+experiments below preserve their original hypotheses and historical outcomes;
+their order does not supersede that queue. Quoted costs are historical planning
+figures, not current estimates or approved spend. Every new billable run or
+judge call requires a fresh exact estimate, explicit approval, and a cost cap.
+Local artifact inspection needs no provider key. Configured local judges can
+avoid model API charges; host-plan billing must be verified separately.
 
 ---
 
-## Order of operations (cheapest first)
+## Experiment index
 
-| # | Eval | What it answers | Approx cost | Gate to next |
+| # | Eval | What it answers | Historical planning cost | Interpretation |
 |---|------|-----------------|-------------|--------------|
-| 1 | Label-calibration baseline | Are `(Confirmed)/(Reported)` labels traceable to sources? Sets the gate threshold. | ~$0.10 | always run first |
-| 2 | Framed vs unframed (tradecraft Step 4) | Does framing + hypothesis-steered collection produce a better brief? | ~$1.58 / company | only if you want to validate Step 4 |
-| 3 | Content-depth prompt work (#4) | Do sharper section prompts (management choices, economics, scenarios, constrained-evidence) beat the current prompts? | ~$4-5 / company | only after #2 clears |
+| 1 | Label-calibration baseline | Are `(Confirmed)/(Reported)` labels traceable to sources? | ~$0.10 | Report-only measurement followed by readiness inspection and an operator decision |
+| 2 | Framed vs unframed (tradecraft Step 4) | Does framing + hypothesis-steered collection produce a better brief? | ~$1.58 / company | Historical pilot did not justify default promotion |
+| 3 | Content-depth prompt work (#4) | Do sharper section prompts (management choices, economics, scenarios, constrained-evidence) beat the current prompts? | ~$4-5 / company | Re-register a bounded experiment before execution |
+| 4 | Context curation | Does a different evidence subset improve the brief? | ~$1.58 / company | Historical pilot did not justify default promotion |
 
-Do **not** run #3 before #2 clears, and don't run #2 before you care to (Step 4 is
-opt-in and default-safe today). Run #1 any time - it's nearly free and arms a gate.
+Calibration does not arm a gate. Start with existing artifacts and zero-spend
+readiness inspection; later experiments depend on trustworthy instruments and
+the current executable card, not a historical pilot's place in this table.
 
 ---
 
 ## Eval 1 - label-calibration baseline (~$0.10)
 
-> **RESULT (3 reports, ~$0.02): SYSTEMIC grounding gap - this is the real quality
-> lever.** Across three briefs (one mid-market, two large content-dense, with
-> 25+ "Reported" claims between them): **Confirmed 8% traceability** (1/10 traced)
-> and **Reported 0%** (0/25 traced). `unfetchable=0`, so sources *were* fetched
-> and the claims still didn't trace - the labels over-claim their grounding. Not a
-> thin-company fluke; the rich briefs confirmed it.
->
-> **The full data-backed map (with Evals 2 & 4):** prose/analytical depth is
-> *already strong* (a direct read of a brief confirmed consultant-grade tensions,
-> evidence, discovery questions); evidence *plumbing* (collection-steering Eval 2,
-> context-curation Eval 4) is a *wash, wash*; the one *measured* deficiency is
-> **epistemic grounding** - the brief reads authoritative but its `(Confirmed)/
-> (Reported)` labels don't trace to their cited sources. Cheapest to iterate of
-> any lever: calibration scores it on *existing* reports for ~$0, so a
-> label-honesty change is validated without expensive prose A/Bs. Doctrine-clean
-> fix: judge whether each cited source supports the claim (model judgment + ground
-> truth, like the shipped `--verify`) and *downgrade* labels that don't trace -
-> judgment decides, the downgrade is mechanical; not a regex. **SHIPPED opt-in**
-> (`PRIMR_LABEL_HONESTY=1`, `qa/label_honesty.py`): the pre-ship pass re-judges
-> each `(Confirmed)`/`(Reported)` claim against its cited source and rewrites the
-> untraceable ones to `(Estimated)`. Fail-safe by construction: confidence only
-> lowers, `no_source`/`unfetchable`/uncertain verdicts keep the label, and a
-> `_label_honesty.json` audit records every change. Default-off, never blocks
-> shipping; the open follow-up is the agreement-validated calibration baseline
-> that would justify promoting it toward default (a hard gate is never armed from
-> a single noisy judge).
+> **Historical result (3 reports, approximately $0.02): grounding defects worth
+> investigating.** The recorded counts were 1/10 Confirmed claims traced and
+> 0/25 Reported claims traced, with `unfetchable=0`. These sampled judge verdicts
+> exposed a problem in that sample. They do not establish a
+> population error rate or prove that other quality dimensions are satisfactory.
+> The n=1 pilots in Evals 2 and 4 did not justify their respective promotions;
+> they did not rule out improvements to collection or context assembly.
 
-**Hypothesis:** the confidence labels primr emits are traceable to fetched source
-text often enough to be trustworthy; we can set `FAIL_CALIBRATION`'s threshold
-from measured numbers instead of a guess.
+The subsequent July 13, 2026 milestone and operator decision are recorded in the
+[roadmap](https://github.com/blisspixel/primr/blob/main/ROADMAP.md): five reports,
+50 evidence reviews, 33/37 comparable
+cloud/local verdicts agreeing, and a deliberate `keep_report_only` decision
+because two reports lacked a decidable Confirmed floor. These are historical
+measurements, not a current-file inspection or proof that agreement is accuracy.
+
+**Hypothesis:** confidence-label traceability can be measured against fetched
+source text, with evaluator errors and missing evidence made explicit, to inform
+a reviewed regression-gate decision.
 
 **Commands**
 ```bash
 primr calibrate --calibrate-recent 10 --dry-run    # preview judge-call count + cost
-primr calibrate --calibrate-recent 10              # run it (uses the local/cloud judge per --judge)
 ```
+
+Choose the judge explicitly and obtain approval for any billable execution
+before running calibration. An aggregate latest-N sample is not a curated
+representative baseline.
 
 **Instrument:** the `qa/label_calibration.py` harness (per-label precision of
 `(Confirmed)`/`(Reported)` against fetched source text; `no_source` counts
 against; unfetchable excluded). Use `--judge local` for $0 if Ollama is up.
 
-**Pre-registered acceptance / output:** record measured per-label precision across
-the sample. Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` to a *conservative* value
-(e.g. the observed 25th percentile, rounded down) so the gate fails only on real
-regressions, not noise. This is a measurement-and-threshold step, not pass/fail.
+**Acceptance / output:** record per-label precision, decidable counts,
+unfetchable/no-source counts, and evaluator-validation results. Freeze report
+and sidecar fingerprints in an explicitly curated `--pack-selection` manifest
+with representative tags. Use `--pack-manifest`, then `--baseline-from` and
+`--inspect-baseline` to inspect readiness without model calls. Resolve the
+reported blockers and review the evidence before recording a decision through
+`--baseline-decision-from` and `--baseline-decision keep_report_only|arm_gate`.
+The command writes a decision record; it does not set an environment variable.
+Use `--inspect-baseline-decision` to verify the record against current artifacts.
+`arm_gate` is available only when the inspected template permits it and the
+operator has completed the required review. No example in this document
+authorizes arming `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` automatically.
+
+The implementation's minimum observed report rate is a candidate **regression
+floor**, not the desired **quality bar**. Define the latter from material error
+risk and analyst usefulness before evaluating a change. A low observed floor
+does not become acceptable quality because every report becomes decidable.
+Distinguish missing evidence or failed assessment from a sparse report with no
+warranted Confirmed claims. Do not add artificial Confirmed labels to make a
+baseline pass; preserve honest labels and the report-only decision when required.
+
+### Validate the evaluators
+
+Freeze human-adjudicated clean cases and controlled variants before judging.
+Cover wrong numbers/entities/dates, negation, stale evidence, unsupported causal
+claims, insufficient independent support, omitted contradictions, and incorrect
+citation attribution. Keep these cases separate from the production report
+scores. Report detection precision and recall by error category, sample counts,
+abstention and retrieval-failure rates, and uncertainty intervals. Pre-register
+error tolerances and the minimum usable sample for each decision. Missing
+evidence is not a correct verdict, and high precision cannot excuse low coverage.
+
+Blind model/provider identity, test order sensitivity, and obtain source-grounded
+human review of consequential disagreements **and a pre-registered random sample
+of unanimous approvals**. Record shared errors as well as agreement. Assess
+claim support separately from source authority and stylistic trust cues; do not
+count correlated scores as independent confirmation.
+
+This protocol addresses findings from [REFLECT](https://arxiv.org/abs/2605.19196)
+(May 18, 2026), whose tested research-agent judges remained below 55% overall
+failure-detection accuracy, and
+[Nine Judges, Two Effective Votes](https://arxiv.org/abs/2605.29800) (May 28,
+2026), which found strongly correlated panel errors. Both are preprints on their
+own benchmarks, not Primr measurements. The August 21, 2026 preprint
+[Trust-Truth Separability](https://arxiv.org/abs/2608.21097) also finds source
+labels can shift truth judgments on identical QA. The peer-reviewed
+[VeriFact](https://aclanthology.org/2025.emnlp-main.905/) (EMNLP, November 2025)
+supports measuring factual recall and relational context alongside precision.
+These sources motivate evaluator stress tests; they do not supply universal
+promotion thresholds.
 
 ---
 
 ## Eval 2 - framed vs unframed (tradecraft Step 4, ~$1.58/company)
 
-> **RESULT (n=1, ~$0.69 spent): NO-GO for default-promotion.** First A/B (one
+> **Historical result (n=1, ~$0.69 spent): no default promotion.** First A/B (one
 > mid-market financial-services company, standard recipe ~$0.35/arm) - steering
 > fired correctly but the blind pairwise grade was a **wash, slightly favoring
 > unframed**; neutral cost; both gates PASS. Did **not** clear the acceptance
-> criterion below. Root cause: steered collection trades *breadth for depth* and
-> fights the broad fixed report structure. **Decision:** keep Step 4 opt-in, do
-> not promote, do not build more collection-steering on it. Directional (n=1).
+> criterion below. A possible explanation was a breadth/depth tradeoff against
+> the fixed report structure; this pilot did not isolate that cause.
+> **Decision:** keep Step 4 opt-in without default promotion. Directional (n=1).
 > Full write-up in [research-tradecraft.md](research-tradecraft.md) Step 4.
 
 **Hypothesis:** when a run is framed (`--purpose/--question`), the Day-1
@@ -124,17 +167,20 @@ free local judges), plus each run's own trust gate and the `~$cost` line.
 3. **No cost regression:** framed run cost ≤ ~110% of unframed (framing adds the
    cheap tree pass; if it balloons cost, that's a fail).
 
-**Decision:** clears all three → keep/recommend framing as the steer for real
-runs and proceed to Eval 3. Fails #1 → the steering isn't earning its keep;
-reconsider Step 4 rather than building on it. Fails #2/#3 → fix the regression
+**Decision interpretation:** clears all three → consider framing promotion
+after evaluator validation and review. Fails #1 → the tested steering did not
+demonstrate its benefit; reconsider Step 4 before building on it.
+Fails #2/#3 → fix the regression
 before re-judging quality.
 
 ---
 
 ## Eval 3 - content-depth prompt work (#4, ~$4-5/company)
 
-Only after Eval 2 clears. Same A/B shape: current section prompts (baseline) vs a
-candidate prompt revision (management choices, operating constraints, likely
+When the executable queue selects this experiment, re-register the candidate
+and decision criteria using validated evaluators. Same A/B shape: current
+section prompts (baseline) vs a candidate prompt revision (management choices,
+operating constraints, likely
 economics, scenario paths, constrained-evidence reasoning, explicit "so what"
 per section - content *within* the fixed structure, never new sections). Judge
 with `grade_pairwise.py` + the calibration instrument from Eval 1.
@@ -150,28 +196,20 @@ carve-out in [agentic-balance.md](agentic-balance.md).
 
 ## Eval 4 - context curation at analysis/writing (candidate; ~$1.58/company)
 
-> **RESULT (n=1, ~$1.4 spent): WASH - keep off/opt-in, do not promote.** A/B on a
+> **Historical result (n=1, ~$1.4 spent): wash, no default promotion.** A/B on a
 > large content-dense company whose corpus was **~360k chars** (curation dropped
 > ~72%, choosing the most-relevant 100k vs the first 100k). Blind pairwise grade:
 > **every section tied** (section-majority 0/5/0; the strongest cross-family judge
-> tied on all five), both gates PASS. So relevance-ranking the corpus subset does
-> not change brief quality even when it fires hard.
->
-> **Inference (with Eval 2): the bottleneck is not the evidence plumbing.** Two
-> levers tested - steered *collection* (Eval 2) and curated *context* (this one) -
-> both wash. Brief quality rides on the analysis **workbook** + external sources +
-> the **writer prompts**, not on which raw pages reach the writer. The next real
-> quality lever is the analysis/section **prompts** (content depth - Eval 3),
-> not collection or context-assembly plumbing. The curation feature stays merged
-> but default-off (no harm; available if a future routing version wants the seam).
+> tied on all five), both gates PASS. This company, configuration and grading
+> protocol did not demonstrate a quality improvement. The feature remains
+> default-off. Together with Eval 2, this supports withholding those promotions;
+> it does not prove evidence collection or context assembly cannot improve
+> reports, nor establish workbook or prompt changes as the causal alternative.
 
-**Why this is the more promising lever than more collection-steering.** A dry-run
-shows the standard pipeline pushes **~1.9M input tokens** into the analysis +
-section-writing stages (raw corpus + external sources, dumped whole). That is
-squarely in "lost-in-the-middle" / context-rot territory: past a point, more
-tokens *hurt* reasoning and cost quadratically. Eval 2 showed steering *what we
-collect* is a wash; this tests a different axis - *what reaches the model at the
-analysis/writing step*.
+**Original motivation:** a historical dry-run estimated approximately 1.9M
+aggregate input tokens across analysis and section-writing calls. This motivated
+testing which evidence reaches each model call. Aggregate tokens do not measure
+one context window, prove context degradation, or imply quadratic API charges.
 
 **Hypothesis:** curating the context that reaches the analysis + writing stages
 (relevance-rank the corpus, drop low-signal pages, route per-section evidence
@@ -181,8 +219,8 @@ lower token cost - and possibly *better* quality by reducing context rot.
 **Magnitude (measured, honest):** the ~1.9M is **~23 section calls of ~60k
 *cached* tokens each** (the cached-prefix split, roadmap #8), not one bloated
 window. Cost is already softened by caching; the lever is mainly *quality* (less
-rot in each 60k call) with cost upside if the prefix shrinks. So this is a **real
-but modest** lever - flag- and eval-gated for exactly that reason.
+irrelevant context in each call) with cost upside if the prefix shrinks. Any
+benefit remains a hypothesis to measure, not a consequence of the token count.
 
 **Status: BUILT (flag-gated, default off).** `core/context_curation.py`
 `rank_corpus_by_relevance()` replaces the section writer's blind first-100k-chars

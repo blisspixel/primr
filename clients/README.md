@@ -5,8 +5,9 @@ than Claude Code. Claude Code users can install the plugin under
 [`../claude-code/`](../claude-code/); it bundles the MCP server registration and
 the `primr`, `primr-zero`, and `company-brief` skills.
 
-All MCP clients here use the same `mcpServers` JSON shape; only the file
-location and a few optional fields differ. Every snippet assumes `pip install
+Client-native MCP configuration shapes differ: VS Code's `.vscode/mcp.json`
+uses `servers`, while the other JSON snippets below use `mcpServers`. The
+portable Agent Plugins package has its own schema. Every snippet assumes `pip install
 primr` is already done and `primr` is on `PATH`. Provider keys are needed for
 the billable full pipeline, but not for `primr prep` or `primr recon`.
 
@@ -17,6 +18,7 @@ the billable full pipeline, but not for `primr prep` or `primr recon`.
 | Full provider-backed Primr | MCP snippet plus the full `primr` operating guidance |
 | Hard-zero host-assisted dossier | Portable `primr-zero` skill; use `primr prep` when the launcher works and host-native research when it does not |
 | Host has no local shell | Use host-native cited research, or import an existing prep bundle when one is available |
+| Host supports Agent Plugins v1 | Load [`../agent-plugin/`](../agent-plugin/) for portable skills and the installed stdio server; component support depends on the client |
 
 ## Two pieces, every client
 
@@ -42,9 +44,16 @@ billing.
 | Windsurf | `~/.codeium/windsurf/mcp_config.json` (Windows: `%USERPROFILE%\.codeium\windsurf\mcp_config.json`) | [`windsurf/mcp_config.json`](windsurf/mcp_config.json) |
 | Cursor (project) | `.cursor/mcp.json` | same as Windsurf snippet |
 | Cursor (global) | `~/.cursor/mcp.json` | same as Windsurf snippet |
-| VS Code + Copilot | `.vscode/mcp.json` | same as Windsurf snippet |
+| VS Code + Copilot | `.vscode/mcp.json` | [`vscode/mcp.json`](vscode/mcp.json) |
 
 For Claude Desktop, the path is `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows). Same snippet shape as Windsurf.
+
+The VS Code configuration follows the [official MCP setup guide](https://code.visualstudio.com/docs/agent-customization/mcp-servers#configure-the-mcpjson-file),
+updated 2026-09-09 and verified here on 2026-09-13. VS Code forwards this
+configuration to its Agent Host, except servers requiring interactive inputs.
+The separate Copilot-native `.mcp.json` and `~/.copilot/mcp-config.json`
+locations use their own configuration format; do not move a `.vscode/mcp.json`
+file between those locations without adapting it.
 
 ## Agent guidance
 

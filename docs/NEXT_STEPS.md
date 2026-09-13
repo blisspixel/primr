@@ -1,8 +1,8 @@
 # Next Steps
 
-Released baseline: **v1.39.14**
+Released baseline: **v1.39.15**
 
-Next implementation candidate: **v1.39.15**
+Next implementation candidate: **v1.39.16**
 
 This is Primr's canonical executable queue. It states the next bounded change,
 the order in which later release gates unlock, and the evidence required to
@@ -37,11 +37,11 @@ product.
 
 ## Current executable card
 
-v1.39.14 consolidated the dependency maintenance branches and refreshed the
-release. The architecture objective below remains open as the v1.39.15
-candidate; the maintenance release did not change its exit criteria.
+v1.39.15 closes the verified MCP HTTP, portable plugin storage, and VS Code
+configuration gaps. The [review](ROADMAP_REVIEW.md) records the evidence and
+acceptance limits; the architecture objective below is now the next card.
 
-### v1.39.15 candidate: remove one orchestration back edge
+### v1.39.16 candidate: remove one orchestration back edge
 
 **Objective:** reduce the remaining 11-module core import-cycle component by
 moving one behavior-owned dependency in `fast_run_sections` to its proper
@@ -60,8 +60,8 @@ architecture slice and requires no provider call or paid evaluation.
 4. Remove the back edge without adding a forwarding-only module.
 5. Add direct owner tests and preserve compatibility tests at the public seam.
 6. Run focused architecture tests, then the complete release gate.
-7. Ship as v1.39.15 only if every exit criterion below passes. Otherwise keep
-   v1.39.14 current and update this card with the observed blocker.
+7. Ship as v1.39.16 only if every exit criterion below passes. Otherwise keep
+   v1.39.15 current and update this card with the observed blocker.
 
 **Exit criteria:**
 
@@ -79,6 +79,21 @@ architecture slice and requires no provider call or paid evaluation.
 **Explicitly outside this card:** report prompt changes, provider promotion,
 paid evaluation, broad `deep_research.py` decomposition, memory, and new public
 commands.
+
+## Follow-through after ownership repair
+
+1. **Make the quality decision defensible.** Complete the curated production
+   corpus and validate the evaluators against independently reviewed evidence.
+   Audit sampled unanimous decisions as well as disagreements; measure known
+   error detection, material-fact coverage, abstention, and shared errors. A
+   measured regression floor is distinct from an acceptable analyst-quality
+   bar. Sparse reports must not invent Confirmed claims to become decidable.
+2. **Then compare backends.** Use frozen evidence and output contracts, record
+   quality, reliability, latency, and measured cost, and make an explicit
+   promotion decision. Preserve preview status when evidence is inconclusive.
+
+The [evaluation plan](design/eval-plan.md) owns measurement design. These steps
+do not authorize paid runs or create another active release card.
 
 ## Parallel readiness lanes
 
@@ -132,6 +147,16 @@ Every user-facing patch updates the smallest appropriate surface:
 - Move completed implementation detail to the changelog.
 - Update examples whenever the CLI or machine-readable contract changes.
 
+### Protocol and plugin currency
+
+Track specification revisions, SDK releases, and host-client acceptance
+separately. Current MCP core compatibility does not imply Tasks, OAuth
+discovery, or every client extension. Agent Plugins schema validity does not
+prove executable availability, writable state, host authorization, or runtime
+support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
+snapshot, then recheck primary sources when upgrading. Keep transport and
+installed-layout regressions in the normal free release gate.
+
 ## Version gates after v1.39.15
 
 Later bands advance in dependency order. A version is cut when its exit criteria
@@ -139,7 +164,7 @@ hold, not because a date or effort estimate was written down.
 
 | Candidate | Capability gate | Depends on |
 |-----------|-----------------|------------|
-| **v1.40** | Fully decidable epistemic and analyst-quality corpus, followed by a recorded hard-gate decision | Stable report contract and quality instrumentation |
+| **v1.40** | Fully decidable epistemic and analyst-quality corpus, independently validated evaluators, followed by a recorded gate decision | Stable report contract and quality instrumentation |
 | **v1.41** | Measured host-versus-cloud promotion decision and honest single-provider full-report execution | v1.40 measurements |
 | **v1.42** | Durable agent job lifecycle and remaining MCP/A2A control-plane parity | Stable provider execution and existing authorization contract |
 | **v1.43** | Governed run history, retention/deletion/export, evidence anchors, and a shadow finding/inference ledger | v1.40 measurements and v1.42 consumption boundaries |

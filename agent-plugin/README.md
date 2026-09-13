@@ -1,7 +1,7 @@
 # Primr portable Agent Plugin
 
-This directory is an experimental distribution artifact for the Agent Plugins
-v1.0.0 Working Draft. It packages two portable Agent Skills and Primr's local
+This directory is an experimental distribution artifact for the published
+Agent Plugins v1.0.0 specification. It packages two portable Agent Skills and Primr's local
 MCP server:
 
 - `primr` routes free and paid company-research requests and enforces the
@@ -13,9 +13,9 @@ MCP server:
 
 ## Compatibility scope
 
-The package targets the published [Agent Plugins v1.0.0 Working
-Draft](https://agent-plugins.org/specification), not a final standard. At the
-time of use, consult the specification's
+The package targets the published [Agent Plugins v1.0.0
+specification](https://agent-plugins.org/specification), verified on 2026-09-13.
+Primr's cross-client integration remains experimental. At the time of use, consult the specification's
 [compatible-client registry](https://agent-plugins.org/compatible-clients).
 Clients can adopt skills and MCP transports incrementally, so a registry entry
 does not mean that every component works in every client version.
@@ -25,6 +25,23 @@ Skills and MCP servers. Primr's `mcp.json` uses a bare `primr` executable token,
 so its MCP component requires Primr to be installed and discoverable through
 the client's executable search rules. An unavailable MCP component does not
 invalidate the packaged skills.
+
+The server runs with `cwd: "${PLUGIN_DATA}"`. A conformant client creates this
+writable directory before launch and preserves it across plugin updates, as
+required by the [stdio runtime contract](https://agent-plugins.org/client-implementers/mcp-runtime#launch-stdio-servers).
+With an installed Primr package, reports, job journals, and audit logs live
+under `${PLUGIN_DATA}/output/`, and research intermediates under
+`${PLUGIN_DATA}/working/`. The plugin directory is package content and need
+not be writable. Use returned artifact paths and the job-scoped artifact
+resources to locate deliverables; the host's shell workspace is a separate
+location. An editable Primr source checkout retains its development output
+root and is not the installed-package configuration tested here.
+
+The client controls the subprocess environment and may omit ambient provider
+keys. Configure credentials through Primr's supported key store or the
+client's documented environment controls when using the paid pipeline. Do
+not put secrets in this portable manifest. Missing keys do not prevent
+keyless collection or MCP discovery.
 
 Claude Code is not claimed as a portable-v1 client here. Primr's existing
 `claude-code/` plugin remains the supported Claude-specific package and is
@@ -48,7 +65,9 @@ semantics vary by client, so Primr does not publish it as a portable guarantee.
 The skill instructions and companion files otherwise remain byte-identical to
 their source. Tests validate the generated identity, the pinned v1 JSON
 schemas, Agent Skills frontmatter, path containment, package-version parity,
-and source drift.
+and source drift. An isolated installed-layout test also starts the controller
+with persistent plugin data, checks readiness, and verifies storage across
+plugin replacement. These checks do not certify every client or client version.
 
 The source distribution includes this directory. The Python wheel continues to
 carry the installed `primr-zero` resource used by `primr prep`; it is not a

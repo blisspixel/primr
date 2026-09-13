@@ -65,6 +65,7 @@ def _mcp_config() -> bytes:
                     "type": "stdio",
                     "command": "primr",
                     "args": ["mcp"],
+                    "cwd": "${PLUGIN_DATA}",
                 }
             },
         }

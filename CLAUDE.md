@@ -30,7 +30,7 @@ long-form Strategic Overview and YAML-defined strategy artifacts as reliable
 Word and Markdown files. Architecture, routing, ledgers, memory, and agent
 surfaces are supporting capabilities, not replacement products.
 
-1. Set up the dev env (`uv sync --locked --extra dev --extra api`, then
+1. Set up the dev env (`uv sync --locked --all-extras`, then
    `uv run playwright install chromium`) - see
    [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md).
 2. Put code in the package that owns it (see Architecture Pointers). Use the
@@ -41,6 +41,44 @@ surfaces are supporting capabilities, not replacement products.
 Three rules in one breath: **one way to do each thing; no new giant files;
 verify current APIs (never trust training memory).** Everything below expands
 these.
+
+## Working loop and evidence
+
+Start with the README, product contract, `docs/NEXT_STEPS.md`, and the relevant
+roadmap/design sections. Check the working tree, recent changes, owning source,
+callers, tests, `pyproject.toml`, `uv.lock`, and affected CI jobs before editing.
+Source, configuration, tests, and release history outrank stale prose. Keep one
+bounded objective and explicit acceptance criteria; do not reopen the stack or
+expand into an unrelated cleanup. Ask about consequential product ambiguity,
+not routine reversible implementation choices.
+
+Use the package map and recompute the AST import graph in
+`tests/test_architecture.py` when changing ownership or dependencies. Inspect
+the actual symbols and callers; cached indexes and old audit counts can be
+stale. Verify version-sensitive decisions against current primary sources,
+distinguishing the locked baseline, stable upstream releases, and previews.
+Record durable conclusions in the owning design doc, not this file.
+
+Implement through the existing seam, run focused checks, inspect failures, fix
+their cause, then run the broader gate and review the diff. Do not pass by
+weakening types, schemas, assertions, coverage, or security controls. The mypy
+baseline is intentionally mixed: `mypy.ini` owns its growing strict allowlist;
+new boundaries need precise signatures and should join it where practical.
+
+Match evidence to the claim: MCP changes need real transport tests; portable
+plugins need installed-layout and persistent-state checks; generated artifacts
+need generator and package checks; report changes need rendered artifacts and
+source-grounded evaluation. Structural tests cannot establish semantic quality,
+and judge agreement needs independent correctness checks. Seek independent
+review for security or lifecycle changes after self-review.
+
+Keep planned, implemented, tested, shipped, deployed, and measured behavior
+distinct. Record exact verification and remaining limits; baseline CI does not
+prove an unpushed patch. Use the existing gitignored `.agent/<task>/` for scratch
+research, logs, indexes, and a resumable handoff with scope, decisions, changed
+paths, checks, and blockers. Never store secrets there. Durable knowledge belongs
+in source, tests, the owning docs, or an existing issue when useful. Update those
+homes before calling meaningful work complete; do not create a competing queue.
 
 ## Language and runtime choices
 
@@ -112,6 +150,8 @@ for a library or pattern, use the existing seam.
 | Atomic file write | `utils.atomic_io` | raw `open(...,'w')` for state files |
 | Model IDs / pricing | `config/models.py` registry | hardcoded model strings |
 | Outbound HTTP | the scraping-tier clients / `data.http_client` | a *new* HTTP client |
+| MCP HTTP trust | SDK transport security + `config.mcp` allowlists | ad-hoc Origin checks or trusted forwarded headers |
+| Local MCP/A2A jobs | `LocalJobSupervisor` + `SingleJobStore` | a second worker, scheduler, or lifecycle journal |
 
 HTTP is deliberately multi-client (browser → curl_cffi → httpx → requests →
 urllib) for scrape-tier evasion - that set is **closed**. A sixth client is a
@@ -150,19 +190,23 @@ What NOT to do. These are gated or will fail review:
   comments. Avoid coauthor trailers, AI-generation credits, or tool-credit
   language for any AI, bot, or automation tool. Every commit reads as a human
   engineer's work.
+- **Keep writing professional:** no emojis, em dashes, or en dashes in new
+  documentation, comments, generated text, commits, PRs, or delegated output.
 
 ## Verification Commands
 
-Run what CI runs before opening a PR, and use `primr doctor` to check system
-state.
+Use the existing environment with `--no-sync` during verification to avoid
+implicit environment changes. Setup changes install dependencies; do not hide
+them in a test command. `primr doctor` is optional environment diagnosis, not
+proof of report quality or a substitute for tests.
 
 ```bash
-primr doctor                 # system health: keys, browsers, providers, paths
-uv run pytest tests/ -q      # the full suite
+uv run --no-sync primr --version
+uv run --no-sync pytest tests/test_architecture.py -q
 ```
 
 <details>
-<summary>Full local pre-PR gate (mirrors the primary-interpreter CI gates)</summary>
+<summary>Local release gate (same test scope and coverage floor as primary CI)</summary>
 
 ```bash
 uv run --no-sync ruff check src/primr/
@@ -176,10 +220,22 @@ GEMINI_API_KEY=fake-key-for-ci-tests uv run --no-sync pytest -q tests/test_core/
 GEMINI_API_KEY=fake-key-for-ci-tests uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81
 ```
 
-The environment assignments above use POSIX shell syntax because CI runs on
-Ubuntu. Use the equivalent environment syntax in PowerShell when validating on
-Windows. The non-primary Python matrix legs run the same filtered test command
-without the global coverage gate.
+The assignments above are POSIX syntax. In PowerShell use, for example,
+`$env:GEMINI_API_KEY = 'fake-key-for-ci-tests'` before the command. Keep real
+provider calls out of local tests; integration/manual runs require their normal
+approval. The full command combines the five coverage shards in
+`.github/workflows/ci.yml`; CI runs them sequentially with `--cov-append` and
+enforces 81 percent only on the combined result. Use those exact shards when
+isolating failures, not new exclusions. The separate recovery floor is 13
+percent, not a replacement for global coverage. Non-primary interpreters omit
+coverage; Windows/macOS CI also excludes the existing `timing` marker. Container
+builds, Trivy, and other platform lanes remain separate CI evidence.
+
+For portable plugin changes also run
+`uv run --no-sync python scripts/sync_agent_plugin.py --check` and
+`uv run --no-sync pytest tests/test_agent_plugin.py -q`. Fix the generator before
+regenerating output. Dependency changes must regenerate both container lock
+exports using the CI-pinned uv version; see `docs/CONTRIBUTING.md`.
 
 Then ask the slop question: **did this add a second way to do something that
 already has a seam?** If yes, fix it before review. Don't lower the coverage
@@ -205,3 +261,5 @@ consistent (`pyproject` ↔ `__init__.__version__` ↔ ROADMAP "Current State" �
 `main` is the only long-lived branch. Feature branches are short-lived and
 deleted on merge (the repo auto-deletes merged PR branches); don't leave stale
 branches behind. Merge via PR, not direct pushes to `main`.
+An instruction-only refinement does not authorize commits, pushes, publishing,
+or deployment. Preserve the task's authorization and Primr's explicit spend gate.

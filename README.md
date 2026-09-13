@@ -187,7 +187,7 @@ Agent inventory (paths/roles only, no report body):
 | Skill packs | [SKILL_PACK](docs/SKILL_PACK.md) |
 | Security | [SECURITY](docs/SECURITY.md) |
 | Contributing / architecture | [CONTRIBUTING](docs/CONTRIBUTING.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) |
-| Roadmap | [ROADMAP](ROADMAP.md) |
+| Direction and next changes | [NEXT_STEPS](docs/NEXT_STEPS.md) · [ROADMAP](ROADMAP.md) |
 | Release history | [CHANGELOG](docs/CHANGELOG.md) · [GitHub releases](https://github.com/blisspixel/primr/releases) |
 
 Docs site index: [docs/README.md](docs/README.md).

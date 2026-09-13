@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "primr": {
+      "type": "stdio",
+      "command": "primr",
+      "args": ["mcp"]
+    }
+  }
+}

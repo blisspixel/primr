@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.15] - 2026-09-13
+
+### Security
+
+- **MCP HTTP validates trusted hosts and browser origins.** The server now
+  enables the SDK transport guard. Local clients retain safe defaults; wildcard
+  listeners require explicit `MCP_ALLOWED_HOSTS`, and browser origins are
+  separately configured through `MCP_ALLOWED_ORIGINS`. Forwarded headers do not
+  establish trust. Real transport regressions cover current and legacy clients.
+
+### Fixed
+
+- **Portable plugins retain state outside their installation.** Generated
+  Agent Plugins configuration launches in `${PLUGIN_DATA}`. Installed-layout
+  tests verify controller readiness, journal continuity, and retained artifacts
+  across plugin replacement without model calls.
+- **VS Code has its own native MCP example.** The workspace snippet uses
+  `servers`, while portable Agent Plugins and other native configurations retain
+  their respective schemas.
+- **Azure ingress matches the MCP transport contract.** Templates configure the
+  exact public authority, require explicit browser origins, and allow the
+  current MCP request headers and legacy session operations. The compiled ARM
+  template is regenerated from Bicep.
+- **Dry-run tests isolate optional gateway settings.** Legacy and single-
+  provider cases cannot inherit local OpenRouter opt-in configuration.
+
+### Documentation
+
+- **Next work follows verified gaps.** The current-source review records MCP
+  and Agent Plugins currency, runtime evidence, and remaining acceptance limits.
+  The queue prioritizes bounded compatibility fixes before ownership cleanup and
+  independently validated report-quality measurements.
+- **Evaluation protocols distinguish agreement from correctness.** Known-error
+  cases, material-fact coverage, abstention, and human review of sampled unanimous
+  verdicts supplement disagreement review. Historical pilot results no longer
+  authorize automatic gate arming or imply production-wide quality.
+- **The development contract preserves a reliable working loop.** Coding
+  guidance names current verification scope, canonical ownership, evidence for
+  integration claims, and resumable scratch state while preserving the separate
+  operating guide and existing spending and release controls.
+
 ## [1.39.14] - 2026-09-09
 
 ### Security

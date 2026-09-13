@@ -85,9 +85,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
         transport: 'http'
         allowInsecure: false
         corsPolicy: {
-          allowedOrigins: [corsOrigins]
-          allowedMethods: ['GET', 'POST', 'OPTIONS']
-          allowedHeaders: ['Authorization', 'Content-Type']
+          allowedOrigins: empty(corsOrigins) ? [] : split(corsOrigins, ',')
+          allowedMethods: ['GET', 'POST', 'DELETE', 'OPTIONS']
+          allowedHeaders: ['Authorization', 'Content-Type', 'MCP-Protocol-Version', 'Mcp-Method', 'Mcp-Name', 'Mcp-Session-Id']
+          exposeHeaders: ['Mcp-Session-Id', 'WWW-Authenticate']
           maxAge: 3600
         }
       }
@@ -136,6 +137,9 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'KEY_VAULT_NAME', value: keyVaultName }
             { name: 'AZURE_CLIENT_ID', value: identityClientId }
             { name: 'PRIMR_CORS_ORIGINS', value: corsOrigins }
+            // Exact ingress authority, independent of the wildcard bind address.
+            { name: 'MCP_ALLOWED_HOSTS', value: '${appName}.${containerAppEnv.properties.defaultDomain}' }
+            { name: 'MCP_ALLOWED_ORIGINS', value: corsOrigins }
             // AuthConfig.from_env reads MCP_JWT_SECRET to verify HS256
             // bearer tokens. Sourced from Key Vault via the container
             // app's `mcp-jwt-secret` secretRef - never inline a literal.

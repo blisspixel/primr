@@ -117,6 +117,16 @@ Use stdio for local desktop agent hosts. Use HTTP only when you need a
 networked service with JWT auth. Both transports require estimate-bound cost
 caps and approval tokens by default.
 
+HTTP validates Host and Origin through the MCP SDK. Local loopback aliases
+work by default. When binding to `0.0.0.0` or `::` behind a TLS ingress, set
+`MCP_ALLOWED_HOSTS` to the exact public hostname, with a port if clients send
+one (for example `mcp.example.com`). A missing allowlist stops wildcard
+listeners at startup. Set `MCP_ALLOWED_ORIGINS` to any trusted browser origins
+such as `https://agent.example.com`. Both settings accept comma-separated exact
+values; wildcards are rejected. Native clients may omit Origin. Reverse proxies
+must preserve an allowed Host header; forwarded headers never grant trust.
+The bundled Azure template sets the app's exact ingress hostname automatically.
+
 Important MCP concepts:
 
 - `estimate_run` produces a structured cost and time estimate.
