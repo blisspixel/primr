@@ -21,6 +21,14 @@ def _config(**overrides):
     return CLIConfig(**defaults)
 
 
+@pytest.fixture(autouse=True)
+def isolated_gateway_routing(monkeypatch):
+    # Gateway cases enable their own route. Local opt-in settings must not
+    # silently turn legacy or single-provider cases into gateway estimates.
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("PRIMR_OPENROUTER_ENABLED", raising=False)
+
+
 @pytest.fixture
 def mocks(monkeypatch):
     estimate = CostEstimate(

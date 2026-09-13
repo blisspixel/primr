@@ -154,6 +154,39 @@ class TestContainerAppMcpControllerTopology:
         assert "param minReplicas int = 1" in main_bicep
         assert "param maxReplicas int = 1" in main_bicep
 
+    def test_parent_and_module_default_to_no_browser_origins(
+        self, main_bicep: str, module_bicep: str
+    ) -> None:
+        assert "param corsOrigins string = ''" in main_bicep
+        assert "param corsOrigins string = ''" in module_bicep
+        assert "corsOrigins: corsOrigins" in main_bicep
+
+    def test_compiled_parent_defaults_are_accepted_by_mcp_runtime(
+        self, azure_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from primr.config.mcp import mcp_http_allowlists
+
+        template = json.loads((azure_dir / "bicep" / "main.json").read_text())
+        deployment = next(
+            resource
+            for resource in template["resources"]
+            if resource["name"] == "[format('{0}-container-app', parameters('deploymentName'))]"
+        )
+        assert deployment["properties"]["parameters"]["corsOrigins"]["value"] == (
+            "[parameters('corsOrigins')]"
+        )
+        parent_default = template["parameters"]["corsOrigins"]["defaultValue"]
+        module_default = deployment["properties"]["template"]["parameters"]["corsOrigins"][
+            "defaultValue"
+        ]
+        assert parent_default == module_default == ""
+        monkeypatch.setenv("MCP_ALLOWED_HOSTS", "primr-api.environment.example.com")
+        monkeypatch.setenv("MCP_ALLOWED_ORIGINS", parent_default)
+        assert mcp_http_allowlists("0.0.0.0", 8000) == (
+            ["primr-api.environment.example.com"],
+            [],
+        )
+
     def test_mcp_module_is_single_replica_without_http_scaler(self, module_bicep: str) -> None:
         assert "param minReplicas int = 1" in module_bicep
         assert "param maxReplicas int = 1" in module_bicep
@@ -208,6 +241,19 @@ class TestContainerAppMcpControllerTopology:
             for resource in deployment["properties"]["template"]["resources"]
             if resource["type"] == "Microsoft.App/containerApps"
         )
+        cors = container_app["properties"]["configuration"]["ingress"]["corsPolicy"]
+        assert {"MCP-Protocol-Version", "Mcp-Method", "Mcp-Name", "Mcp-Session-Id"}.issubset(
+            cors["allowedHeaders"]
+        )
+        assert "Mcp-Session-Id" in cors["exposeHeaders"]
+        assert "DELETE" in cors["allowedMethods"]
+        assert "split(parameters('corsOrigins'), ',')" in cors["allowedOrigins"]
+        env = {
+            value["name"]: value.get("value")
+            for value in container_app["properties"]["template"]["containers"][0]["env"]
+        }
+        assert "defaultDomain" in env["MCP_ALLOWED_HOSTS"]
+        assert env["MCP_ALLOWED_ORIGINS"] == "[parameters('corsOrigins')]"
         probes = container_app["properties"]["template"]["containers"][0]["probes"]
         assert container_app["properties"]["configuration"]["activeRevisionsMode"] == "Single"
         assert [(probe["type"], probe["httpGet"]["path"]) for probe in probes] == [
