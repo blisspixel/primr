@@ -43,6 +43,7 @@ def accepts_sampling_parameters(model: str) -> bool:
     """
     normalized = model.lower()
     unsupported_prefixes = (
+        "gemini-3.8-",
         "gemini-3.5-flash-lite",
         "gemini-3.6-",
         "gemini-3.7-",
@@ -55,7 +56,13 @@ def supported_thinking_levels(model: str) -> tuple[str, ...]:
     normalized = model.lower()
     all_levels = ("minimal", "low", "medium", "high")
     if normalized.startswith(
-        ("gemini-3.6-", "gemini-3.5-", "gemini-3.1-flash-lite", "gemini-3-flash")
+        (
+            "gemini-3.8-",
+            "gemini-3.6-",
+            "gemini-3.5-",
+            "gemini-3.1-flash-lite",
+            "gemini-3-flash",
+        )
     ):
         return all_levels
     if normalized.startswith("gemini-3-pro"):

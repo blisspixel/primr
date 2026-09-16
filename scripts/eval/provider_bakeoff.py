@@ -23,9 +23,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from primr.ai.providers import KNOWN_PROVIDERS, build_provider
 from primr.ai.providers.base import Provider
@@ -48,10 +50,18 @@ MATRIX: list[tuple[str, str, str]] = [
     # but premium-priced at $10/$50 - add it with --include-fable.)
     ("Claude Opus 4.8", "anthropic", "claude-opus-4-8"),
     ("Claude Sonnet 4.6", "anthropic", "claude-sonnet-4-6"),
-    # Google: 3.5 Flash is the newest GA Gemini; 3.1 Pro is the reasoning tier
-    # (3.5 Pro has not shipped yet as of June 13, 2026).
+    # Google: Gemini 3.8 Flash flagship + 3.1 Pro reasoning tier + 3.5 Flash GA.
+    ("Gemini 3.8 Flash", "gemini", "gemini-3.8-flash"),
     ("Gemini 3.5 Flash", "gemini", "gemini-3.5-flash"),
     ("Gemini 3.1 Pro", "gemini", "gemini-3.1-pro-preview"),
+]
+# OpenRouter curated tier - opt in with --include-openrouter
+OPENROUTER_MATRIX: list[tuple[str, str, str]] = [
+    ("Gemini 3.8 Flash (OR)", "openrouter", "google/gemini-3.8-flash"),
+    ("Gemini 3.1 Flash Lite (OR)", "openrouter", "google/gemini-3.1-flash-lite"),
+    ("DeepSeek V3.2 (OR)", "openrouter", "deepseek/deepseek-v3.2"),
+    ("Claude Sonnet 4.6 (OR)", "openrouter", "anthropic/claude-sonnet-4.6"),
+    ("Claude Haiku 4.5 (OR)", "openrouter", "anthropic/claude-haiku-4.5"),
 ]
 # Anthropic's newest model - premium-priced, opt in with --include-fable.
 FABLE = ("Claude Fable 5", "anthropic", "claude-fable-5")
@@ -163,14 +173,30 @@ def _entry(name: str):
     return next((p for p in KNOWN_PROVIDERS if p.name == name), None)
 
 
+_provider_cache: dict[str, Provider | None] = {}
+
+
 def _provider_for(name: str) -> Provider | None:
+    if name in _provider_cache:
+        return _provider_cache[name]
     entry = _entry(name)
     if entry is None:
+        _provider_cache[name] = None
         return None
     try:
         prov = build_provider(entry)
-        return prov if prov.is_available() else None
+        if not prov.is_available():
+            _provider_cache[name] = None
+            return None
+        check = prov.validate_credentials()
+        if not check.ok:
+            console.muted(f"  skip provider '{name}': credential check failed ({check.detail})")
+            _provider_cache[name] = None
+            return None
+        _provider_cache[name] = prov
+        return prov
     except Exception:
+        _provider_cache[name] = None
         return None
 
 
@@ -183,11 +209,15 @@ def _cost(model: str, in_tok: int, out_tok: int) -> float:
 
 
 def _resolve_matrix(
-    local_model: str | None, include_fable: bool = False
+    local_model: str | None,
+    include_fable: bool = False,
+    include_openrouter: bool = False,
 ) -> list[tuple[str, str, str, Provider]]:
     matrix = list(MATRIX)
     if include_fable:
         matrix.append(FABLE)
+    if include_openrouter:
+        matrix.extend(OPENROUTER_MATRIX)
     if local_model:
         matrix.append((f"{local_model} (local)", LOCAL_PROVIDER, local_model))
     resolved = []
@@ -204,8 +234,7 @@ def _resolve_judges(spec: str) -> list[tuple[str, str, Provider]]:
     """Parse a comma-separated 'provider:model,provider:model' judge spec.
 
     Two cheap judges from different providers cross-check single-judge house
-    style (a Claude judge nudges Claude scores up; a Gemini judge balances it).
-    Unconfigured judge providers are dropped with a note.
+    style. Unconfigured judge providers are dropped with a note.
     """
     judges: list[tuple[str, str, Provider]] = []
     for item in spec.split(","):
@@ -218,6 +247,12 @@ def _resolve_judges(spec: str) -> list[tuple[str, str, Provider]]:
             console.muted(f"  skip judge {item}: provider '{name}' not configured")
             continue
         judges.append((name, model, prov))
+    if not judges:
+        for fallback in ["gemini:gemini-3.1-flash-lite", "openai:gpt-5.4-mini"]:
+            fname, _, fmodel = fallback.partition(":")
+            fprov = _provider_for(fname)
+            if fprov is not None:
+                judges.append((fname, fmodel, fprov))
     return judges
 
 
@@ -249,8 +284,11 @@ def _judge(
             "content": f"{rubric}\n\nTASK:\n{task['prompt']}\n\nCANDIDATE:\n{candidate}",
         },
     ]
+    judge_kwargs: dict[str, Any] = {"max_tokens": 500, "temperature": 0.0}
+    if prov.name == "gemini":
+        judge_kwargs["thinking_level"] = "low"
     try:
-        resp = prov.chat(messages, model=model, max_tokens=200, temperature=0.0)
+        resp = prov.chat(messages, model=model, **judge_kwargs)
     except Exception as e:
         return None, f"judge error: {e}", 0.0
     cost = _cost(model, resp.input_tokens, resp.output_tokens)
@@ -266,8 +304,19 @@ def _judge(
 
 
 def run(args: argparse.Namespace) -> int:
+    if args.include_openrouter:
+        os.environ["PRIMR_OPENROUTER_ENABLED"] = "1"
+        if "PRIMR_OPENROUTER_ZDR" not in os.environ:
+            os.environ["PRIMR_OPENROUTER_ZDR"] = "0"
+        if "PRIMR_OPENROUTER_REQUIRE_PARAMS" not in os.environ:
+            os.environ["PRIMR_OPENROUTER_REQUIRE_PARAMS"] = "0"
+
     console.step("Bake-off matrix")
-    matrix = _resolve_matrix(local_model=args.local_model, include_fable=args.include_fable)
+    matrix = _resolve_matrix(
+        local_model=args.local_model,
+        include_fable=args.include_fable,
+        include_openrouter=args.include_openrouter,
+    )
     if not matrix:
         console.error("No providers configured. Run: primr keys set xai|openai|anthropic")
         return 1
@@ -308,8 +357,11 @@ def run(args: argparse.Namespace) -> int:
                     {"role": "user", "content": task["prompt"]},
                 ]
                 t0 = time.monotonic()
+                call_kwargs: dict[str, Any] = {"max_tokens": 800, "temperature": 0.4}
+                if prov.name == "gemini":
+                    call_kwargs["thinking_level"] = "low"
                 try:
-                    resp = prov.chat(messages, model=model, max_tokens=700, temperature=0.4)
+                    resp = prov.chat(messages, model=model, **call_kwargs)
                     r.latency_s = time.monotonic() - t0
                     r.text = resp.text
                     r.input_tokens = resp.input_tokens
@@ -419,6 +471,11 @@ def main() -> int:
         "--include-fable",
         action="store_true",
         help="Add Claude Fable 5 (newest, premium $10/$50) to the matrix.",
+    )
+    ap.add_argument(
+        "--include-openrouter",
+        action="store_true",
+        help="Add curated OpenRouter models to the matrix.",
     )
     ap.add_argument("--out", default="output/eval/provider_bakeoff.json", help="Results JSON path")
     return run(ap.parse_args())

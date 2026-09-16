@@ -20,7 +20,7 @@ target. Regenerate via [`CONTRIBUTING.md`](CONTRIBUTING.md).*
 The root README is a **front door** only. Operator detail lives in the guides
 below (Diataxis: learning, doing, looking up, understanding).
 
-> **Index currency:** reviewed against primr **1.39.15** on **2026-09-13**. The
+> **Index currency:** reviewed against primr **1.39.16** on **2026-09-16**. The
 > *Updated* column is each document's last substantive revision (git
 > `last-commit` date). `tests/test_docs_index.py` fails CI if a doc under
 > `docs/` is missing from this map or an index link does not resolve, so the
@@ -33,7 +33,7 @@ below (Diataxis: learning, doing, looking up, understanding).
 | [INSTALLATION](INSTALLATION.md) | Install, upgrade, and troubleshoot Primr or prepare a source checkout | 2026-09-01 |
 | [ZERO_COST](ZERO_COST.md) | Run keyless collection and finish a sourced dossier with an existing agent plan | 2026-09-01 |
 | [API_KEYS](API_KEYS.md) | API key setup, validation (`primr keys test`), security, and troubleshooting | 2026-09-01 |
-| [OPENROUTER](OPENROUTER.md) | Optional paid gateway preview, explicit opt-in, per-run ceilings, privacy defaults, and custom models | 2026-09-02 |
+| [OPENROUTER](OPENROUTER.md) | Optional paid gateway, explicit opt-in, expanded model catalog, role overrides, per-run ceilings, and custom models | 2026-09-16 |
 | [CONFIG](CONFIG.md) | First-run configuration and the full settings reference | 2026-09-01 |
 | [RUN_MODES](RUN_MODES.md) | Run modes, costs, budget readiness, strategy selection, outputs, and zero-cost rendering | 2026-09-02 |
 | [AZURE_QUICKSTART](AZURE_QUICKSTART.md) | Stand up the team/org Azure deployment end to end | 2026-07-18 |

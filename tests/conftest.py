@@ -31,6 +31,25 @@ def package_dir():
     return PROJECT_ROOT / "src" / "primr"
 
 
+@pytest.fixture(autouse=True)
+def isolate_openrouter_environment(monkeypatch):
+    """Ensure tests run with isolated OpenRouter configuration by default.
+
+    Individual tests that exercise OpenRouter set their own environment.
+    """
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("PRIMR_OPENROUTER_ENABLED", raising=False)
+    monkeypatch.delenv("PRIMR_PROVIDER", raising=False)
+    monkeypatch.delenv("PRIMR_OPENROUTER_PREFERRED", raising=False)
+    monkeypatch.delenv("PRIMR_OPENROUTER_MODEL", raising=False)
+    monkeypatch.delenv("PRIMR_OPENROUTER_UTILITY_MODEL", raising=False)
+    monkeypatch.delenv("PRIMR_OPENROUTER_WRITING_MODEL", raising=False)
+    monkeypatch.delenv("PRIMR_OPENROUTER_REASONING_MODEL", raising=False)
+    monkeypatch.delenv("PRIMR_GEMINI_UTILITY_MODEL", raising=False)
+    monkeypatch.delenv("PRIMR_GEMINI_WRITING_MODEL", raising=False)
+    monkeypatch.delenv("PRIMR_GEMINI_REASONING_MODEL", raising=False)
+
+
 def pytest_configure(config):
     """Configure pytest to suppress external library warnings."""
     # Set a generous Hypothesis deadline globally so property tests don't flake
