@@ -134,7 +134,10 @@ def _is_temperature_unsupported(error: Exception) -> bool:
         return False
     return (
         "unsupported value" in text
+        or "unsupported parameter" in text
         or "does not support" in text
+        or "is not supported" in text
+        or "not supported" in text
         or "only the default" in text
         or "only supports" in text
     )

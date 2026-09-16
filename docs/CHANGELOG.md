@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.16] - 2026-09-16
+
+### Added
+
+- **Google Gemini 3.8 Flash model support.** Added `gemini-3.8-flash` to the model registry with 1M input context, 64k max output tokens, and explicit pricing ($0.75 input, $3.75 output, $0.075 cached input per 1M tokens).
+- **Expanded OpenRouter model catalog.** Added curated models including `google/gemini-3.8-flash`, `google/gemini-3.7-flash`, `google/gemini-3.1-flash-lite`, `openai/gpt-5.4-mini`, `openai/gpt-5.4-nano`, `deepseek/deepseek-chat`, `deepseek/deepseek-r1`, `anthropic/claude-sonnet-4.6`, `anthropic/claude-haiku-4.5`, and `meta-llama/llama-3.3-70b-instruct`.
+- **Granular OpenRouter role overrides.** Added `PRIMR_OPENROUTER_UTILITY_MODEL`, `PRIMR_OPENROUTER_WRITING_MODEL`, and `PRIMR_OPENROUTER_REASONING_MODEL` environment variables to configure models per stage without source code edits.
+- **Explicit OpenRouter provider selection.** Added `PRIMR_PROVIDER=openrouter` and `PRIMR_OPENROUTER_PREFERRED=1` to prioritize OpenRouter over direct provider keys when both are configured.
+- **OpenRouter parameter requirement tuning.** Added `PRIMR_OPENROUTER_REQUIRE_PARAMS=0` support for models that reject optional parameters (such as custom temperature).
+- **Evaluation bakeoff script enhancement.** Added `--include-openrouter` option and Gemini 3.8 Flash to `scripts/eval/provider_bakeoff.py`, with early credential verification to skip invalid or test keys cleanly.
+
 ## [1.39.15] - 2026-09-13
 
 ### Security

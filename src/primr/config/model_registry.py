@@ -109,32 +109,24 @@ class ModelRegistry:
     )
 
     # GEMINI 3 PRO - Deep reasoning, complex tasks (GA January 2026)
-    # ⚠️ DEPRECATED March 9, 2026 — replaced by gemini-3.1-pro-preview.
-    # Kept registered for historical eval comparison and back-compat only.
-    # $2.00 input / $12.00 output per 1M tokens (includes thinking tokens)
-    # Context: 2M tokens, Output: 65k tokens
+    # DEPRECATED March 9, 2026: replaced by gemini-3.1-pro-preview.
+    # $2.00 input / $12.00 output per 1M tokens. Context: 2M tokens, Output: 65k tokens.
     GEMINI_3_PRO = ModelConfig(
         name="gemini-3-pro-preview",
         display_name="Gemini 3 Pro",
         provider="google",
         cost_per_1m_input_tokens=2.00,
         cost_per_1m_output_tokens=12.00,
-        max_input_tokens=2_000_000,  # 2M tokens
-        max_output_tokens=65_536,  # 65k tokens (can write entire files!)
-        supports_thinking=True,  # Native Chain-of-Thought
+        max_input_tokens=2_000_000,
+        max_output_tokens=65_536,
+        supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
-        deprecated=True,  # Replaced by gemini-3.1-pro-preview on 2026-03-09
+        deprecated=True,
     )
 
-    # GEMINI 3.1 FLASH-LITE - Cheapest Gemini-3-era model (released March 3, 2026)
-    # USE FOR: Bulk writing — leading writing-tier candidate for v1.24.0 sub-$1 default.
-    # $0.25 input / $1.50 output per 1M tokens (half the price of Gemini 3 Flash).
-    # Batch mode: $0.125 / $0.75 (50% off, currently unmodeled in cost estimator).
-    # Context: 1M tokens, Output: 65k tokens.
-    # ADDED: May 2026 audit — was missing from registry; this is the model that
-    # didn't exist when v1.22.0 was designed. With Grok 4.3 (cached) for reasoning,
-    # this brings the default pipeline back under $1.
+    # GEMINI 3.1 FLASH-LITE - Cheapest Gemini-3-era model (GA March 3, 2026)
+    # $0.25 input / $1.50 output per 1M tokens, $0.025 cached. Context: 1M, Output: 65k.
     GEMINI_3_1_FLASH_LITE = ModelConfig(
         name="gemini-3.1-flash-lite",
         display_name="Gemini 3.1 Flash-Lite",
@@ -255,15 +247,31 @@ class ModelRegistry:
         cost_per_1m_input_tokens_cached_after=0.15,
     )
 
-    # GEMINI 3.7 FLASH - Current GA workhorse (August 13, 2026)
-    # Registered as an AVAILABLE evaluation candidate, not a production route.
-    # Introductory pricing through December 31, 2026 is $0.75 input, $0.075
-    # cached input, and $3.75 output per 1M tokens. Re-audit before January 1,
-    # 2027, when Google says those rates become $1.50, $0.15, and $7.50.
-    # Context: 1,048,576 input tokens; output: 65,536 tokens.
+    # GEMINI 3.7 FLASH - GA workhorse (August 13, 2026)
+    # Registered evaluation candidate. 1M context, 65k output, native thinking.
     GEMINI_3_7_FLASH = ModelConfig(
         name="gemini-3.7-flash",
         display_name="Gemini 3.7 Flash",
+        provider="google",
+        cost_per_1m_input_tokens=0.75,
+        cost_per_1m_output_tokens=3.75,
+        max_input_tokens=1_048_576,
+        max_output_tokens=65_536,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.075,
+        price_change_date=date(2027, 1, 1),
+        cost_per_1m_input_tokens_after=1.50,
+        cost_per_1m_output_tokens_after=7.50,
+        cost_per_1m_input_tokens_cached_after=0.15,
+    )
+
+    # GEMINI 3.8 FLASH - Latest frontier workhorse (GA September 2, 2026)
+    # Registered evaluation candidate. 1M context, 65k output, native thinking.
+    GEMINI_3_8_FLASH = ModelConfig(
+        name="gemini-3.8-flash",
+        display_name="Gemini 3.8 Flash",
         provider="google",
         cost_per_1m_input_tokens=0.75,
         cost_per_1m_output_tokens=3.75,
@@ -678,18 +686,13 @@ class ModelRegistry:
     )
 
     # Gateway-qualified names keep routing and accounting at the billing boundary.
+    OPENROUTER_MODELS = _OPENROUTER_MODELS
     OPENROUTER_GEMINI_2_5_FLASH_LITE = _OPENROUTER_MODELS[0]
     OPENROUTER_GPT_4_1_MINI = _OPENROUTER_MODELS[1]
     OPENROUTER_DEEPSEEK_V3_2 = _OPENROUTER_MODELS[2]
 
     # ANTHROPIC CLAUDE OPUS 4.8 - Most capable (GA May 28, 2026)
-    # $5.00 input / $25.00 output per 1M tokens, cached input $0.50 (identical
-    # pricing to Opus 4.7 — drop-in replacement). Context: 1M tokens, Output: 128k.
-    # Over 4.7: sharper judgement, more honesty about its own progress, longer
-    # autonomous runs, and ~4x less likely to let flaws in generated code pass.
-    # NOTE: shares the Opus 4.7 tokenizer profile (up to ~35% more tokens for the
-    # same input vs Opus 4.6) — pre-run cost estimates may under-count for long
-    # inputs until the cost estimator's tokenizer is updated.
+    # $5.00 input / $25.00 output per 1M tokens, cached input $0.50. Context: 1M, Output: 128k.
     ANTHROPIC_OPUS = ModelConfig(
         name="claude-opus-4-8",
         display_name="Claude Opus 4.8",
@@ -705,13 +708,8 @@ class ModelRegistry:
     )
 
     # ANTHROPIC CLAUDE SONNET 5 - Best speed/intelligence balance
-    # Conservative estimator rate: $3.00 input / $15.00 output per 1M tokens,
-    # cached input $0.30. Anthropic's launch rate is lower ($2/$10) through Aug
-    # 31, 2026, then returns to Sonnet 4.6 pricing. Use the post-intro rate here
-    # so pre-run estimates do not become stale underestimates after the promo
-    # window. Context: 1M tokens, Output: 128k tokens. Uses adaptive thinking by
-    # default; output_config.effort and valid adaptive-thinking controls are
-    # handled in ai/providers/anthropic.py.
+    # Conservative rate: $3.00 input / $15.00 output per 1M tokens, cached $0.30.
+    # Context: 1M tokens, Output: 128k tokens. Uses adaptive thinking.
     ANTHROPIC_SONNET = ModelConfig(
         name="claude-sonnet-5",
         display_name="Claude Sonnet 5",
@@ -726,11 +724,9 @@ class ModelRegistry:
         cost_per_1m_input_tokens_cached=0.30,
     )
 
-    # ANTHROPIC CLAUDE SONNET 4.6 - Previous balanced tier
-    # Kept registered for explicit eval recipes and back-compat. New routing uses
-    # ANTHROPIC_SONNET (Claude Sonnet 5).
+    # ANTHROPIC CLAUDE SONNET 4.6 - Previous balanced tier (GA Feb 2026)
+    # Kept for back-compat; predecessor to claude-sonnet-5.
     # $3.00 input / $15.00 output per 1M tokens, cached input $0.30
-    # Context: 1M tokens, Output: 64k tokens
     ANTHROPIC_SONNET_4_6 = ModelConfig(
         name="claude-sonnet-4-6",
         display_name="Claude Sonnet 4.6",
@@ -743,6 +739,7 @@ class ModelRegistry:
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.30,
+        deprecated=True,
     )
 
     # ANTHROPIC CLAUDE HAIKU 4.5 - Fastest, utility tier candidate

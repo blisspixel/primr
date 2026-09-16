@@ -109,8 +109,7 @@ Mode matrix, platforms, strategy types, and cost controls:
 
 - Python 3.12 through 3.14; see the installation guide for the 3.15 preview lane
 - No API key or GPU for `primr recon` / `primr prep`
-- Keys only for provider-backed research (measured default: xAI + Gemini;
-  optional [OpenRouter preview](docs/OPENROUTER.md))
+- Keys only for provider-backed research (measured default: xAI + Gemini, including Google Gemini 3.8 Flash and OpenAI GPT-5.5 / GPT-5.4; optional [OpenRouter gateway](docs/OPENROUTER.md))
 - `primr init` installs browser deps for scrape tiers
 
 ```bash
@@ -130,8 +129,8 @@ primr init
 primr doctor
 ```
 
-Keys and full config: [API Key Setup](docs/API_KEYS.md) ·
-[OpenRouter Preview](docs/OPENROUTER.md) · [Configuration](docs/CONFIG.md).
+Keys and full config: [API Key Setup](docs/API_KEYS.md) |
+[OpenRouter Gateway](docs/OPENROUTER.md) | [Configuration](docs/CONFIG.md).
 
 ## Common commands
 

@@ -669,7 +669,9 @@ def reset_client() -> None:
     global _client
     with _client_lock:
         if _client is not None:
-            _client.close()
+            close = getattr(_client, "close", None)
+            if callable(close):
+                close()
         _client = None
 
 

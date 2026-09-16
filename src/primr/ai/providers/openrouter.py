@@ -24,12 +24,23 @@ _FALSE_VALUES = frozenset({"0", "false", "no", "off"})
 def openrouter_routing_enabled() -> bool:
     """Return whether paid OpenRouter routing was explicitly enabled."""
 
-    return os.getenv("PRIMR_OPENROUTER_ENABLED", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    return (
+        os.getenv("PRIMR_OPENROUTER_ENABLED", "").strip().lower()
+        in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        or os.getenv("PRIMR_PROVIDER", "").strip().lower() == "openrouter"
+        or os.getenv("PRIMR_OPENROUTER_PREFERRED", "").strip().lower()
+        in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+    )
 
 
 def openrouter_routing_ready() -> bool:
@@ -44,6 +55,12 @@ def openrouter_zdr_enabled() -> bool:
     return os.getenv("PRIMR_OPENROUTER_ZDR", "1").strip().lower() not in _FALSE_VALUES
 
 
+def openrouter_require_parameters() -> bool:
+    """Return whether OpenRouter calls must strictly require all parameters."""
+
+    return os.getenv("PRIMR_OPENROUTER_REQUIRE_PARAMS", "1").strip().lower() not in _FALSE_VALUES
+
+
 def _provider_policy(model: str) -> dict[str, Any]:
     """Build privacy and price limits from the exact registered model row."""
 
@@ -53,7 +70,7 @@ def _provider_policy(model: str) -> dict[str, Any]:
     input_rate, output_rate, _cached_rate = config.standard_rates()
     policy: dict[str, Any] = {
         "allow_fallbacks": True,
-        "require_parameters": True,
+        "require_parameters": openrouter_require_parameters(),
         "data_collection": "deny",
         "max_price": {
             "prompt": input_rate,

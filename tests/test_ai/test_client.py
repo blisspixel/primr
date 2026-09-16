@@ -487,7 +487,7 @@ class TestResetRunUsageAccounting:
         grok_client.reset_grok_session()
         grok_client._mirror_session_usage("grok-4.3", 100, 50, cached_input_tokens=10)
         record_usage("gemini-3-flash-preview", 100, 50)
-        fake_client = SimpleNamespace(reset_usage=MagicMock())
+        fake_client = SimpleNamespace(reset_usage=MagicMock(), close=MagicMock())
         monkeypatch.setattr(client_mod, "_client", fake_client)
 
         client_mod.reset_run_usage_accounting()

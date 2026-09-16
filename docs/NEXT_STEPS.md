@@ -1,8 +1,8 @@
 # Next Steps
 
-Released baseline: **v1.39.15**
+Released baseline: **v1.39.16**
 
-Next implementation candidate: **v1.39.16**
+Next implementation candidate: **v1.39.17**
 
 This is Primr's canonical executable queue. It states the next bounded change,
 the order in which later release gates unlock, and the evidence required to
@@ -37,11 +37,11 @@ product.
 
 ## Current executable card
 
-v1.39.15 closes the verified MCP HTTP, portable plugin storage, and VS Code
-configuration gaps. The [review](ROADMAP_REVIEW.md) records the evidence and
-acceptance limits; the architecture objective below is now the next card.
+v1.39.16 adds Gemini 3.8 Flash support, an expanded OpenRouter catalog with
+stage overrides, and provider evaluation bakeoff. The architecture objective
+below is the next candidate card.
 
-### v1.39.16 candidate: remove one orchestration back edge
+### v1.39.17 candidate: remove one orchestration back edge
 
 **Objective:** reduce the remaining 11-module core import-cycle component by
 moving one behavior-owned dependency in `fast_run_sections` to its proper
@@ -60,8 +60,8 @@ architecture slice and requires no provider call or paid evaluation.
 4. Remove the back edge without adding a forwarding-only module.
 5. Add direct owner tests and preserve compatibility tests at the public seam.
 6. Run focused architecture tests, then the complete release gate.
-7. Ship as v1.39.16 only if every exit criterion below passes. Otherwise keep
-   v1.39.15 current and update this card with the observed blocker.
+7. Ship as v1.39.17 only if every exit criterion below passes. Otherwise keep
+   v1.39.16 current and update this card with the observed blocker.
 
 **Exit criteria:**
 
@@ -157,7 +157,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.15
+## Version gates after v1.39.16
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.

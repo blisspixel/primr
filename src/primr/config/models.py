@@ -363,6 +363,7 @@ class PrimrModels:
     # Model registry for lookups
     ALL_MODELS = {
         # Google / Gemini
+        ModelRegistry.GEMINI_3_8_FLASH.name: ModelRegistry.GEMINI_3_8_FLASH,
         ModelRegistry.GEMINI_3_7_FLASH.name: ModelRegistry.GEMINI_3_7_FLASH,
         ModelRegistry.GEMINI_3_6_FLASH.name: ModelRegistry.GEMINI_3_6_FLASH,
         ModelRegistry.GEMINI_3_5_FLASH.name: ModelRegistry.GEMINI_3_5_FLASH,
@@ -397,12 +398,8 @@ class PrimrModels:
         ModelRegistry.OPENAI_GPT_5_4_MINI.name: ModelRegistry.OPENAI_GPT_5_4_MINI,
         ModelRegistry.OPENAI_GPT_5_4_NANO.name: ModelRegistry.OPENAI_GPT_5_4_NANO,
         ModelRegistry.OPENAI_O4_MINI.name: ModelRegistry.OPENAI_O4_MINI,
-        # OpenRouter curated gateway route
-        ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name: (
-            ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE
-        ),
-        ModelRegistry.OPENROUTER_GPT_4_1_MINI.name: ModelRegistry.OPENROUTER_GPT_4_1_MINI,
-        ModelRegistry.OPENROUTER_DEEPSEEK_V3_2.name: ModelRegistry.OPENROUTER_DEEPSEEK_V3_2,
+        # OpenRouter curated gateway routes
+        **{m.name: m for m in ModelRegistry.OPENROUTER_MODELS},
         # Anthropic
         ModelRegistry.ANTHROPIC_OPUS.name: ModelRegistry.ANTHROPIC_OPUS,
         ModelRegistry.ANTHROPIC_SONNET.name: ModelRegistry.ANTHROPIC_SONNET,

@@ -46,6 +46,13 @@ for a provider-backed run, add a separate opt-in:
 PRIMR_OPENROUTER_ENABLED=1
 ```
 
+To route the standard pipeline to OpenRouter even when other provider keys
+are configured in the environment, set:
+
+```dotenv
+PRIMR_PROVIDER=openrouter
+```
+
 Then inspect the exact plan before any billable run:
 
 ```bash
@@ -99,13 +106,12 @@ After reviewing the fresh estimate, launch in a foreground terminal by removing
 automation may also add `--skip-confirm`. Never treat the key, the routing
 opt-in, the ceiling, or an earlier quote as approval by itself.
 
-## Curated preview recipe
+## Curated model catalog and default recipe
 
-The initial route uses a bounded role recipe whose catalog prices were audited
-on September 1, 2026:
+The default OpenRouter route uses a balanced role recipe:
 
-| Role | OpenRouter model | Input / output per 1M tokens |
-|------|------------------|-------------------------------|
+| Role | Default model | Input / output per 1M tokens |
+|------|---------------|-------------------------------|
 | Utility | `google/gemini-2.5-flash-lite` | `$0.10 / $0.40` |
 | Writing | `openai/gpt-4.1-mini` | `$0.40 / $1.60` |
 | Reasoning | `deepseek/deepseek-v3.2` | `$0.269 / $0.40` |
@@ -115,10 +121,37 @@ The default full report plus AI Strategy is currently estimated at about
 is authoritative because selected features, token plans, pricing, and
 historical floors can change.
 
-Prices and model metadata come from OpenRouter's
-[models API](https://openrouter.ai/docs/api/api-reference/models/get-models).
-The role recipe is intentionally curated rather than accepting an unpriced
-model name silently.
+### Expanded curated catalog
+
+Primr supports an expanded set of pre-priced, verified models through OpenRouter:
+
+| Provider / Family | Model identifier | Input / output per 1M tokens | Role suitability |
+|---|---|---|---|
+| Google | `google/gemini-3.8-flash` | `$0.75 / $3.75` | Writing, Reasoning |
+| Google | `google/gemini-3.7-flash` | `$0.75 / $3.75` | Writing, Reasoning |
+| Google | `google/gemini-3.1-flash-lite` | `$0.25 / $1.50` | Utility, Writing |
+| Google | `google/gemini-2.5-flash-lite` | `$0.10 / $0.40` | Utility |
+| OpenAI | `openai/gpt-5.4-mini` | `$0.75 / $4.50` | Writing, Utility |
+| OpenAI | `openai/gpt-5.4-nano` | `$0.20 / $1.25` | Utility |
+| OpenAI | `openai/gpt-4.1-mini` | `$0.40 / $1.60` | Writing |
+| Anthropic | `anthropic/claude-sonnet-4.6` | `$3.00 / $15.00` | Reasoning |
+| Anthropic | `anthropic/claude-haiku-4.5` | `$1.00 / $5.00` | Writing, Utility |
+| DeepSeek | `deepseek/deepseek-v3.2` | `$0.269 / $0.40` | Reasoning |
+| DeepSeek | `deepseek/deepseek-chat` | `$0.27 / $0.40` | Reasoning, Writing |
+| DeepSeek | `deepseek/deepseek-r1` | `$0.55 / $2.19` | Reasoning |
+| Meta | `meta-llama/llama-3.3-70b-instruct` | `$0.12 / $0.30` | Utility |
+
+### Granular role overrides
+
+You can configure specific models for individual pipeline roles without modifying code:
+
+```dotenv
+PRIMR_OPENROUTER_UTILITY_MODEL=google/gemini-3.1-flash-lite
+PRIMR_OPENROUTER_WRITING_MODEL=google/gemini-3.8-flash
+PRIMR_OPENROUTER_REASONING_MODEL=anthropic/claude-sonnet-4.6
+```
+
+All selected models must exist in Primr's catalog or be registered with explicit pricing.
 
 ## Request safeguards
 
@@ -126,7 +159,7 @@ Every OpenRouter generation request:
 
 - applies the registered input and output rates as OpenRouter `max_price`
   ceilings;
-- requires routed providers to support the requested parameters;
+- requires routed providers to support requested parameters by default;
 - sets provider data collection to `deny`;
 - requests zero-data-retention endpoints by default;
 - records OpenRouter's response-level `usage.cost` as exact spend when present;
@@ -143,11 +176,17 @@ These controls use OpenRouter's documented
 fields. Price ceilings limit rates, while Primr's estimate and approved budget
 limit the planned run shape.
 
-Some models may have no provider that satisfies both the price and privacy
-policy at a given time. Primr fails the request instead of weakening those
-controls. To allow non-ZDR providers explicitly while still denying providers
-that collect data, set `PRIMR_OPENROUTER_ZDR=0`. Review that privacy tradeoff
-before doing so.
+### Privacy and parameter tuning
+
+Some models may have no provider that satisfies both price and privacy policies
+simultaneously, or may reject non-standard parameters:
+
+- To allow non-ZDR providers explicitly while still denying providers that
+  collect data, set `PRIMR_OPENROUTER_ZDR=0`. Review that privacy tradeoff
+  before doing so.
+- For models that ignore optional parameters (such as custom temperature on
+  certain reasoning endpoints), set `PRIMR_OPENROUTER_REQUIRE_PARAMS=0` to
+  prevent OpenRouter from dropping eligible endpoints.
 
 ## Custom OpenRouter model
 
