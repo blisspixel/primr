@@ -269,6 +269,19 @@ _GEMINI_35_PRO_TIER_EVAL = (
             "not a production-default change."
         ),
     ),
+    EvalProfileSlot(
+        name="protier-gemini38flash",
+        recipe=ProfileRecipe(
+            reasoning="grok-4.3",
+            writing="gemini-3.8-flash",
+            utility="gemini-3.8-flash",
+        ),
+        estimated_cost_usd=0.80,
+        description=(
+            "PRO-tier CANDIDATE: frontier Gemini 3.8 Flash (GA September 2026). "
+            "Evaluation slot comparing writing and utility against 3.7 Flash and 3.1 Pro."
+        ),
+    ),
 )
 
 
@@ -397,6 +410,27 @@ _V1_24_0_CURRENT_BASELINE = EvalProfileSlot(
 
 
 # =============================================================================
+# OpenRouter candidates
+# =============================================================================
+
+_OPENROUTER_EVAL_CANDIDATES = (
+    EvalProfileSlot(
+        name="openrouter-curated",
+        recipe=ProfileRecipe(
+            reasoning="deepseek/deepseek-r1",
+            writing="openai/gpt-5.4-mini",
+            utility="google/gemini-3.7-flash",
+        ),
+        estimated_cost_usd=0.75,
+        description=(
+            "OpenRouter candidate: DeepSeek R1 reasoning + GPT-5.4 Mini writing "
+            "+ Gemini 3.7 Flash utility."
+        ),
+    ),
+)
+
+
+# =============================================================================
 # Registration
 # =============================================================================
 
@@ -414,6 +448,7 @@ def _register_v1_24_0_matrix() -> None:
         *_GEMINI_35_PRO_TIER_EVAL,
         *_PREMIUM_CANDIDATES,
         *_V1_24_0_LOCAL_CANDIDATES,
+        *_OPENROUTER_EVAL_CANDIDATES,
         _V1_24_0_CURRENT_BASELINE,
     )
     for slot in all_slots:
