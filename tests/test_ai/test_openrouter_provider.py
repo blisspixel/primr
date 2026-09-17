@@ -33,8 +33,9 @@ def _enabled_provider(monkeypatch) -> tuple[OpenRouterProvider, MagicMock]:
     return provider, client
 
 
-def test_key_presence_does_not_bypass_paid_routing_opt_in(monkeypatch) -> None:
-    monkeypatch.delenv("PRIMR_OPENROUTER_ENABLED", raising=False)
+def test_explicit_disable_flag_blocks_paid_routing(monkeypatch) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-v1-test-key")
+    monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "0")
     provider = OpenRouterProvider()
 
     with pytest.raises(ProviderUnavailableError, match="paid routing is disabled"):
@@ -42,6 +43,21 @@ def test_key_presence_does_not_bypass_paid_routing_opt_in(monkeypatch) -> None:
             [{"role": "user", "content": "test"}],
             model=ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name,
         )
+
+
+def test_key_presence_alone_enables_routing_by_default(monkeypatch) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-v1-test-key")
+    monkeypatch.delenv("PRIMR_OPENROUTER_ENABLED", raising=False)
+    provider = OpenRouterProvider()
+    client = MagicMock()
+    client.chat.completions.create.return_value = _response()
+    provider._client = client
+
+    response = provider.chat(
+        [{"role": "user", "content": "test"}],
+        model=ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name,
+    )
+    assert response.actual_cost_usd == pytest.approx(0.000123)
 
 
 def test_request_enforces_privacy_and_registered_price_ceiling(monkeypatch) -> None:
