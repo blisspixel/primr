@@ -20,7 +20,7 @@ Grok + Gemini is the measured default, but it is not the only supported provider
 |------------|---------|---------|
 | `OPENAI_API_KEY` | Optional OpenAI GPT/o-series fallback for routed utility, writing, reasoning, and registered premium-research candidates; this key alone does not enable full execution | [OpenAI Platform](https://platform.openai.com/api-keys) |
 | `ANTHROPIC_API_KEY` | Optional Claude fallback for writing, reasoning, and pro roles | [Anthropic Console](https://console.anthropic.com/settings/keys) |
-| `OPENROUTER_API_KEY` | Optional multi-provider paid gateway; key validation is independent from the separate paid-routing opt-in | [OpenRouter Keys](https://openrouter.ai/settings/keys) |
+| `OPENROUTER_API_KEY` | Preferred single-key gateway for utility, writing, and reasoning; routes by default when configured | [OpenRouter Keys](https://openrouter.ai/settings/keys) |
 | `OLLAMA_API_KEY` | Optional local/OpenAI-compatible endpoint key; Ollama uses `ollama` by default | Local runtime |
 | `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_BASE_URL`/`AZURE_OPENAI_ENDPOINT` | Microsoft Foundry / Azure OpenAI via the OpenAI-compatible `/openai/v1/` endpoint (Phi-4, GPT, Llama, DeepSeek) | [Azure AI Foundry](https://ai.azure.com/) |
 | `AWS_BEARER_TOKEN_BEDROCK` *or* AWS credential chain (`AWS_ACCESS_KEY_ID`/`AWS_PROFILE` + `AWS_REGION`) | Amazon Bedrock via `converse` (Claude, Nova, Llama, Gemma, DeepSeek); needs `pip install 'primr[bedrock]'` | [AWS Bedrock](https://console.aws.amazon.com/bedrock/) |
@@ -29,10 +29,12 @@ Grok + Gemini is the measured default, but it is not the only supported provider
 
 Primr uses DuckDuckGo for web search by default, so no search API key is needed unless you opt into `SEARCH_PROVIDER=google`.
 
-OpenRouter is an explicitly enabled preview route. A stored key never changes
-the active model recipe or authorizes spend by itself. Setup, curated models,
+OpenRouter is supported as a default unified provider route when configured with
+`OPENROUTER_API_KEY`, offering single-key coverage at significant cost reduction.
+A configured key enables routing by default, with manual overrides available via
+`PRIMR_PROVIDER=gemini` or `PRIMR_OPENROUTER_ENABLED=0`. Setup, curated models,
 price ceilings, privacy defaults, and custom-model rules are documented in
-[OpenRouter Preview](OPENROUTER.md).
+[OpenRouter Gateway](OPENROUTER.md).
 
 ### Deployment surfaces: Foundry and Bedrock
 

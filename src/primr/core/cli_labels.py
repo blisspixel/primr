@@ -50,14 +50,20 @@ def full_mode_label(grok_tier: str, *, has_xai: bool = True) -> str:
 
 def resolved_full_mode_label(grok_tier: str) -> str:
     """Return the full-mode label for the currently configured provider route."""
-    if os.environ.get("XAI_API_KEY"):
-        return full_mode_label(grok_tier, has_xai=True)
-    if os.environ.get("GEMINI_API_KEY"):
+    provider_override = os.getenv("PRIMR_PROVIDER", "").strip().lower()
+    if provider_override == "gemini":
         return "full (Gemini routed)"
+    if provider_override == "xai":
+        return full_mode_label(grok_tier, has_xai=True)
+
     from primr.ai.providers.openrouter import openrouter_routing_ready
 
     if openrouter_routing_ready():
         return "full (OpenRouter routed preview)"
+    if os.environ.get("XAI_API_KEY"):
+        return full_mode_label(grok_tier, has_xai=True)
+    if os.environ.get("GEMINI_API_KEY"):
+        return "full (Gemini routed)"
     if os.environ.get("OPENAI_API_KEY"):
         return "full (OpenAI estimate only; execution needs XAI or Gemini)"
     if os.environ.get("ANTHROPIC_API_KEY"):
@@ -70,6 +76,7 @@ def auto_fast_mode_message(grok_tier: str) -> str:
 
     from primr.ai.providers.openrouter import openrouter_routing_ready
 
-    if not os.environ.get("XAI_API_KEY") and openrouter_routing_ready():
+    provider_override = os.getenv("PRIMR_PROVIDER", "").strip().lower()
+    if openrouter_routing_ready() and provider_override not in {"xai", "gemini"}:
         return "Using the opt-in OpenRouter routed preview; for Gemini Deep Research add --premium"
     return f"Using {grok_tier_label(grok_tier)} fast mode; for deeper research add --premium"

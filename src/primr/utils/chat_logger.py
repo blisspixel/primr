@@ -5,6 +5,7 @@ Chat logging utility for AI interactions.
 import contextlib
 import json
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -63,7 +64,7 @@ def log_chat_interaction(prompt, response, session_id="general"):
     # rename through transient Windows/OneDrive file locks; if it still fails, fall
     # back to a direct overwrite so an interaction is never silently dropped. Chat
     # logging must never abort the run, so any final failure is logged, not raised.
-    tmp_path = log_file_path.with_suffix(f".{os.getpid()}.tmp")
+    tmp_path = log_file_path.with_suffix(f".{os.getpid()}.{time.time_ns()}.tmp")
     payload = json.dumps(chat_history, indent=4)
     try:
         with open(tmp_path, "w", encoding="utf-8") as f:

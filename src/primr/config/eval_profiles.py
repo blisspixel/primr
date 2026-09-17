@@ -415,6 +415,84 @@ _V1_24_0_CURRENT_BASELINE = EvalProfileSlot(
 
 _OPENROUTER_EVAL_CANDIDATES = (
     EvalProfileSlot(
+        name="glm53-qwen38flash",
+        recipe=ProfileRecipe(
+            reasoning="z-ai/glm-5.3",
+            writing="qwen/qwen3.8-flash",
+            utility="qwen/qwen3.8-flash",
+        ),
+        estimated_cost_usd=0.35,
+        description=(
+            "Headline OpenRouter candidate: GLM 5.3 reasoning ($1.40/$4.40) "
+            "+ Qwen 3.8 Flash token-heavy writing/utility ($0.15/$0.47). "
+            "Premium analytical core with minimum writing spend."
+        ),
+    ),
+    EvalProfileSlot(
+        name="qwenmax-qwenflash",
+        recipe=ProfileRecipe(
+            reasoning="qwen/qwen3.8-max-0902",
+            writing="qwen/qwen3.8-flash",
+            utility="qwen/qwen3.8-flash",
+        ),
+        estimated_cost_usd=0.45,
+        description=(
+            "Analytical core lift test: Qwen 3.8 Max 0902 reasoning ($2/$6) "
+            "+ Qwen 3.8 Flash writing/utility ($0.15/$0.47)."
+        ),
+    ),
+    EvalProfileSlot(
+        name="glm53flash-all",
+        recipe=ProfileRecipe(
+            reasoning="z-ai/glm-5.3-flash",
+            writing="z-ai/glm-5.3-flash",
+            utility="z-ai/glm-5.3-flash",
+        ),
+        estimated_cost_usd=0.15,
+        description=(
+            "Minimum-cost serious baseline: GLM 5.3 Flash across all stages "
+            "($0.09/$0.30, 1.31M context, 72.4% non-hallucination benchmark)."
+        ),
+    ),
+    EvalProfileSlot(
+        name="glm53-qwenmax",
+        recipe=ProfileRecipe(
+            reasoning="z-ai/glm-5.3",
+            writing="qwen/qwen3.8-max-0902",
+            utility="qwen/qwen3.8-flash",
+        ),
+        estimated_cost_usd=0.85,
+        description=(
+            "Reversed economic test: GLM 5.3 reasoning + Qwen 3.8 Max writing "
+            "+ Qwen 3.8 Flash utility. Tests if Max improves actual consultant-style prose."
+        ),
+    ),
+    EvalProfileSlot(
+        name="deepseek41-qwenflash",
+        recipe=ProfileRecipe(
+            reasoning="deepseek/deepseek-v4.1-flash",
+            writing="qwen/qwen3.8-flash",
+            utility="qwen/qwen3.8-flash",
+        ),
+        estimated_cost_usd=0.25,
+        description=(
+            "Fast reasoning test: DeepSeek V4.1 Flash reasoning ($0.15/$0.60, 1M context) "
+            "+ Qwen 3.8 Flash writing/utility. Tests hallucination resistance on sparse signals."
+        ),
+    ),
+    EvalProfileSlot(
+        name="openrouter-gemini38-control",
+        recipe=ProfileRecipe(
+            reasoning="google/gemini-3.8-flash",
+            writing="google/gemini-3.8-flash",
+            utility="google/gemini-3.8-flash",
+        ),
+        estimated_cost_usd=0.95,
+        description=(
+            "Incumbent control recipe: Gemini 3.8 Flash across reasoning, writing, and utility."
+        ),
+    ),
+    EvalProfileSlot(
         name="openrouter-curated",
         recipe=ProfileRecipe(
             reasoning="deepseek/deepseek-r1",

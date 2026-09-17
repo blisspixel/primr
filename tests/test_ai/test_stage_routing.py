@@ -37,9 +37,10 @@ def _clear_provider_env(monkeypatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
 
-def test_openrouter_cloud_route_requires_explicit_opt_in(monkeypatch) -> None:
+def test_openrouter_cloud_route_disabled_via_flag(monkeypatch) -> None:
     _clear_provider_env(monkeypatch)
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter")
+    monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "0")
 
     route = resolve_stage_model(
         "fast.source_relevance",
@@ -50,10 +51,9 @@ def test_openrouter_cloud_route_requires_explicit_opt_in(monkeypatch) -> None:
     assert route.routed is False
 
 
-def test_openrouter_cloud_route_is_available_after_opt_in(monkeypatch) -> None:
+def test_openrouter_cloud_route_is_available_by_default(monkeypatch) -> None:
     _clear_provider_env(monkeypatch)
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter")
-    monkeypatch.setenv("PRIMR_OPENROUTER_ENABLED", "1")
 
     route = resolve_stage_model(
         "fast.source_relevance",

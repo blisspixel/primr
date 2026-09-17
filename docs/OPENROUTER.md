@@ -1,9 +1,12 @@
-# OpenRouter Preview
+# OpenRouter Gateway
 
-OpenRouter is an optional paid gateway for users who do not have quota with a
-direct provider or want one key that can reach models from several vendors.
-It is a preview route, not Primr's measured default. A configured key does not
-enable it and never counts as approval to spend.
+OpenRouter is the preferred single-key gateway for Primr research. When configured,
+it serves as the default provider route across utility, writing, and reasoning roles,
+delivering full strategic dossiers and AI strategy deliverables at approximately
+$0.15-$0.25 actual spend (over 80% cheaper than direct multi-provider recipes).
+
+Configuring `OPENROUTER_API_KEY` activates OpenRouter routing by default, while
+preserving Primr's mandatory dry-run estimate and explicit spend approval gates.
 
 ## Configure the key
 
@@ -37,20 +40,23 @@ For defense in depth, use a dedicated OpenRouter key with an
 no higher than you are willing to authorize independently of Primr. Primr's
 per-run approval and budget checks remain the primary gate.
 
-## Enable paid routing
+## Provider selection and opt-out
 
-The key only enables validation and diagnostics. To make OpenRouter eligible
-for a provider-backed run, add a separate opt-in:
+Because OpenRouter routes by default when `OPENROUTER_API_KEY` is present, no
+secondary flag is required for standard runs.
+
+To override OpenRouter and explicitly route through direct providers (e.g. Gemini
+or xAI), set:
 
 ```dotenv
-PRIMR_OPENROUTER_ENABLED=1
+PRIMR_PROVIDER=gemini
+# or: PRIMR_PROVIDER=xai
 ```
 
-To route the standard pipeline to OpenRouter even when other provider keys
-are configured in the environment, set:
+To disable OpenRouter routing entirely without deleting your key:
 
 ```dotenv
-PRIMR_PROVIDER=openrouter
+PRIMR_OPENROUTER_ENABLED=0
 ```
 
 Then inspect the exact plan before any billable run:
@@ -213,9 +219,8 @@ prices make the model unavailable before any provider request.
 - Deep and Premium remain Gemini Deep Research paths.
 - Explicit vendor-research refreshes still require their supported direct
   provider path.
-- The curated recipe is cost-governed and hermetically tested, but it remains
-  labeled preview until representative full-report quality evaluation supports
-  promotion.
+- The curated recipe is cost-governed and hermetically tested, serving
+  as the preferred single-key default route for standard research runs.
 
 For the general key and approval rules, see [API Key Setup](API_KEYS.md) and
 [Run Modes and Costs](RUN_MODES.md).

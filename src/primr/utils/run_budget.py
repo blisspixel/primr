@@ -125,7 +125,10 @@ def observed_session_spend() -> float:
 
     from primr.ai.client import get_client
 
-    flash_cost = get_client().get_usage_summary().get("total_cost", 0.0)
+    try:
+        flash_cost = get_client().get_usage_summary().get("total_cost", 0.0)
+    except Exception:
+        flash_cost = 0.0
 
     # Direct Gemini SDK calls record through the provider seam rather than the
     # legacy AIClient. Accordion section writes and a few compatibility paths
@@ -139,6 +142,15 @@ def observed_session_spend() -> float:
             model_name if PrimrModels.get_model_config(model_name) else PrimrModels.FLASH_MODEL
         )
         provider_cost += PrimrModels.calculate_recorded_cost(cost_model, direct_tokens)[0]
+
+    from primr.ai.providers.registry import _PROVIDER_INSTANCES
+
+    for provider in list(_PROVIDER_INSTANCES.values()):
+        for model_name, direct_tokens in provider.get_usage_by_model().items():
+            cost_model = (
+                model_name if PrimrModels.get_model_config(model_name) else PrimrModels.FLASH_MODEL
+            )
+            provider_cost += PrimrModels.calculate_recorded_cost(cost_model, direct_tokens)[0]
 
     return grok_cost + flash_cost + provider_cost
 

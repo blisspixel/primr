@@ -43,6 +43,8 @@ _PROVIDER_API_KEY_VARS = (
     "ANTHROPIC_API_KEY",
     "OPENROUTER_API_KEY",
     "PRIMR_OPENROUTER_ENABLED",
+    "PRIMR_OPENROUTER_PREFERRED",
+    "PRIMR_PROVIDER",
     "PRIMR_OPENROUTER_MODEL",
     "PRIMR_OPENROUTER_INPUT_PRICE",
     "PRIMR_OPENROUTER_OUTPUT_PRICE",
@@ -222,12 +224,60 @@ class TestProviderAwareFallbackChain:
         with patch.dict("os.environ", env, clear=True):
             assert pick_model_for_role(Role.REASONING) == PrimrModels.GROK_MODEL_43
 
-    def test_openrouter_key_alone_does_not_enable_paid_routing(self) -> None:
+    def test_openrouter_key_alone_enables_default_routing(self) -> None:
+        from primr.config.models import ModelRegistry
+
         env = _scrubbed_env(OPENROUTER_API_KEY="test-openrouter")
+        with patch.dict("os.environ", env, clear=True):
+            assert (
+                pick_model_for_role(Role.UTILITY)
+                == ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name
+            )
+            assert pick_model_for_role(Role.WRITING) == ModelRegistry.OPENROUTER_GPT_4_1_MINI.name
+            assert (
+                pick_model_for_role(Role.REASONING) == ModelRegistry.OPENROUTER_DEEPSEEK_V3_2.name
+            )
+
+    def test_openrouter_disabled_via_flag(self) -> None:
+        env = _scrubbed_env(
+            OPENROUTER_API_KEY="test-openrouter",
+            PRIMR_OPENROUTER_ENABLED="0",
+        )
         with patch.dict("os.environ", env, clear=True):
             assert pick_model_for_role(Role.UTILITY) == PrimrModels.FLASH_MODEL
             assert pick_model_for_role(Role.WRITING) == PrimrModels.PRO_MODEL
             assert pick_model_for_role(Role.REASONING) == PrimrModels.PRO_MODEL
+
+    def test_openrouter_overridden_by_explicit_provider(self) -> None:
+        from primr.config.models import ModelRegistry
+
+        env = _scrubbed_env(
+            OPENROUTER_API_KEY="test-openrouter",
+            GEMINI_API_KEY="test-gemini",
+            PRIMR_PROVIDER="gemini",
+        )
+        with patch.dict("os.environ", env, clear=True):
+            assert pick_model_for_role(Role.UTILITY) == PrimrModels.FLASH_MODEL
+            assert pick_model_for_role(Role.WRITING) == ModelRegistry.GEMINI_3_1_FLASH_LITE.name
+            assert pick_model_for_role(Role.REASONING) == PrimrModels.PRO_MODEL
+
+    def test_openrouter_defaults_over_direct_keys_when_configured(self) -> None:
+        from primr.config.models import ModelRegistry
+
+        env = _scrubbed_env(
+            OPENROUTER_API_KEY="test-openrouter",
+            GEMINI_API_KEY="test-gemini",
+            XAI_API_KEY="test-xai",
+        )
+        with patch.dict("os.environ", env, clear=True):
+            assert (
+                pick_model_for_role(Role.UTILITY)
+                == ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name
+            )
+            assert pick_model_for_role(Role.WRITING) == ModelRegistry.OPENROUTER_GPT_4_1_MINI.name
+            assert (
+                pick_model_for_role(Role.REASONING) == ModelRegistry.OPENROUTER_DEEPSEEK_V3_2.name
+            )
 
     def test_openrouter_only_uses_curated_role_models_after_opt_in(self) -> None:
         from primr.config.models import ModelRegistry

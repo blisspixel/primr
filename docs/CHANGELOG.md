@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.17] - 2026-09-17
+
+### Added
+
+- **OpenRouter default single-key provider routing.** OpenRouter is now the preferred default provider route whenever `OPENROUTER_API_KEY` is configured, providing single-key coverage across utility (`google/gemini-2.5-flash-lite`), writing (`openai/gpt-4.1-mini`), and reasoning (`deepseek/deepseek-v3.2`) roles at ~$0.15-$0.25 per run.
+- **Provider override and explicit opt-out controls.** Added automatic priority for OpenRouter with explicit opt-out support via `PRIMR_OPENROUTER_ENABLED=0` and provider overrides via `PRIMR_PROVIDER=gemini` or `PRIMR_PROVIDER=xai`.
+
+### Changed
+
+- **Global strict typing baseline.** Enabled `check_untyped_defs = True` and `warn_redundant_casts = True` in `mypy.ini` globally across all 483 source files, raising the default type verification floor.
+- **Persistent agent instructions refined.** Updated `CLAUDE.md` and `AGENTS.md` with explicit operating loops, consequence-based autonomy, system-level defect fixes, dependency hygiene invariants, and OpenRouter default routing guidelines.
+- **Documentation refresh across guides.** Updated `README.md`, `docs/OPENROUTER.md`, `docs/API_KEYS.md`, `docs/CONFIG.md`, and `docs/RUN_MODES.md` reflecting OpenRouter as the preferred single-key provider default.
+
+### Fixed
+
+- **OpenRouter preflight connectivity resilience.** Preflight checks in `src/primr/core/cli_preflight.py` now bypass Google Gemini network probes when OpenRouter is the active provider and Gemini is not explicitly required, preventing unneeded API key failures.
+- **Run budget spend calculation safety.** Hardened `observed_session_spend()` in `src/primr/utils/run_budget.py` against unconfigured Gemini keys and integrated token usage tracking across all registered provider instances.
+- **Concurrent chat logging race condition.** Added microsecond timestamps to atomic temporary files in `src/primr/utils/chat_logger.py` to eliminate same-process collision during parallel section writes.
+
 ## [1.39.16] - 2026-09-16
 
 ### Added

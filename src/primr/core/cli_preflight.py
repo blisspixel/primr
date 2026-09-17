@@ -139,6 +139,15 @@ def _check_fast_dependency(fast_mode: bool, errors: list[str]) -> None:
         )
 
 
+def _uses_openrouter_pipeline() -> bool:
+    from primr.ai.providers.openrouter import openrouter_routing_ready
+
+    if not openrouter_routing_ready():
+        return False
+    provider = os.getenv("PRIMR_PROVIDER", "").strip().lower()
+    return provider not in {"gemini", "xai", "openai", "anthropic", "ollama", "bedrock", "azure"}
+
+
 def _check_gemini_connectivity(
     gemini_key: str,
     *,
@@ -146,6 +155,8 @@ def _check_gemini_connectivity(
     is_full_execution: bool,
     errors: list[str],
 ) -> None:
+    if not requires_gemini and _uses_openrouter_pipeline():
+        return
     should_check_gemini = bool(
         gemini_key and len(gemini_key) >= 10 and (requires_gemini or is_full_execution)
     )

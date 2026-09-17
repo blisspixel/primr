@@ -216,6 +216,16 @@ For the full decision matrix - when to pick each, cost and time per combination,
 - **Platform**: omit unless the user requests an ecosystem emphasis. Use `--platform azure`, `--platform aws`, `--platform gcp`, or `--platform private` for one strategy. `--platform ms` is the explicit `azure private` shorthand and produces two artifacts, so re-estimate it accordingly. The flag affects the AI strategy module, not the core report.
 - **Strategy type**: omit for the default Strategic Overview plus AI Strategy. Pass `--no-ai-strategy` for the base report only. Use an active type reported by `primr --list-strategies` or `primr://strategies/available`, such as `customer_experience`, `modern_security_compliance`, or `data_fabric_strategy`. Use `primr skills`, not `--ai-strategy-only`, for the Skills pack workflow.
 
+## Provider selection and OpenRouter routing
+
+When provider-backed execution is approved, primr supports direct providers (xAI, Gemini, OpenAI, Anthropic, Bedrock) or a unified OpenRouter gateway.
+
+If `OPENROUTER_API_KEY` is present and active, prefer OpenRouter by default (`PRIMR_OPENROUTER_PREFERRED=1` or `PRIMR_PROVIDER=openrouter`):
+- **Single-key coverage**: satisfies utility (Gemini 2.5 Flash Lite), writing (GPT-4.1 mini), and reasoning (DeepSeek V3.2) without requiring separate provider credentials.
+- **Cost advantage**: full runs run at ~$0.15 to $0.25 actual cost (over 80% cheaper than direct Gemini or multi-key recipes).
+- **Privacy and safety**: enforces Zero Data Retention (ZDR) endpoints and strict per-token price caps.
+- **Artifact gate compliance**: passes all publication quality gates, generating clean Markdown and Word (.docx) deliverables.
+
 ## Custom strategies
 
 primr discovers any YAML file dropped into `<install>/prompts/strategies/` (or the user's override path). Author one when the user wants a recurring deliverable that doesn't fit the built-ins (e.g., "FinOps assessment for retail clients", "M&A integration playbook").
