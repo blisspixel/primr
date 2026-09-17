@@ -60,10 +60,18 @@ distinguishing the locked baseline, stable upstream releases, and previews.
 Record durable conclusions in the owning design doc, not this file.
 
 Implement through the existing seam, run focused checks, inspect failures, fix
-their cause, then run the broader gate and review the diff. Do not pass by
-weakening types, schemas, assertions, coverage, or security controls. The mypy
-baseline is intentionally mixed: `mypy.ini` owns its growing strict allowlist;
-new boundaries need precise signatures and should join it where practical.
+their cause, then run the broader gate and review the diff. When the same class
+of issue occurs repeatedly, fix the system rather than only the local instance:
+improve the shared abstraction, types, schemas, or tests so the error class
+cannot recur. Do not pass by weakening types, schemas, assertions, coverage,
+or security controls. The mypy baseline enforces `check_untyped_defs = True`
+globally; `mypy.ini` owns its growing strict allowlist; new boundaries need
+precise signatures and should join the allowlist where practical.
+
+Use autonomy according to consequence and reversibility: research, inspection,
+AST analysis, local reversible edits, unit tests, and isolated worktree branches
+proceed with high autonomy. Mutating production systems, spending budget,
+publishing releases, or deleting data require explicit user approval.
 
 Match evidence to the claim: MCP changes need real transport tests; portable
 plugins need installed-layout and persistent-state checks; generated artifacts
@@ -74,11 +82,13 @@ review for security or lifecycle changes after self-review.
 
 Keep planned, implemented, tested, shipped, deployed, and measured behavior
 distinct. Record exact verification and remaining limits; baseline CI does not
-prove an unpushed patch. Use the existing gitignored `.agent/<task>/` for scratch
-research, logs, indexes, and a resumable handoff with scope, decisions, changed
-paths, checks, and blockers. Never store secrets there. Durable knowledge belongs
-in source, tests, the owning docs, or an existing issue when useful. Update those
-homes before calling meaningful work complete; do not create a competing queue.
+prove an unpushed patch. Treat every completed task as an update to project
+state, not merely a patch of code: update tests, documentation, architecture
+records, and `docs/CHANGELOG.md` under `[Unreleased]` before calling work
+complete. Use the existing gitignored `.agent/<task>/` for scratch research,
+logs, indexes, and a resumable handoff with scope, decisions, changed paths,
+checks, and blockers. Never store secrets there. Durable knowledge belongs in
+source, tests, or owning docs.
 
 ## Language and runtime choices
 
@@ -190,6 +200,9 @@ What NOT to do. These are gated or will fail review:
   comments. Avoid coauthor trailers, AI-generation credits, or tool-credit
   language for any AI, bot, or automation tool. Every commit reads as a human
   engineer's work.
+- **Keep dependencies justified:** never add an unimported or dead dependency
+  to `pyproject.toml`. Heavy libraries used for narrow peripheral workflows
+  belong in optional extras; core dependencies must be lean, safe, and imported.
 - **Keep writing professional:** no emojis, em dashes, or en dashes in new
   documentation, comments, generated text, commits, PRs, or delegated output.
 

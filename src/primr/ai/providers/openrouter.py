@@ -22,31 +22,38 @@ _FALSE_VALUES = frozenset({"0", "false", "no", "off"})
 
 
 def openrouter_routing_enabled() -> bool:
-    """Return whether paid OpenRouter routing was explicitly enabled."""
+    """Return whether OpenRouter routing is enabled.
 
-    return (
-        os.getenv("PRIMR_OPENROUTER_ENABLED", "").strip().lower()
-        in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-        or os.getenv("PRIMR_PROVIDER", "").strip().lower() == "openrouter"
-        or os.getenv("PRIMR_OPENROUTER_PREFERRED", "").strip().lower()
-        in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-    )
+    OpenRouter is enabled by default whenever OPENROUTER_API_KEY is configured,
+    unless explicitly disabled via PRIMR_OPENROUTER_ENABLED in {"0", "false", "no", "off"}
+    or overridden by another provider via PRIMR_PROVIDER.
+    """
+    provider = os.getenv("PRIMR_PROVIDER", "").strip().lower()
+    if provider and provider != "openrouter":
+        return False
+
+    enabled_env = os.getenv("PRIMR_OPENROUTER_ENABLED", "").strip().lower()
+    if enabled_env in _FALSE_VALUES:
+        return False
+    if enabled_env in {"1", "true", "yes", "on"}:
+        return True
+
+    preferred_env = os.getenv("PRIMR_OPENROUTER_PREFERRED", "").strip().lower()
+    if preferred_env in _FALSE_VALUES:
+        return False
+    if preferred_env in {"1", "true", "yes", "on"}:
+        return True
+
+    if provider == "openrouter":
+        return True
+
+    return bool(os.getenv("OPENROUTER_API_KEY", "").strip())
 
 
 def openrouter_routing_ready() -> bool:
-    """Require a configured key and the separate paid-routing opt-in."""
+    """Require a configured key and enabled OpenRouter routing."""
 
-    return bool(os.getenv("OPENROUTER_API_KEY")) and openrouter_routing_enabled()
+    return bool(os.getenv("OPENROUTER_API_KEY", "").strip()) and openrouter_routing_enabled()
 
 
 def openrouter_zdr_enabled() -> bool:
@@ -138,8 +145,8 @@ class OpenRouterProvider(OpenAICompatibleProvider):
 
         if not openrouter_routing_enabled():
             raise ProviderUnavailableError(
-                "OpenRouter paid routing is disabled. Set PRIMR_OPENROUTER_ENABLED=1 "
-                "only after reviewing the exact Primr dry-run estimate."
+                "OpenRouter paid routing is disabled. Configure OPENROUTER_API_KEY "
+                "or set PRIMR_OPENROUTER_ENABLED=1 after reviewing the exact Primr dry-run estimate."
             )
         config = PrimrModels.get_model_config(model)
         if config is None or config.provider != "openrouter":

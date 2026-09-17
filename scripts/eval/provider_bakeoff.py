@@ -62,6 +62,11 @@ OPENROUTER_MATRIX: list[tuple[str, str, str]] = [
     ("DeepSeek V3.2 (OR)", "openrouter", "deepseek/deepseek-v3.2"),
     ("Claude Sonnet 4.6 (OR)", "openrouter", "anthropic/claude-sonnet-4.6"),
     ("Claude Haiku 4.5 (OR)", "openrouter", "anthropic/claude-haiku-4.5"),
+    ("GLM 5.3 (OR)", "openrouter", "z-ai/glm-5.3"),
+    ("GLM 5.3 Flash (OR)", "openrouter", "z-ai/glm-5.3-flash"),
+    ("Qwen 3.8 Flash (OR)", "openrouter", "qwen/qwen3.8-flash"),
+    ("Qwen 3.8 Max (OR)", "openrouter", "qwen/qwen3.8-max-0902"),
+    ("DeepSeek V4.1 Flash (OR)", "openrouter", "deepseek/deepseek-v4.1-flash"),
 ]
 # Anthropic's newest model - premium-priced, opt in with --include-fable.
 FABLE = ("Claude Fable 5", "anthropic", "claude-fable-5")

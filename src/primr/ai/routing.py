@@ -53,6 +53,8 @@ if TYPE_CHECKING:
     from primr.ai.providers import Provider
     from primr.core.model_eval import ProfileRecipe
 
+_FALSE_VALUES = frozenset({"0", "false", "no", "off"})
+
 
 class Role(str, Enum):
     """Capability classes used by the routing layer.
@@ -258,9 +260,16 @@ def pick_model_for_role(role: Role | str) -> str:
     #   Without XAI, primr uses each provider's flagship reasoner.
 
     has_openrouter = _openrouter_is_ready()
+    provider_env = os.getenv("PRIMR_PROVIDER", "").strip().lower()
     prefer_openrouter = has_openrouter and (
-        os.getenv("PRIMR_PROVIDER", "").strip().lower() == "openrouter"
+        provider_env == "openrouter"
         or os.getenv("PRIMR_OPENROUTER_PREFERRED", "").strip().lower() in {"1", "true", "yes", "on"}
+        or (
+            provider_env
+            not in {"gemini", "xai", "openai", "anthropic", "ollama", "bedrock", "azure"}
+            and os.getenv("PRIMR_OPENROUTER_PREFERRED", "").strip().lower() not in _FALSE_VALUES
+            and os.getenv("PRIMR_OPENROUTER_ENABLED", "").strip().lower() not in _FALSE_VALUES
+        )
     )
 
     if role is Role.UTILITY:

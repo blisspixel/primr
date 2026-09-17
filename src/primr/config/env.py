@@ -74,7 +74,7 @@ KEY_HELP: dict[str, str] = {
     "GEMINI_API_KEY": "Gemini writing, utility, premium mode, and scrape summaries",
     "ANTHROPIC_API_KEY": "Anthropic Claude provider (reasoning/writing/pro; needs `pip install anthropic`)",
     "OPENAI_API_KEY": "OpenAI GPT provider (utility/reasoning/writing; needs `pip install openai`)",
-    "OPENROUTER_API_KEY": "Optional OpenRouter gateway (enable paid routing separately with PRIMR_OPENROUTER_ENABLED=1)",
+    "OPENROUTER_API_KEY": "Preferred OpenRouter gateway default provider route (utility, writing, reasoning)",
     "OLLAMA_API_KEY": "Optional key for Ollama or another local OpenAI-compatible endpoint",
     "AZURE_OPENAI_API_KEY": "Microsoft Foundry / Azure OpenAI (also set AZURE_OPENAI_BASE_URL or AZURE_OPENAI_ENDPOINT)",
     "AWS_BEARER_TOKEN_BEDROCK": "Amazon Bedrock API key (or use AWS_ACCESS_KEY_ID/AWS_PROFILE + AWS_REGION; needs `pip install 'primr[bedrock]'`)",

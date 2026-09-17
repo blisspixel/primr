@@ -12,12 +12,12 @@ This document describes all configuration options available in Primr.
 | `GEMINI_API_KEY` | Google Gemini key for low-cost writing/utility, premium mode, and Gemini-backed stages | Recommended for the cheapest measured default |
 | `OPENAI_API_KEY` | Optional OpenAI GPT/o-series provider for routed utility, reasoning, writing, and registered premium-research candidates; this key alone does not enable full execution | No |
 | `ANTHROPIC_API_KEY` | Optional Anthropic Claude provider for reasoning, writing, and pro roles | No |
-| `OPENROUTER_API_KEY` | Optional OpenRouter multi-provider gateway key; paid routing also requires `PRIMR_OPENROUTER_ENABLED=1` | No |
+| `OPENROUTER_API_KEY` | Preferred OpenRouter multi-provider gateway key; routes by default when configured | No |
 | `OLLAMA_API_KEY` | Optional key for Ollama or another local OpenAI-compatible endpoint; Ollama defaults to `ollama` when unset | No |
 | `AZURE_OPENAI_API_KEY` | Optional Azure AI Foundry provider (resolves the `foundry`/`azure` provider); set `AZURE_OPENAI_BASE_URL` or `AZURE_OPENAI_ENDPOINT` for the deployment endpoint | No |
 | `AWS_BEARER_TOKEN_BEDROCK` | Optional AWS Bedrock provider (resolves the `bedrock`/`aws` provider); the standard AWS credential chain (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION`/`AWS_PROFILE`) also works. Needs `pip install 'primr[bedrock]'` | No |
 
-Run `primr init` for guided first-run setup. Set keys directly with `primr keys set gemini`, `primr keys set xai`, `primr keys set openai`, `primr keys set openrouter`, `primr keys set anthropic`, `primr keys set ollama`, `primr keys set foundry`, or `primr keys set bedrock`; these hidden prompts require a foreground input/output terminal. Shell env vars and local `.env` values are also supported for noninteractive configuration. Run `primr keys path` to see the user-level config file. The measured default remains XAI + Gemini, but a single usable cloud provider key is enough for provider diagnostics. See [OpenRouter Preview](OPENROUTER.md) for its separate opt-in and safeguards.
+Run `primr init` for guided first-run setup. Set keys directly with `primr keys set gemini`, `primr keys set xai`, `primr keys set openai`, `primr keys set openrouter`, `primr keys set anthropic`, `primr keys set ollama`, `primr keys set foundry`, or `primr keys set bedrock`; these hidden prompts require a foreground input/output terminal. Shell env vars and local `.env` values are also supported for noninteractive configuration. Run `primr keys path` to see the user-level config file. OpenRouter provides a single-key gateway routing by default when configured. See [OpenRouter Gateway](OPENROUTER.md) for safeguards and configuration options.
 
 ### Agent Host Authentication
 
@@ -48,7 +48,7 @@ provider API keys listed above.
 | `VERBOSE` | Enable verbose output | `false` |
 | `DEBUG` | Enable debug mode | `false` |
 | `PRIMR_INFERENCE_PROFILE` | Runtime capability-routing profile for wired stages. Supported values are `cloud` and `hybrid`. `cloud` is the default; `hybrid` enables the current routed utility-stage pilots. Route metadata is recorded in `_run_state.json`. Prefer the `--inference` CLI flag for normal use. Internal enum values used by tests and evals are not supported configuration. | `cloud` |
-| `PRIMR_OPENROUTER_ENABLED` | Makes a configured OpenRouter key eligible for Standard paid routing. It does not replace the estimate and approval gate. | `0` |
+| `PRIMR_OPENROUTER_ENABLED` | Explicit toggle for OpenRouter routing (defaults to 1 when OPENROUTER_API_KEY is configured). Set to 0 to disable OpenRouter routing without deleting the key. | 1 if configured, else 0 |
 | `PRIMR_OPENROUTER_ZDR` | Requires zero-data-retention OpenRouter endpoints. Set to `0` only after reviewing the privacy tradeoff; provider data collection remains denied. | `1` |
 | `PRIMR_OPENROUTER_MODEL` | Optional custom OpenRouter model slug. Requires explicit input and output price variables below. | unset |
 | `PRIMR_OPENROUTER_INPUT_PRICE` | Custom model input price in USD per 1M tokens; also enforced as the provider prompt-price ceiling. | unset |
