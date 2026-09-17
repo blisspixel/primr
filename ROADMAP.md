@@ -53,7 +53,7 @@ releases inside a band; only cut the major when its pillars hold together.
 
 | Band | Theme | Why this order |
 |------|--------|----------------|
-| **v1.39.x** (current) | Operator polish, security floors, routing honesty, maintainable stage ownership | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. The next executable candidate is v1.39.17. |
+| **v1.39.x** (current) | Operator polish, security floors, routing honesty, maintainable stage ownership | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. The next executable candidate is v1.39.18. |
 | **v1.40** | Epistemic and analyst-quality readiness | Hard gates, report-quality changes, and hybrid-routing promotions need a fully decidable production corpus for the bare company-and-website run first; without it, quality claims are vibes. |
 | **v1.41** | Backend freedom: measured host promotion + OpenRouter gateway + residual dual-provider cleanup | Unlocks honest OpenAI-only / Anthropic-only / OpenRouter / host / local profiles; depends on 1.40 instruments to judge backends. |
 | **v1.42** | Agent control-plane finish (MCP Tasks, remaining watch items) | Agents can already estimate/approve/read compact artifacts; finish long-running job lifecycle and parity so unattended delegation is safe. |
@@ -68,10 +68,10 @@ The exact implementation slice, acceptance criteria, approved spend, and
 parallel maintenance lanes live only in `docs/NEXT_STEPS.md`. This section
 records dependency order so it does not become a competing current queue.
 
-**Next implementation candidate:** v1.39.17 removes the deferred
+**Next implementation candidate:** v1.39.18 removes the deferred
 `fast_run_sections` ownership back edge with its original graph-reduction
-criteria. v1.39.16 adds Gemini 3.8 Flash model support, expanded OpenRouter
-routing catalog and role overrides, and verified multi-provider bakeoff evaluation.
+criteria. v1.39.17 adds OpenRouter default routing, strict typing baseline,
+and preflight resilience.
 The ordered work and exit criteria live in the [execution brief](docs/NEXT_STEPS.md). A
 candidate version is not a delivery promise and is changed before release if
 the accepted scope requires a different semantic version.
