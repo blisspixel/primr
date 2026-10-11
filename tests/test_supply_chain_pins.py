@@ -99,6 +99,7 @@ def test_pillow_security_floor_excludes_known_vulnerable_release() -> None:
         (None, "httpx2", "2.9.1", "2.12.0"),
         (None, "httpx2", "2.10.0", "2.12.0"),
         (None, "httpx2", "2.11.0", "2.12.0"),
+        (None, "urllib3", "2.7.0", "2.8.0"),
         ("docs", "mkdocs-material", "9.7.6", "9.7.7"),
     ],
 )
@@ -115,6 +116,31 @@ def test_dependency_security_floors_exclude_affected_versions(
 
     assert vulnerable not in requirement.specifier
     assert patched in requirement.specifier
+
+
+@pytest.mark.parametrize(
+    ("package", "vulnerable", "patched"),
+    [
+        ("anyio", "4.14.1", "4.14.2"),
+        ("pyjwt", "2.14.0", "2.15.1"),
+        ("soupsieve", "2.8.4", "2.9.0"),
+        ("virtualenv", "21.14.3", "21.14.4"),
+    ],
+)
+def test_transitive_security_constraints_and_locked_versions(
+    package: str, vulnerable: str, patched: str
+) -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    requirements = map(Requirement, project["tool"]["uv"]["constraint-dependencies"])
+    constraints = {requirement.name.lower(): requirement for requirement in requirements}
+    lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
+    versions = [entry["version"] for entry in lock["package"] if entry["name"] == package]
+    specifier = constraints[package].specifier
+
+    assert vulnerable not in specifier
+    assert patched in specifier
+    assert versions, f"{package} must remain in the existing dependency graph"
+    assert all(version in specifier for version in versions)
 
 
 def test_dependency_audits_run_on_a_schedule_without_bot_authored_prs() -> None:

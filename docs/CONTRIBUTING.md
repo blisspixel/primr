@@ -39,6 +39,12 @@ Source: `docs/images/primr-demo-terminal.html`. Requires Playwright Chromium
    the reproducibility check. Install uv from https://docs.astral.sh/uv/ if you
    don't have it.
 
+   Transitive security floors in `[tool.uv].constraint-dependencies` protect
+   locked source, development, and exported container environments. They do
+   not become published wheel requirements; pip installations resolve their
+   own transitive versions. Keep constraints, the lock, and container exports
+   consistent when refreshing security dependencies.
+
    **Option B - manual pip (cross-platform):**
    ```bash
    cd primr
