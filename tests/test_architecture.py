@@ -60,10 +60,10 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     "core/cli.py": 2439,
     "ai/deep_research.py": 3812,
     "data/scraping/browsers.py": 1834,
-    "data/hiring_signals.py": 1577,
+    "data/hiring_signals.py": 1571,
     "core/model_eval.py": 1828,
     "data/scrape.py": 1828,
-    "data/fallback_sources.py": 1084,
+    "data/fallback_sources.py": 1065,
     # cli_batch_runtime.py received extracted batch-runtime code during the
     # cli.py decomposition; pinned here now that it exceeds the new-file cap.
     "core/cli_batch_runtime.py": 1042,
@@ -97,7 +97,6 @@ INTENTIONAL_TINY_MODULES: dict[str, str] = {
     "core/cli_prep.py": "legacy prep-command import compatibility surface",
     "core/cli_help.py": "backward-compatible CLI help import surface",
     "core/strategy_enrichment_contract.py": "strategy review and repair framing policy",
-    "data/first_party_url.py": "first-party URL policy seam",
     "mcp_server/cloud_detect.py": "cloud-runtime adapter",
     "mcp_server/qa_operations.py": "shared QA operation boundary",
     "mcp_server/resource_summary_utils.py": "compact resource-summary policy",

@@ -116,6 +116,7 @@ def test_prep_reports_partial_bundle_and_limitations(tmp_path, monkeypatch, caps
 
     output = capsys.readouterr().out
     assert "Primr prep partial for ExampleCo" in output
+    assert "Hiring signals: 0 identity-linked postings indexed" in output
     assert "bundle is usable" in output
     assert "Coverage notes:" in output
     assert "No first-party page content was collected." in output

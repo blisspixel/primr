@@ -870,14 +870,33 @@ class TestGatherE2EBranches:
             ),
         ]
 
+        def fake_http_get(url, **kwargs):
+            if "linkedin.com/jobs/view/" in url:
+                metadata = {
+                    "@type": "JobPosting",
+                    "url": url,
+                    "hiringOrganization": {
+                        "@type": "Organization",
+                        "sameAs": "https://acme.example",
+                    },
+                }
+                return (
+                    200,
+                    (
+                        '<script type="application/ld+json">' + json.dumps(metadata) + "</script>"
+                    ).encode(),
+                    None,
+                )
+            return 404, b"", None
+
         with (
-            patch.object(hs, "_http_get", return_value=(404, b"", None)),
+            patch.object(hs, "_http_get", side_effect=fake_http_get),
             patch.object(hs, "_discover_via_web_search", return_value=web_postings),
             patch("primr.ai.grok_client.grok_llm", return_value='{"selected": [0, 1]}'),
         ):
             signals = gather_hiring_signals(
                 "Acme Corp",
-                "https://acme.com",
+                "https://acme.example",
                 working_folder=str(tmp_path),
             )
         assert signals is not None

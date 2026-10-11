@@ -55,6 +55,8 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
                     {
                         "url": "https://jobs.acme.example/1",
                         "title": "Data Engineer",
+                        "identity": "verified",
+                        "identity_evidence": "first_party_careers:https://acme.example/careers",
                     }
                 ]
             ),
@@ -408,3 +410,29 @@ def test_install_bundled_skill_rejects_windows_junction_parent(tmp_path) -> None
         install_bundled_skill(junction_parent / "primr-zero")
 
     assert not (outside / "primr-zero").exists()
+
+
+def test_hiring_source_rows_require_identity_and_preserve_receipt(tmp_path):
+    hiring = tmp_path / "_hiring"
+    hiring.mkdir()
+    postings = [
+        {
+            "url": "https://jobs.example/unverified",
+            "title": "Same-name employer",
+            "identity": "unverified",
+            "identity_evidence": "slug_guess",
+        },
+        {"url": "https://jobs.example/legacy", "title": "No identity record"},
+        {
+            "url": "https://jobs.example/verified",
+            "title": "Company role",
+            "identity": "verified",
+            "identity_evidence": "first_party_careers:https://acme.example/careers",
+        },
+    ]
+    (hiring / "postings_index.json").write_text(json.dumps(postings), encoding="utf-8")
+    rows = _build_source_rows(tmp_path, "https://acme.example", {})
+    assert len(rows) == 1
+    assert rows[0]["url"] == "https://jobs.example/verified"
+    assert rows[0]["identity"] == "verified"
+    assert rows[0]["identity_evidence"] == "first_party_careers:https://acme.example/careers"

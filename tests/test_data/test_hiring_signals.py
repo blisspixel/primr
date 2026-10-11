@@ -46,7 +46,7 @@ class TestSlugGuessing:
         assert "acme-labs" in slugs
 
     def test_corporate_suffix_is_stripped(self):
-        slugs = _candidate_slugs("Acme Holdings Inc", "https://acme.com")
+        slugs = _candidate_slugs("Acme Holdings Inc", "https://acme.example")
         # Full hyphenated form and suffix-stripped form both appear
         assert "acme-holdings-inc" in slugs
         assert "acme" in slugs
@@ -139,7 +139,7 @@ GREENHOUSE_FIXTURE = {
         {
             "id": 1,
             "title": "Senior Data Engineer",
-            "absolute_url": "https://boards.greenhouse.io/acme/jobs/1",
+            "absolute_url": "https://acme.example/careers?gh_jid=1",
             "location": {"name": "New York, NY"},
             "departments": [{"id": 11, "name": "Data Platform"}],
             "content": _LONG_ENG_BODY,
@@ -148,7 +148,7 @@ GREENHOUSE_FIXTURE = {
         {
             "id": 2,
             "title": "Retail Associate",
-            "absolute_url": "https://boards.greenhouse.io/acme/jobs/2",
+            "absolute_url": "https://acme.example/careers?gh_jid=2",
             "location": {"name": "Remote"},
             "departments": [{"id": 22, "name": "Stores"}],
             "content": _LONG_RETAIL_BODY,
@@ -480,7 +480,7 @@ class TestGatherHiringSignalsE2E:
         ):
             signals = gather_hiring_signals(
                 "Acme Corp",
-                "https://acme.com",
+                "https://acme.example",
                 working_folder=str(tmp_path),
             )
 
@@ -523,7 +523,7 @@ class TestGatherHiringSignalsE2E:
         with patch.object(hs, "_http_get") as http:
             signals = gather_hiring_signals(
                 "Acme Corp",
-                "https://acme.com",
+                "https://acme.example",
                 working_folder=str(tmp_path),
             )
             http.assert_not_called()
@@ -550,7 +550,7 @@ class TestGatherHiringSignalsE2E:
         ):
             signals = gather_hiring_signals(
                 "Acme Corp",
-                "https://acme.com",
+                "https://acme.example",
                 working_folder=str(tmp_path),
             )
 
@@ -584,7 +584,7 @@ class TestGatherHiringSignalsE2E:
         ):
             signals = gather_hiring_signals(
                 "Acme Corp",
-                "https://acme.com",
+                "https://acme.example",
                 working_folder=str(tmp_path),
                 recon_hints={"ats_slugs": ["my-recon-slug"]},
             )
@@ -624,7 +624,7 @@ class TestGatherHiringSignalsE2E:
         ):
             signals = gather_hiring_signals(
                 "Acme Corp",
-                "https://acme.com",
+                "https://acme.example",
                 working_folder=str(tmp_path),
             )
 
@@ -687,7 +687,7 @@ class TestGatherHiringSignalsE2E:
         ):
             signals = gather_hiring_signals(
                 "Acme Corp",
-                "https://acme.com",
+                "https://acme.example",
                 working_folder=str(tmp_path),
             )
 
@@ -756,7 +756,7 @@ class TestGatherHiringSignalsE2E:
         ):
             gather_hiring_signals(
                 "Acme Corp",
-                "https://acme.com",
+                "https://acme.example",
                 working_folder=str(tmp_path),
             )
 
@@ -808,7 +808,7 @@ class TestGatherHiringSignalsE2E:
         ):
             signals = gather_hiring_signals(
                 "Acme Corp",
-                "https://acme.com",
+                "https://acme.example",
                 working_folder=str(tmp_path),
                 max_selected=1,
             )
@@ -873,7 +873,7 @@ class TestGatherHiringSignalsE2E:
         ):
             signals = gather_hiring_signals(
                 "Acme Corp",
-                "https://acme.com",
+                "https://acme.example",
                 working_folder=str(tmp_path),
                 max_selected=1,
             )

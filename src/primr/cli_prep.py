@@ -193,7 +193,9 @@ def run_prep_cli(args: list[str] | None) -> int:
     print("  Incremental API spend: $0.00")
     print(f"  Pages: {result.pages_collected}")
     hiring_status = (
-        "skipped" if parsed.skip_hiring else f"{result.hiring_postings} postings indexed"
+        "skipped"
+        if parsed.skip_hiring
+        else f"{result.hiring_postings} identity-linked postings indexed"
     )
     recon_status = (
         "skipped"
