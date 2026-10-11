@@ -42,8 +42,11 @@ def _board_url(url: str) -> str:
     if parts and parts[0].lower() in {"en-us", "en-gb"}:
         parts = parts[1:]
     path = "/" + parts[0] if parts and parts[0] else "/"
-    if normalized_hostname(url).endswith((".icims.com", ".bamboohr.com")):
-        path = "/jobs/search" if ".icims.com" in parsed.netloc else "/careers"
+    host = normalized_hostname(url)
+    if host.endswith(".icims.com"):
+        path = "/jobs/search"
+    elif host.endswith(".bamboohr.com"):
+        path = "/careers"
     return urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
 
 

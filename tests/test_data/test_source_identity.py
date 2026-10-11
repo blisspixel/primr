@@ -14,12 +14,36 @@ from primr.data import fallback_sources as fb
 from primr.data import hiring_signals as hs
 from primr.data.first_party_url import belongs_to_website, website_links
 from primr.data.hiring_identity import (
+    _board_url,
     discover_verified_ats,
     verify_guessed_board,
     verify_search_postings,
 )
 from primr.data.hiring_signals import Posting
 from primr.utils.model_policy import disable_model_calls
+
+
+@pytest.mark.parametrize(
+    ("url", "expected_path"),
+    [
+        ("https://example.icims.com/jobs/123", "/jobs/search"),
+        ("https://EXAMPLE.ICIMS.COM:443/en-us/jobs/123", "/jobs/search"),
+        ("https://example.bamboohr.com/careers/123", "/careers"),
+        ("https://icims.com.example.bamboohr.com/careers/123", "/careers"),
+        ("https://bamboohr.com.example.icims.com/jobs/123", "/jobs/search"),
+        ("https://example.icims.com.evil.example/company/123", "/company"),
+        ("https://example.bamboohr.com.evil.example/company/123", "/company"),
+        ("https://jobs.example/company/icims.com", "/company"),
+    ],
+)
+def test_board_path_uses_provider_hostname_suffix(url, expected_path):
+    from urllib.parse import urlsplit
+
+    board = urlsplit(_board_url(url))
+    assert board.path == expected_path
+    assert board.hostname == urlsplit(url).hostname
+    assert not board.query
+    assert not board.fragment
 
 
 def _response(value):
