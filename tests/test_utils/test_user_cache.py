@@ -47,6 +47,12 @@ class TestCacheDirResolution:
         assert sub.name == "research_memory"
         assert sub.parent == tmp_path / "data"
 
+    def test_data_dir_can_be_resolved_without_creation(self, tmp_path, monkeypatch):
+        root = tmp_path / "data"
+        monkeypatch.setenv("PRIMR_DATA_DIR", str(root))
+        assert get_user_data_dir(create=False) == root
+        assert not root.exists()
+
 
 class TestLegacyMigration:
     def test_moves_legacy_file(self, tmp_path):

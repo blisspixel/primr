@@ -17,18 +17,98 @@ Usage:
 """
 
 import contextlib
+import hashlib
 import json
+import threading
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from primr.utils.atomic_io import atomic_replace
+from primr.utils.atomic_io import (
+    atomic_replace,
+    atomic_write_bytes,
+    atomic_write_text,
+    file_mutation_lock,
+)
 from primr.utils.logging_config import get_logger
+from primr.utils.user_cache import get_user_data_dir
 
 logger = get_logger("utils.usage_tracker")
 
-# Default storage location
-USAGE_FILE = Path(__file__).parent.parent.parent.parent / "logs" / "usage_history.json"
+LEGACY_USAGE_FILE = Path(__file__).parent.parent.parent.parent / "logs" / "usage_history.json"
+_usage_file_lock = threading.Lock()
+
+
+def _read_history(content: str) -> list[dict]:
+    """Accept old record fields while rejecting an unusable history structure."""
+    records = json.loads(content)
+    if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
+        raise ValueError("Usage history must be a list of records")
+    return records
+
+
+def _migrate_usage_history(legacy: Path, target: Path) -> None:
+    """Import legacy history once, retaining its original bytes for recovery."""
+    try:
+        with _usage_file_lock, file_mutation_lock(target):
+            if legacy.resolve() == target.resolve() or not legacy.is_file():
+                return
+            content = legacy.read_bytes()
+            digest = hashlib.sha256(content).hexdigest()
+            migrated = target.with_name(f"usage_history.migrated-{digest}.json")
+            if migrated.exists() and target.exists():
+                return
+            try:
+                legacy_records = _read_history(content.decode("utf-8"))
+                current = (
+                    _read_history(target.read_text(encoding="utf-8")) if target.exists() else []
+                )
+            except (ValueError, UnicodeError) as exc:
+                preserved = target.with_name(f"usage_history.legacy-{digest}.json")
+                if not preserved.exists():
+                    atomic_write_bytes(preserved, content)
+                logger.warning(
+                    "Could not merge usage history from %s: %s. Original bytes preserved at %s; "
+                    "existing history was not replaced.",
+                    legacy,
+                    exc,
+                    preserved,
+                )
+                return
+
+            # Match whole records, not timestamps: differing records must both
+            # survive. Consume matching occurrences so repeated legacy records
+            # survive and interrupted migrations can retry without duplication.
+            from collections import Counter
+
+            remaining = Counter(json.dumps(record, sort_keys=True) for record in current)
+            merged = list(current)
+            for record in legacy_records:
+                key = json.dumps(record, sort_keys=True)
+                if remaining[key]:
+                    remaining[key] -= 1
+                else:
+                    merged.append(record)
+            atomic_write_text(target, json.dumps(merged, indent=2))
+            # Publish the receipt after the history, under the same lock. A
+            # failure before this step is safely retryable; original bytes stay
+            # available even after the old installation is removed.
+            atomic_write_bytes(migrated, content)
+            logger.info("Imported legacy usage history from %s to %s", legacy, target)
+    except OSError as exc:
+        logger.warning("Could not migrate usage history from %s to %s: %s", legacy, target, exc)
+
+
+def get_usage_file() -> Path:
+    """Resolve durable history, honoring PRIMR_DATA_DIR and importing old data."""
+    path = get_user_data_dir() / "usage_history.json"
+    _migrate_usage_history(LEGACY_USAGE_FILE, path)
+    return path
+
+
+# Compatibility snapshot for library callers. Runtime consumers use the resolver
+# so a configured data-directory override is honored when the tracker is created.
+USAGE_FILE = get_user_data_dir(create=False) / "usage_history.json"
 
 
 @dataclass
@@ -174,9 +254,10 @@ class UsageTracker:
 
     def __init__(self, storage_path: Path | None = None):
         """Initialize the usage tracker."""
-        self.storage_path = storage_path or USAGE_FILE
+        self.storage_path = storage_path if storage_path is not None else get_usage_file()
         self.session = SessionUsage()
         self.history: list[dict] = []
+        self._history_load_failed = False
         # Count of session records already flushed into history by save().
         # The tracker is a process-lifetime singleton, so without this a
         # multi-run process (MCP server, batch eval) re-appends every prior
@@ -186,14 +267,18 @@ class UsageTracker:
 
     def _load_history(self):
         """Load usage history from file."""
+        self._history_load_failed = False
         try:
-            if self.storage_path.exists():
-                with open(self.storage_path, encoding="utf-8") as f:
-                    self.history = json.load(f)
-                logger.debug(f"Loaded {len(self.history)} usage records")
+            self.history = (
+                _read_history(self.storage_path.read_text(encoding="utf-8"))
+                if self.storage_path.exists()
+                else []
+            )
+            logger.debug(f"Loaded {len(self.history)} usage records")
         except Exception as e:
             logger.warning(f"Could not load usage history: {e}")
             self.history = []
+            self._history_load_failed = True
 
     def record_usage(
         self,
@@ -245,50 +330,49 @@ class UsageTracker:
     def save(self):
         """Save session usage to history file.
 
-        Writes atomically: serialize to a sibling temp file, then
-        ``os.replace`` it onto the real path. If the process is killed
-        mid-write the existing history is untouched — without this, a
-        crash between ``open(..., "w")`` and the final ``json.dump`` flush
-        leaves a truncated or empty cost-history file, which downstream
-        budgets / show-usage cannot recover from.
+        Serialize cooperating local writers, reload their committed history,
+        then append only this session's unflushed records. A sibling temporary
+        file and atomic replace protect the existing history from partial writes.
+        Malformed or unreadable existing data is left for operator repair.
         """
         import os
         import tempfile
 
         try:
-            # Only session records not yet flushed by an earlier save join the
-            # history; the in-memory state is committed only after the file
-            # swap succeeds, so a failed write can be retried without
-            # duplicating records.
-            unflushed = self.session.records[self._flushed_session_records :]
-            new_history = self.history + [asdict(record) for record in unflushed]
+            with _usage_file_lock, file_mutation_lock(self.storage_path):
+                self._load_history()
+                if self._history_load_failed:
+                    logger.error(
+                        "Usage history at %s could not be loaded and will not be overwritten. "
+                        "Repair or move the file before recording further usage.",
+                        self.storage_path,
+                    )
+                    return
+                # Reload under the same lock used by migrations and other saves.
+                # Commit the flush count only after a successful replacement.
+                unflushed = self.session.records[self._flushed_session_records :]
+                new_history = self.history + [asdict(record) for record in unflushed]
 
-            # Ensure directory exists
-            self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+                fd, tmp_name = tempfile.mkstemp(
+                    prefix=self.storage_path.name + ".",
+                    suffix=".tmp",
+                    dir=str(self.storage_path.parent),
+                )
+                try:
+                    with os.fdopen(fd, "w", encoding="utf-8") as f:
+                        json.dump(new_history, f, indent=2)
+                    atomic_replace(tmp_name, self.storage_path)
+                except Exception:
+                    with contextlib.suppress(OSError):
+                        os.unlink(tmp_name)
+                    raise
 
-            # Serialize to a temp file in the same directory so os.replace
-            # is atomic (cross-filesystem renames are not).
-            fd, tmp_name = tempfile.mkstemp(
-                prefix=self.storage_path.name + ".",
-                suffix=".tmp",
-                dir=str(self.storage_path.parent),
-            )
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(new_history, f, indent=2)
-                atomic_replace(tmp_name, self.storage_path)
-            except Exception:
-                # Clean up the partial temp file if the swap never happened.
-                with contextlib.suppress(OSError):
-                    os.unlink(tmp_name)
-                raise
-
-            self.history = new_history
-            # Increment by what was actually written, not len(session.records):
-            # a record added by another thread between the slice above and this
-            # commit must stay unflushed for the next save.
-            self._flushed_session_records += len(unflushed)
-            logger.info(f"Saved {len(unflushed)} usage records")
+                self.history = new_history
+                # Records added during the write remain unflushed for next time.
+                self._flushed_session_records += len(unflushed)
+                logger.info(f"Saved {len(unflushed)} usage records")
+        except TimeoutError as e:
+            logger.error("Could not save usage history (history is busy): %s", e)
         except PermissionError as e:
             logger.error(
                 "Could not save usage history (permission denied — file may be locked "
@@ -633,8 +717,6 @@ class UsageTracker:
 # =============================================================================
 # SINGLETON ACCESS
 # =============================================================================
-
-import threading
 
 _tracker: UsageTracker | None = None
 _tracker_lock = threading.Lock()

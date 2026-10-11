@@ -12,25 +12,21 @@ to keep the file consistent even if a process dies mid-write.
 from __future__ import annotations
 
 import contextlib
-import importlib
 import json
 import logging
 import os
 import stat
 import threading
-import time
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any
 
-from primr.utils.atomic_io import atomic_replace
+from primr.utils.atomic_io import atomic_replace, file_mutation_lock
 
 logger = logging.getLogger(__name__)
 
 _jobs_file_lock = threading.Lock()
-_LOCK_TIMEOUT_SECONDS = 10.0
-_LOCK_POLL_SECONDS = 0.05
 _RECOVERY_RECEIPT_VERSION = 1
 _RECOVERY_METADATA_KEYS = frozenset(
     {
@@ -141,65 +137,8 @@ def _write_recovery_receipts(
         Path(temp_file).unlink(missing_ok=True)
 
 
-def _try_lock(stream: BinaryIO) -> None:
-    """Acquire one byte of the persistent lock file without waiting."""
-    stream.seek(0)
-    if os.name == "nt":
-        msvcrt = importlib.import_module("msvcrt")
-        msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-        return
-
-    fcntl = importlib.import_module("fcntl")
-    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-
-def _unlock(stream: BinaryIO) -> None:
-    """Release the platform lock held by ``stream``."""
-    stream.seek(0)
-    if os.name == "nt":
-        msvcrt = importlib.import_module("msvcrt")
-        msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
-        return
-
-    fcntl = importlib.import_module("fcntl")
-    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
-
-
-@contextlib.contextmanager
-def _pending_jobs_mutation_lock(jobs_file: str) -> Iterator[None]:
-    """Serialize one pending-job mutation across local Primr processes."""
-    parent = os.path.dirname(jobs_file)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    lock_path = f"{jobs_file}.lock"
-    stream = open(lock_path, "a+b")  # noqa: SIM115
-    acquired = False
-    try:
-        stream.seek(0, os.SEEK_END)
-        if stream.tell() == 0:
-            stream.write(b"\0")
-            stream.flush()
-
-        deadline = time.monotonic() + _LOCK_TIMEOUT_SECONDS
-        while True:
-            try:
-                _try_lock(stream)
-                acquired = True
-                break
-            except OSError as exc:
-                if time.monotonic() >= deadline:
-                    raise TimeoutError(
-                        f"Timed out waiting for pending-job registry lock: {lock_path}"
-                    ) from exc
-                time.sleep(_LOCK_POLL_SECONDS)
-        yield
-    finally:
-        if acquired:
-            try:
-                _unlock(stream)
-            except OSError as exc:
-                logger.warning("Failed to release pending-job registry lock: %s", exc)
-        stream.close()
+# Keep this patchable name for existing pending-job callers and tests.
+_pending_jobs_mutation_lock = file_mutation_lock
 
 
 def save_pending_job(

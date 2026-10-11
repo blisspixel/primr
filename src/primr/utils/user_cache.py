@@ -59,8 +59,8 @@ def get_user_cache_subdir(name: str) -> Path:
     return subdir
 
 
-def get_user_data_dir() -> Path:
-    """Return the per-user primr data root for durable operator state."""
+def get_user_data_dir(*, create: bool = True) -> Path:
+    """Return the durable data root, optionally without creating it yet."""
     override = os.environ.get("PRIMR_DATA_DIR", "").strip()
     if override:
         root = Path(override)
@@ -73,7 +73,8 @@ def get_user_data_dir() -> Path:
         base = Path(xdg) if xdg else Path.home() / ".local" / "share"
         root = base / "primr"
 
-    root.mkdir(parents=True, exist_ok=True)
+    if create:
+        root.mkdir(parents=True, exist_ok=True)
     return root
 
 

@@ -314,6 +314,32 @@ Controls file paths.
 | `logs_dir` | Path | `{root}/logs` | Log files directory |
 | `cache_dir` | Path | `{root}/logs/scrape_cache` | Scrape cache directory |
 
+Usage history is durable user data, shared by `show-usage`, cost estimation,
+and evaluation auto-staging. It lives at `PRIMR_DATA_DIR/usage_history.json`
+when that override is set, otherwise under `%LOCALAPPDATA%/primr` on Windows
+or `$XDG_DATA_HOME/primr` (default `~/.local/share/primr`) on Linux and macOS.
+`primr doctor` shows the resolved location. It survives replacement of a pipx
+or uv tool environment.
+
+On first use, Primr imports the current installation's legacy
+`logs/usage_history.json` into the durable history. Existing distinct records
+from both files are retained; identical records already present are not imported
+again. A `usage_history.migrated-<hash>.json` copy retains the original bytes,
+and the legacy file remains untouched. Malformed legacy bytes are preserved as
+`usage_history.legacy-<hash>.json` with a warning. An unreadable or malformed
+existing history is never overwritten by a save; repair or move it before
+retrying. Library callers can still supply an explicit `storage_path` to use
+an isolated history without importing legacy data.
+
+Migration and saves serialize through a persistent sibling
+`usage_history.json.lock` file, with a bounded wait of 10 seconds. Each save
+reloads committed history before appending this session's unsaved records, so
+another Primr process's saves or migrations are retained. The lock coordinates
+cooperating local processes using this protocol; it does not protect against
+older versions, external writers, or independent machines syncing the same
+directory. Keep the lock file in place. A lock timeout or failed write leaves
+session records pending for a later save in the same process.
+
 #### Synced folders (OneDrive, Dropbox, Google Drive)
 
 Keep high-churn paths - `working/`, `logs/`, and the scrape cache - outside

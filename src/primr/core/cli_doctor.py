@@ -475,7 +475,7 @@ def _show_file_locations() -> None:
 
     from primr.agentic.memory import get_default_memory_path
     from primr.core.vendor_research import get_vendor_research_dir
-    from primr.utils.usage_tracker import USAGE_FILE
+    from primr.utils.usage_tracker import get_usage_file
     from primr.utils.user_cache import get_user_cache_dir, get_user_data_dir
 
     locations = [
@@ -485,14 +485,14 @@ def _show_file_locations() -> None:
         ("User data (durable)", str(get_user_data_dir())),
         ("Research memory", str(get_default_memory_path())),
         ("Vendor research (shared)", str(get_vendor_research_dir())),
-        ("Usage history", str(Path(USAGE_FILE).resolve())),
+        ("Usage history", str(get_usage_file().resolve())),
     ]
     for label, path in locations:
         console.info(f"{label}: {path}")
     console.info(
         "Per-run folders are safe to archive/delete after a run; "
         "the user cache is shared across runs (PRIMR_CACHE_DIR to relocate), "
-        "and durable memory uses PRIMR_DATA_DIR when relocation is needed."
+        "and durable memory and usage history use PRIMR_DATA_DIR when relocation is needed."
     )
 
 

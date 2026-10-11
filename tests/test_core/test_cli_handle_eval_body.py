@@ -83,6 +83,11 @@ class TestEvalBody:
             "primr.core.model_eval.auto_stage_existing_reports",
             stage_mock,
         )
+        usage_file = tmp_path / "durable" / "usage_history.json"
+        monkeypatch.setattr(
+            "primr.core.cli.usage_tracker.get_usage_tracker",
+            lambda: MagicMock(storage_path=usage_file),
+        )
         _handle_eval(
             _config(
                 eval_id="eval-r1",
@@ -94,6 +99,7 @@ class TestEvalBody:
             )
         )
         stage_mock.assert_called_once()
+        assert stage_mock.call_args.kwargs["usage_file"] == usage_file
 
     def test_run_missing_without_manifest_returns_1(self, stub_eval_deps, tmp_path):
         result = _handle_eval(

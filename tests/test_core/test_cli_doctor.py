@@ -458,6 +458,7 @@ class TestFileLocations:
         assert "User data (durable):" in joined
         assert "Research memory:" in joined
         assert str(tmp_path / "data" / "research_memory") in joined
+        assert f"Usage history: {tmp_path / 'data' / 'usage_history.json'}" in joined
 
 
 # ---------------------------------------------------------------------------
