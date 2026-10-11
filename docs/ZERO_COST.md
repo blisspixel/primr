@@ -21,6 +21,7 @@ electricity, network access, and plan capacity are not free or unlimited.
 |------|------|-----------------|--------------|
 | DNS and infrastructure signals only | `primr recon company.com` | `$0.00` | A fast passive DNS snapshot |
 | Strong local evidence for an existing agent plan | `primr prep` | `$0.00` during collection | Fenced evidence packet, source index, manifest, hashes, traces, DNS, pages, and hiring signals when available |
+| Cited draft using an installed model | `primr draft --local BUNDLE` | `$0.00` model API spend when the configured runtime is unmetered | Unvalidated draft Markdown and DOCX, matching source excerpts, and coverage/provenance receipts |
 | A sourced dossier with no key or GPU | `primr prep` plus `primr-zero` | `$0.00` for collection; `$0.00` total incremental only with verified plan-backed host execution and no overages | Host-assisted Strategic Overview, depth dependent on evidence and host allowance |
 | No working Primr launcher, but the host can search and reason | `primr-zero` host-native fallback | Uses the existing host plan only after billing verification; otherwise cost is unknown or potentially metered | A lighter dossier without Primr DNS, adaptive collection, ATS adapters, traces, or local QA |
 | Reproducible full Primr pipeline | Estimated provider-backed run | Billable | Primr workbook, external research, writing, cross-validation, trust stages, strategy modules, and rendered artifacts |
@@ -117,6 +118,113 @@ public suffixes or accepting similarly named organizations. A separate brand
 domain, missing official website claim, or inaccessible employer metadata can
 therefore reduce coverage. Unverified candidates are omitted; no model call is
 used to guess identity.
+
+## Draft with an installed local model
+
+After prep, pass the exact published bundle directory to the explicit draft
+command. No provider API key is required. It checks live `/v1/models`, selects
+an installed chat model using the existing local judge family preference, and
+never pulls a model or falls back to a provider:
+
+```bash
+primr draft --local "output/ExampleCo_Primr_Prep_20261011" --dry-run
+primr draft --local "output/ExampleCo_Primr_Prep_20261011"
+# Pin a model that the configured runtime already serves:
+primr draft --local --model "your-installed-model" "output/ExampleCo_Primr_Prep_20261011"
+```
+
+The default endpoint is `http://localhost:11434/v1`. `LOCAL_LLM_BASE_URL`
+overrides it, followed by `OLLAMA_BASE_URL`. For your own remote inference box,
+set `LOCAL_LLM_BASE_URL=http://garage-box:11434/v1` before running the same
+commands. Only `LOCAL_LLM_API_KEY` supplies optional authentication for metadata
+and inference requests; cloud provider keys are not reused or recorded in draft
+artifacts. Protect a remote listener and use HTTPS
+when evidence or runtime credentials cross an untrusted network.
+
+**The configured runtime is a trust boundary.** A loopback address alone does
+not prove local execution: Ollama can route cloud models through its local
+server. Primr rejects known public provider endpoints, detectable cloud model
+names, and exposed remote/cloud alias metadata. Arbitrary compatible servers
+cannot prove their execution location or billing basis through this protocol.
+Use a runtime you control that performs unmetered inference. For Ollama, disable
+cloud features on that server with `OLLAMA_NO_CLOUD=1` or its documented
+`disable_ollama_cloud` setting and restart it. Primr does not change server
+configuration. See the [Ollama FAQ](https://docs.ollama.com/faq) and
+[OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility).
+The command bypasses ambient HTTP proxies and refuses redirects for both
+metadata and inference requests. All evidence is sent to the configured
+runtime, which may be another machine if you selected one.
+
+The dry run reads and verifies the three required prep inputs, makes metadata
+requests only to that runtime, and prints installed model details, a request
+cap, and a conservative planning range. It performs no inference and publishes
+no report. These time estimates are planning guidance, not measured speed or
+a wall-clock deadline. Loading, CPU inference, and queues can take longer.
+`--max-chunks` accepts 1-24 (default 12); `--timeout` accepts 10-300 seconds per
+request (default 180). HTTP timeouts govern network waits, not an entire run.
+
+Drafting verifies the manifest hashes and reads stable, bounded snapshots of
+`prep_manifest.json`, `source_index.json`, and `scraped_content.txt`. Linked or
+changed files fail closed. New prep source rows also bind each stripped captured
+body with its own character count and SHA256 digest. The reader reconciles every
+serialized source frame with the captured index, including legacy bundles,
+and rejects extra, duplicate, missing, or metadata-only frames with recollection
+guidance. Legacy whitespace stripping and metadata-only hiring rows remain
+supported. Evaluation reads artifact provenance again before selecting a parser.
+Draft markers retain their local, review-only classification after copying,
+moving, or renaming the directory. Invalid markers fail closed; prep markers or
+a retained prep source index also require strict parsing and remain review-only.
+Ordinary provider runs without prepared provenance keep their existing parser
+compatibility and are preferred as evaluation baselines.
+These integrity checks do not authenticate a publisher or prove source truth.
+Metadata is limited to 2 MB per file and captured
+text to 8 MB. Source chunks are at most 3,200 UTF-8 bytes and selected across
+captured pages in round-robin order. Map and reduce prompts are capped at
+6,000 UTF-8 bytes including the system instruction, with at most 900 generated
+tokens per request. Reducers select existing claim IDs rather than inventing
+new prose, and their inputs and batch counts are bounded too. These byte caps
+are conservative input limits, not exact tokenizer counts. Configure sufficient
+serving context at the runtime; a model's advertised maximum context does not
+establish the context actually served. Ollama context configuration belongs to
+the operator, as described in its OpenAI compatibility guide. For recognized
+Ollama runtimes the command requests JSON mode and no thinking output so the
+small output budget can hold the requested result.
+
+Each retained claim has a known source ID and a matching captured excerpt.
+Unknown IDs, absent excerpts, malformed model responses, and empty results
+cannot silently become a successful report. An excerpt match proves that text
+was captured, not that it entails the claim or is reliable. Review every
+reported assertion and its excerpt. Missing sections, truncated inputs,
+unprocessed hiring/recon artifacts, and partial prep coverage remain visible.
+This path does not browse, collect external evidence, cross-validate claims,
+write strategy modules, or establish full Primr quality equivalence.
+
+Each success publishes a unique `Local_Draft_<timestamp>_<suffix>/` directory
+inside the prep bundle, with:
+
+- `<Company>_Local_Draft_Strategic_Overview_<date>.md` and `.docx`, visibly
+  labeled **Local draft, not the validated Primr report**, including model,
+  quantization when reported, runtime, source citations, and recorded $0 spend;
+- `draft_manifest.json` with backend provenance, token usage, call count,
+  input-manifest hash, zero model API spend, and honest coverage/quality limits;
+- `mapped_claims.json`, captured text, source index, and
+  `scraped_website_summary.txt` for inspection and local-stage evaluation.
+
+Publication is transactional and never overwrites an earlier draft or provider
+baseline. A busy runtime returns exit code 75 without retry or cloud fallback;
+mapped work is retained in a `Local_Draft_Checkpoint_*` directory for inspection,
+without report files. A later invocation starts a new draft from the original
+bundle; checkpoints are not automatic resume files. Other failures or
+interruptions remove incomplete staging. Runtime/cloud execution, hardware,
+electricity, and network costs remain the operator's responsibility; the
+receipt records model API spend as zero for the selected unmetered runtime.
+
+Local-stage evaluation discovers these flat prep bundles and records
+`baseline_kind=local_draft` plus the baseline model. Local/self comparisons are
+review-only and excluded from quality-evidence exports and model recommendations.
+Existing provider-run baselines retain their comparison behavior. A successful
+synthetic draft, citation syntax, quote matching, or local judge agreement is
+not backend promotion evidence.
 
 ## Why the collection is hard-zero
 

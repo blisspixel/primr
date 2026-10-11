@@ -71,6 +71,24 @@ def test_parse_inline_markdown_bold():
     assert para.runs[0].text == "bold"
 
 
+def test_escaped_source_text_remains_literal_without_creating_a_link():
+    doc = Document()
+    para = doc.add_paragraph()
+    parse_inline_markdown(para, r"Q4\_K\_M \*\*literal\*\* \[source\]\(https://example.co\)")
+    assert para.text == "Q4_K_M **literal** [source](https://example.co)"
+    assert "hyperlink" not in para._p.xml
+    assert not any(run.bold or run.italic for run in para.runs)
+
+
+def test_escapes_preserve_enclosing_formatting_code_and_existing_private_characters():
+    doc = Document()
+    para = doc.add_paragraph()
+    parse_inline_markdown(para, "\ue000 " + r"**A\*B** `C\*D` \d")
+    assert para.text == "\ue000 " + r"A*B C\*D \d"
+    assert any(run.text == "A*B" and run.bold for run in para.runs)
+    assert strip_heading_markers(r"# \*Literal\* Q4\_K\_M") == "# *Literal* Q4_K_M"
+
+
 def test_parse_inline_markdown_italic():
     doc = Document()
     para = doc.add_paragraph()

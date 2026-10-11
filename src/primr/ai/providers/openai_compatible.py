@@ -21,6 +21,7 @@ from math import isfinite
 from typing import Any
 
 from primr.ai.error_policy import extract_retry_after_seconds as _extract_retry_after_seconds
+from primr.ai.openai_transport import create_openai_sdk_client as create_openai_sdk_client
 from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.ai.providers.base import (
     ChatResponse,
@@ -47,26 +48,6 @@ def _nonnegative_cost(value: Any) -> float | None:
     if not isfinite(normalized) or normalized < 0:
         return None
     return normalized
-
-
-def create_openai_sdk_client(
-    openai_module: Any,
-    *,
-    api_key: str,
-    base_url: str,
-    default_headers: dict[str, str] | None = None,
-) -> Any:
-    """Create a transport whose retries and redirects are bounded by Primr."""
-    http_client = openai_module.DefaultHttpxClient(follow_redirects=False)
-    client_kwargs: dict[str, Any] = {
-        "api_key": api_key,
-        "base_url": base_url,
-        "max_retries": 0,
-        "http_client": http_client,
-    }
-    if default_headers:
-        client_kwargs["default_headers"] = default_headers
-    return openai_module.OpenAI(**client_kwargs)
 
 
 # ---------------------------------------------------------------------------

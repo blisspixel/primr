@@ -11,6 +11,8 @@ Design decision: Converter owns the header.
 """
 
 import re
+import string
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -73,12 +75,36 @@ def add_hyperlink(paragraph: Any, text: str, url: str) -> None:
     paragraph._p.append(hyperlink)
 
 
+def _protect_escaped_punctuation(text: str) -> tuple[str, Callable[[str], str]]:
+    """Keep literal Markdown escapes out of formatting and link recognition."""
+    marker = "\ue000"
+    while marker in text:
+        marker += "\ue000"
+    literals: list[str] = []
+
+    def protect(match: re.Match[str]) -> str:
+        if match.group(1) is None:  # Backslash escapes are literal inside code.
+            return match.group(0)
+        literals.append(match.group(1))
+        return f"{marker}{len(literals) - 1}{marker}"
+
+    protected = re.sub(r"`[^`]+`|\\([" + re.escape(string.punctuation) + r"])", protect, text)
+
+    def restore(value: str) -> str:
+        return re.sub(
+            marker + r"(\d+)" + marker, lambda match: literals[int(match.group(1))], value
+        )
+
+    return protected, restore
+
+
 def parse_inline_markdown(paragraph: Any, text: str) -> None:
     """Parse inline markdown (bold, italic, code, links) and add to paragraph."""
     # Sanitize text first to remove invalid XML characters
     text = sanitize_text(text)
     if not text:
         return
+    text, restore = _protect_escaped_punctuation(text)
     # Pattern: **bold**, *italic*, `code`, [text](url)
     # italic: guarded so "5*3" / "a*b" math is not mis-italicized (the "*" must
     #   not be flanked by word chars or another "*").
@@ -91,25 +117,25 @@ def parse_inline_markdown(paragraph: Any, text: str) -> None:
             continue
         # Bold
         if part.startswith("**") and part.endswith("**"):
-            run = paragraph.add_run(part[2:-2])
+            run = paragraph.add_run(restore(part[2:-2]))
             run.font.bold = True
         # Italic (single asterisk, not double)
         elif part.startswith("*") and part.endswith("*") and not part.startswith("**"):
-            run = paragraph.add_run(part[1:-1])
+            run = paragraph.add_run(restore(part[1:-1]))
             run.font.italic = True
         # Code
         elif part.startswith("`") and part.endswith("`"):
-            run = paragraph.add_run(part[1:-1])
+            run = paragraph.add_run(restore(part[1:-1]))
             run.font.name = "Consolas"
             run.font.size = Pt(10)
         # Link
         elif part.startswith("[") and "](" in part:
             match = re.match(r"\[(.*?)\]\((.*)\)", part)
             if match:
-                add_hyperlink(paragraph, match.group(1), match.group(2))
+                add_hyperlink(paragraph, restore(match.group(1)), restore(match.group(2)))
         # Regular text
         else:
-            paragraph.add_run(part)
+            paragraph.add_run(restore(part))
 
 
 def render_table(doc: Document, table_lines: list[str]) -> None:
@@ -178,10 +204,11 @@ def strip_heading_markers(text: str) -> str:
     text = sanitize_text(text)
     if not text:
         return ""
+    text, restore = _protect_escaped_punctuation(text)
     text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
     text = re.sub(r"\*(.*?)\*", r"\1", text)
     text = re.sub(r"`(.*?)`", r"\1", text)
-    return text.strip()
+    return restore(text).strip()
 
 
 def _is_header_metadata_line(line: str) -> bool:

@@ -324,8 +324,21 @@ The `src/primr/core/` directory contains the research orchestration logic, decom
 | `run_state_io.py` | Durable local run-state and event recording |
 | `source_relevance.py` | Routed source selection, including the bounded host-agent pilot |
 | `stage_route_comparison.py`, `stage_eval_scorecard.py` | Body-free route and quality evidence artifacts |
+| `evidence_bundle_input.py` | Bounded, stable prep snapshots and source identity inputs |
+| `local_draft.py` | Source-chunk mapping, bounded claim selection, and transactional local draft artifacts |
+| `website_summary_eval_inputs.py` | Provider and prep-draft discovery with baseline provenance |
 | `verification_summary.py` | Compact claim-verification summary shaping |
 | `container.py` | Dependency injection |
+
+The top-level `cli_entry.py` dispatches `draft` to the import-light
+`cli_draft.py` before loading the operational cloud CLI. Explicit draft model
+selection uses live installed runtime metadata and the existing local transport
+seam, with proxies and redirects disabled. `ai/openai_transport.py` owns the
+shared SDK client factory without importing the provider registry. Its source excerpt check and Word
+renderer preserve inspectable evidence, but do not validate claim entailment.
+`local_stage_eval.py` retains its public input/discovery imports while the
+discovery owner carries baseline provenance. Local draft comparisons cannot
+enter quality-evidence exports or model recommendations.
 
 The fast-mode orchestrator (`perform_fast_research`) is decomposed into
 per-stage modules (roadmap #23; see

@@ -36,7 +36,7 @@ def test_chat_completion_raises_structured_busy_error_after_short_retries() -> N
 
     assert client.chat.completions.create.call_count == 2
     assert fake_openai.OpenAI.call_args.kwargs["max_retries"] == 0
-    fake_openai.DefaultHttpxClient.assert_called_once_with(follow_redirects=False)
+    fake_openai.DefaultHttpxClient.assert_called_once_with(follow_redirects=False, trust_env=False)
     sleep_mock.assert_called_once()
     assert sleep_mock.call_args.args[0] <= 24.0
     assert caught.value.retry_after_seconds == 7_200

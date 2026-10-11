@@ -1853,6 +1853,14 @@ Scrape Tier Evolution:
 
 ### Local Inference Mode (Full Pipeline)
 
+The bounded `primr draft --local BUNDLE` command now consumes verified prep
+text and publishes cited, explicitly unvalidated Markdown and DOCX drafts.
+It supports installed models on the operator's machine or a configured private
+runtime, records zero model API spend and coverage limits, and refuses
+detectable cloud routing. This is an inspection path, not completion of the
+full-pipeline milestone below. Local draft baseline comparisons are review-only
+and cannot qualify a backend for promotion.
+
 Run the full Primr pipeline on local hardware with zero API costs. Initial target: RTX 4090 (24GB VRAM) with Ollama or any OpenAI-compatible local server that passes fit checks. Goal: a working `--inference local` mode that produces useful research output now, while keeping the architecture ready for desk-side AI appliances and workstation-class local models to become genuinely high-quality defaults later. Local starts stage-by-stage; it is promoted by eval, not by optimism or by a permanent "weaker tier" assumption.
 
 What's already built (v1.23.0+):
