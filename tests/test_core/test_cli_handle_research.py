@@ -65,6 +65,18 @@ def perform_research_ok(monkeypatch, tmp_path):
 
 
 class TestEarlyValidation:
+    @pytest.mark.parametrize("website", ["https://:443", "https://:"])
+    def test_empty_hostname_returns_local_error(
+        self, website, passing_preflight, perform_research_ok, capsys
+    ):
+        assert _handle_research(_config(website=website, json_output=True)) == 1
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["error_type"] == "invalid_website_url"
+        assert "host" in payload["message"]
+        passing_preflight.assert_not_called()
+        perform_research_ok.assert_not_called()
+
     def test_no_company_returns_1(self, passing_preflight):
         result = _handle_research(_config(company_name=None))
         assert result == 1

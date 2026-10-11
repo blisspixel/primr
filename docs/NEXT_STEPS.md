@@ -79,6 +79,13 @@ architecture slice and requires no provider call or paid evaluation.
 paid evaluation, broad `deep_research.py` decomposition, memory, and new public
 commands.
 
+**Implementation status (2026-10-11):** the section stage receives typed writer
+and coherence callbacks from the existing coordinator. Its back edge is removed
+and the exact core-cycle gate is tightened to 10 members without adding a
+production module. The candidate remains unreleased; verification, CI, and the
+release protocol below still govern shipping. Other stage back edges remain
+outside this card.
+
 ## Follow-through after ownership repair
 
 1. **Make the quality decision defensible.** Complete the curated production

@@ -350,7 +350,7 @@ class DocumentBuilder:
             # Add narrative paragraphs
             for para_text in exec_summary.narrative.split("\n\n"):
                 if para_text.strip():
-                    para = self.document.add_paragraph(para_text.strip())
+                    self.document.add_paragraph(para_text.strip())
 
         # KEY INSIGHTS
         if exec_summary.key_takeaways:

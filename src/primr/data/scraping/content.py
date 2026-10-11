@@ -253,7 +253,7 @@ def detect_content_type(
             elif "<?xml" in text:
                 return "xml"
         except (UnicodeDecodeError, AttributeError):
-            pass
+            pass  # Unrecognized bytes fall through to the unknown content type.
 
     return "unknown"
 

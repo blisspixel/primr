@@ -1,6 +1,6 @@
 # Architecture Cohesion and Agent-Maintainability Plan
 
-Status: P0 complete, P1 in progress, evidence refreshed 2026-08-22
+Status: P0 complete, P1 in progress, evidence refreshed 2026-10-11
 
 ## Goal
 
@@ -14,14 +14,14 @@ that add navigation without an independent boundary.
 
 The current package-inclusive AST graph and repository inventory show:
 
-- 461 non-`__init__` Python source modules, with a median size of 272 physical
-  lines. Thirty-six are below 60 lines, 68 are below 100, and 12 exceed 1,000.
+- 471 non-`__init__` Python source modules, with a median size of 270 physical
+  lines. Thirty-six are below 60 lines, 67 are below 100, and 12 exceed 1,000.
   Primr is therefore not globally dominated by tiny files. It has local
   fragmentation and local concentration at the same time.
-- `core/` remains the clearest navigation problem: 105 non-`__init__` modules,
+- `core/` remains the clearest navigation problem: 107 non-`__init__` modules,
   a 223-line median, and the largest resolved import-cycle component.
 - Three first-party import-cycle components remain after P0 and the current P1
-  batches: an 11-module CLI/research orchestration component, a five-module
+  batches: a 10-module CLI/research orchestration component, a five-module
   model-routing component, and a three-module first-party extraction
   component. CI pins their exact memberships and permits only shrinkage.
 - Ten low-blast, single-consumer modules under 80 lines have no directly mapped
@@ -208,11 +208,30 @@ delta is zero; `research_agent.py` falls from 4,262 to 4,260 lines and
 `fast_run_validation.py` grows from 475 to 515 while remaining a cohesive stage
 well below the new-file ceiling.
 
-The next P1 batch should extract one behavior-owned seam from the remaining
-11-module component, with `fast_run_sections` the current lowest-risk
-candidate. The later P3 `ai/deep_research.py` split remains binding and must
-preserve its public facade and provider lifecycle behavior. Do not create an
-interface file solely to make the graph look cleaner.
+The fourth P1 batch on 2026-10-11 removes the section-stage back edge. The
+existing research coordinator supplies its section writer and coherence pass
+through typed callbacks owned by `fast_run_sections`. Direct stage tests inject
+these behaviors, while composition tests retain the facade helper patch seams
+and exercise the real recovery channel with generated sections and failed
+writes. Thin-section retry, source fencing, routed-model accounting, frozen
+prior snapshots, canonical order, and executive-summary synthesis remain pinned
+by direct tests. Both fresh-interpreter import orders are covered.
+
+The package-inclusive graph now has components of 10, five, and three modules.
+The exact core membership is `primr`, `cli`, `cli_dispatch`, `cli_doctor`,
+`cli_update`, `deep_research_runner`, `fast_run_strategy`, `fast_run_trust`,
+`research_agent`, and `research_orchestrator`. CI pins this smaller membership.
+The production-module delta is zero and `research_agent.py` remains at 4,256
+lines. Section writing joins the definition-strict typing allowlist. The
+legacy recovery adapter's dict-shaped annotation still needs a documented type
+exception for its existing `GeneratedSection` pass-through; this batch does not
+change that runtime contract.
+
+Later P1 batches must remove one verified behavior-owned back edge at a time;
+the remaining trust and strategy stages are separate work. The later P3
+`ai/deep_research.py` split remains binding and must preserve its public facade
+and provider lifecycle behavior. Do not create an interface file solely to
+make the graph look cleaner.
 
 ### Safety-boundary cohesion addendum
 

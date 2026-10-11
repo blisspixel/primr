@@ -133,6 +133,61 @@ uv run --no-sync mkdocs build --strict
 For narrow fixes, run the focused tests for the touched behavior first, then
 run the broader gates before opening the PR.
 
+### URL parser fuzzing
+
+The primary Linux Python 3.13 CI job runs a 30-second coverage-guided
+[Atheris](https://github.com/google/atheris) smoke test against the existing
+`primr.utils.validators.validate_url` boundary used by single and batch CLI
+requests. This uses Atheris's bundled libFuzzer engine, separately from the
+Hypothesis property suite. It makes no HTTP or model calls. The target permits
+only documented `InputValidationError` failures and checks accepted schemes,
+authority and hostname, absent credentials, valid ports, unchanged content, and
+idempotence.
+A network audit hook fails attempted connections or DNS lookups.
+
+The checked-in corpus covers valid HTTPS, IPv6 and Unicode hosts plus malformed
+ports, brackets, NFKC authority delimiters, credentials, schemes, and injection
+patterns, including an empty hostname with a port. Deterministic tests check
+each seed's expected acceptance and prove
+that the oracle catches a permissive validator. Fuzzing consumes arbitrary
+bytes with surrogate escaping and additionally exercises an HTTPS authority
+shape. Inputs are bounded to 4 KiB in CI; a smoke run is not exhaustive parser,
+SSRF, native-extension, or end-to-end research coverage.
+
+The engine is a hash-pinned, binary-only CI tool in
+`tests/fuzz/requirements.txt`, intentionally outside the application dependency
+lock. Its single wheel supports Linux x86_64 CPython 3.13. No runtime package,
+compiler, OSS-Fuzz enrollment, external account, or corpus-storage service is
+required. CI installs it into a temporary target directory, reuses the already
+locked application environment, copies seeds before mutation, and retains
+crashing inputs and the engine log as a seven-day failure artifact. Update the
+version and the matching wheel hash together when maintaining this tool.
+The dependency-audit step checks this separate tool requirement as well.
+The isolated tool install uses `--no-config` so application resolver constraints
+are not interpreted as extra hash-locked tool requirements; the application
+install continues to use `uv sync --locked --all-extras`.
+
+To reproduce on that platform after setting up the usual development environment:
+
+```bash
+mkdir -p .agent/fuzz/tools .agent/fuzz/corpus .agent/fuzz/artifacts
+uv pip install --no-config --python .venv/bin/python --target .agent/fuzz/tools \
+  --only-binary=:all: --require-hashes --no-deps -r tests/fuzz/requirements.txt
+cp tests/fuzz/corpus/url/* .agent/fuzz/corpus/
+PYTHONPATH="$PWD/.agent/fuzz/tools:$PWD/src:$PWD" PYTHONHASHSEED=0 \
+  uv run --no-sync python -m tests.fuzz.url_fuzzer \
+    -max_total_time=30 -timeout=5 -rss_limit_mb=512 -max_len=4096 -seed=150 \
+    -print_final_stats=1 -artifact_prefix="$PWD/.agent/fuzz/artifacts/" \
+    .agent/fuzz/corpus
+uv run --no-sync pytest tests/test_fuzz_url_contract.py -q
+```
+
+Pass a saved crash file in place of the corpus directory to replay it. Review
+and minimize confirmed failures before adding permanent regression seeds.
+[Scorecard v5.3.0's Python detector](https://github.com/ossf/scorecard/blob/v5.3.0/checks/raw/fuzzing.go)
+recognizes the target's actual Atheris import; detection alone does not prove a
+run passed. CI engine results provide that evidence.
+
 Optionally install the pre-commit hooks so ruff + mypy run automatically on
 each commit (CI is still the authoritative gate):
 

@@ -188,7 +188,7 @@ def format_large_numbers_in_text(text: str) -> str:
             if value >= 1000:
                 return format_currency(value, currency)
         except ValueError:
-            pass
+            pass  # Leave unparseable currency text unchanged.
         return str(match.group(0))
 
     # Pattern for plain numbers with commas: 50,000,000
@@ -199,7 +199,7 @@ def format_large_numbers_in_text(text: str) -> str:
             if value >= 10000:  # Only format numbers >= 10K
                 return format_number(value)
         except ValueError:
-            pass
+            pass  # Leave unparseable numeric text unchanged.
         return str(match.group(0))
 
     # Replace currency amounts first

@@ -323,7 +323,6 @@ class PromptComposer:
             lines.append("")
 
         # Add current date context (CRITICAL for LLMs to understand temporal context)
-        current_date = context.current_date or datetime.now().strftime("%B %d, %Y")
         current_year = datetime.now().year
         current_month_year = datetime.now().strftime("%B %Y")
         lines.extend(

@@ -163,7 +163,7 @@ def get_available_tiers() -> list[ScrapeTier]:
 
             available.append(tier)
         except ImportError:
-            pass
+            pass  # Optional browser tiers stay unavailable without their dependency.
 
     return available
 

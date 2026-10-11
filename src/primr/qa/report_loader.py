@@ -80,8 +80,6 @@ class ReportLoader:
         clean = clean.replace("|", "_").replace('"', "_").replace("'", "_")
 
         # Remove any remaining problematic characters
-        import re
-
         clean = re.sub(r"[^\w\s\-\.]", "_", clean)
 
         # Collapse multiple underscores and spaces

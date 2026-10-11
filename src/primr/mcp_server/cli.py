@@ -153,7 +153,7 @@ Authentication (HTTP mode):
     try:
         asyncio.run(server.run())
     except KeyboardInterrupt:
-        pass
+        pass  # A requested terminal interrupt exits quietly.
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

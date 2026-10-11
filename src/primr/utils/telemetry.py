@@ -796,9 +796,7 @@ class CostTracker:
     """
 
     # Default pricing per 1M tokens (input_price, output_price)
-    pricing: dict[str, tuple[float, float]] = field(
-        default_factory=lambda: _build_default_pricing()
-    )
+    pricing: dict[str, tuple[float, float]] = field(default_factory=_build_default_pricing)
 
     def calculate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
         """

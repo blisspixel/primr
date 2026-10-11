@@ -998,7 +998,6 @@ def _scrape_with_playwright_impl(
         )
 
     egress_proxy = None
-    launch_args = BROWSER_LAUNCH_ARGS
     host = extract_host(url)
     headless = _resolve_headless(headless)
     browser = None
@@ -1119,7 +1118,7 @@ def _scrape_with_playwright_impl(
         try:
             page.wait_for_timeout(750)
         except Exception:
-            pass
+            pass  # Continue lazy-load probing if the optional settle wait fails.
 
         # Trigger lazy-loaded content for scroll-driven page builders.
         _trigger_lazy_load(page)

@@ -28,15 +28,12 @@ from __future__ import annotations
 
 import asyncio
 import functools
-import logging
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Coroutine
-
-logger = logging.getLogger(__name__)
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -125,9 +122,9 @@ def detach_running_workers(pool: ThreadPoolExecutor) -> None:
                 try:
                     shutdown_locks.discard(tslock)
                 except Exception:
-                    pass
+                    pass  # Registry cleanup must not block an abandoned worker.
     except Exception:
-        pass
+        pass  # Private interpreter registries vary between Python releases.
 
 
 # =============================================================================

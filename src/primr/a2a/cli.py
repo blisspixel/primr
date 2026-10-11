@@ -135,7 +135,7 @@ Health Check:
 
         run_sync(a2a_server.run())
     except KeyboardInterrupt:
-        pass
+        pass  # A requested terminal interrupt exits quietly.
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

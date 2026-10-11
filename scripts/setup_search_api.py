@@ -330,7 +330,7 @@ def prompt_for_search_engine_id() -> str:
         print("  (Opened browser to the creation page)")
         print()
     except Exception:
-        pass
+        pass  # Continue with manual instructions when no browser opens.
 
     cx = input("  Paste your Search Engine ID here (or Enter to skip): ").strip()
     return cx

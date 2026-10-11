@@ -130,7 +130,7 @@ def validate_url(
         )
 
     # Check host
-    if require_host and not parsed.netloc:
+    if require_host and not parsed.hostname:
         raise InputValidationError("url", "URL must have a host")
 
     if parsed.username is not None or parsed.password is not None:
@@ -138,7 +138,7 @@ def validate_url(
 
     # urllib validates port range lazily when parsed.port is accessed.
     try:
-        _port = parsed.port
+        _ = parsed.port
     except ValueError as e:
         raise InputValidationError("url", f"Invalid URL port: {e}") from e
 
