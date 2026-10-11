@@ -859,6 +859,15 @@ the concrete server to construct it. Health, QA, and strategy operations live
 in dependency-light leaf modules so transport modules do not route through the
 research pipeline merely to reuse one operation.
 
+`utils.atomic_io` owns atomic replacement and bounded advisory mutation locks
+for cooperating local processes. Pending-job persistence and usage-history
+migration/saves use the same persistent sibling-lock protocol. Usage saves
+reload disk state under the lock before appending unflushed session records;
+atomic replacement alone cannot preserve another writer's committed records.
+Usage history lives in the durable user data directory and retains original
+legacy bytes when importing older installation-local histories. See
+[`CONFIG.md`](CONFIG.md) for storage overrides and lock limitations.
+
 The detailed fast-stage contracts live in
 [`design/23-orchestrator-refactor-map.md`](design/23-orchestrator-refactor-map.md),
 and the capability-routing inventory lives in

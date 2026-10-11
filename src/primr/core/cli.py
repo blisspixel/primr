@@ -95,6 +95,7 @@ from primr.core.cli_research_request import (
 from primr.core.cli_update import notify_if_update_available
 from primr.core.cli_validation_policy import should_include_api_keys
 from primr.core.cli_vendor import run_generate_vendor
+from primr.utils import usage_tracker
 from primr.utils.banner import maybe_show_startup_banner
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
@@ -1056,9 +1057,7 @@ def _handle_clear_jobs(config: CLIConfig) -> int:
 
 def _handle_show_usage(config: CLIConfig) -> int:
     """Handle show-usage command."""
-    from primr.utils.usage_tracker import get_usage_tracker
-
-    tracker = get_usage_tracker()
+    tracker = usage_tracker.get_usage_tracker()
     print(tracker.display_usage_history())
     print(_format_vendor_research_freshness())
     return 0
@@ -1624,7 +1623,7 @@ def _handle_eval(config: CLIConfig) -> int:
             source_dir=Path(config.eval_source_dir),
             profiles=config.eval_profiles,
             company=config.eval_company,
-            usage_file=Path("logs") / "usage_history.json",
+            usage_file=usage_tracker.get_usage_tracker().storage_path,
         )
         staged_count = sum(len(v) for v in staged.values())
         if staged_count > 0:
