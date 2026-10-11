@@ -130,7 +130,7 @@ def validate_url(
         )
 
     # Check host
-    if require_host and not parsed.netloc:
+    if require_host and not parsed.hostname:
         raise InputValidationError("url", "URL must have a host")
 
     if parsed.username is not None or parsed.password is not None:

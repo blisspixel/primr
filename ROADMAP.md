@@ -1665,6 +1665,11 @@ service toolchain as a reviewed architectural investment.
   (The former `pyproject.toml` mypy block was dead config and has been removed.)
 - Ships `py.typed` - primr is a good typing citizen for downstream importers.
 - Property-based tests (Hypothesis) for core invariants; a hard-gated hardcoded-secret scanner in CI.
+- Atheris coverage-guided URL-parser fuzzing in the primary Python 3.13 CI job:
+  bounded 30-second smoke, checked-in regression corpus, real acceptance
+  invariants, and retained failure inputs. The engine is a pinned CI-only tool;
+  it adds no application dependency or external fuzzing service. See the
+  [contributor workflow](docs/CONTRIBUTING.md#url-parser-fuzzing).
 - No silent `xfail` rot: `xfail_strict = true` (an unexpectedly-passing xfail fails the run); the suite currently uses zero xfail markers.
 - SSRF protection on every outbound URL (`primr.utils.security`); content sanitization for prompt-injection defense.
 - Single source of version truth enforced by `tests/test_release_integrity.py` (pyproject ↔ `__version__` ↔ ROADMAP "Current State" ↔ `CITATION.cff`).

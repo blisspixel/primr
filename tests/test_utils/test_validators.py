@@ -110,6 +110,21 @@ class TestValidateUrl:
         with pytest.raises(InputValidationError, match="port"):
             validate_url("https://example.com:99999/path")
 
+    @pytest.mark.parametrize("url", ["https://:443", "https://:", "https:///path"])
+    def test_requires_actual_hostname(self, url: str):
+        with pytest.raises(InputValidationError, match="host"):
+            validate_url(url)
+
+    @pytest.mark.parametrize("url", ["https://:443", "https://:", "https:///path"])
+    def test_explicit_hostless_opt_out_remains_supported(self, url: str):
+        assert validate_url(url, require_host=False) == url
+
+    def test_custom_hostless_scheme_remains_supported(self):
+        assert (
+            validate_url("about:blank", allowed_schemes=("about",), require_host=False)
+            == "about:blank"
+        )
+
     def test_rejects_user_credentials(self):
         """Company URLs must not carry credentials into artifacts or logs."""
         with pytest.raises(InputValidationError, match="credentials"):
