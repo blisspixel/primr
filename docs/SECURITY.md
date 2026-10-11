@@ -136,8 +136,8 @@ still crosses Primr's estimate, approval, scope, and runtime budget gates.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.37.x  | Yes                |
-| < 1.37  | No                 |
+| 1.39.x  | Yes                |
+| < 1.39  | No                 |
 
 Requires Python 3.12+ (3.10/3.11 are past or nearing end-of-life).
 
@@ -149,7 +149,7 @@ If you discover a security vulnerability in Primr, please report it responsibly.
 
 ### How to Report
 
-1. Email security concerns to the maintainers (see GitHub profile for contact)
+1. Report security vulnerabilities privately through [GitHub vulnerability reporting](https://github.com/blisspixel/primr/security/advisories/new).
 2. Include:
    - Description of the vulnerability
    - Steps to reproduce
