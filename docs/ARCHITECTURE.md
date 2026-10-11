@@ -1048,7 +1048,7 @@ All HTTP requests are validated before execution to prevent internal network acc
 def validate_url_for_request(url: str, allow_private_ips: bool = False) -> tuple[bool, str, str | None]:
     """
     Validate URL for making external HTTP requests (SSRF protection).
-    
+
     Blocks:
     - Internal/private IP addresses (localhost, 10.x, 192.168.x, 169.254.x, 172.16-31.x)
     - Loopback addresses (127.x.x.x, ::1)
@@ -1126,7 +1126,7 @@ File paths validated to prevent directory traversal:
 def validate_file_path(path: str, base_dir: str | None = None) -> tuple[bool, str]:
     """
     Validate file path to prevent directory traversal attacks.
-    
+
     Checks for:
     - Parent directory references (..)
     - Absolute paths outside base directory
