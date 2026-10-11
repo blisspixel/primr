@@ -480,11 +480,11 @@ Location: `src/primr/data/hiring_signals.py`
 Runs after the main-site scrape (fast mode) and before Phase 2 research deepening. Extracts strategic signals from a company's open job postings - often the most honest public statement of what they're building right now. Job postings are also the primary input to the skill pack subsystem (`primr skills`) - see *Skill Pack Planning* below.
 
 Discovery chain:
-1. **Slug candidates** - derived from the company name, website hostname, and any recon-supplied ATS subdomain hints. Capped at 6.
-2. **Corpus-driven Workday URL discovery** - scans the already-scraped corpus for canonical `https://{tenant}.{wd*}.myworkdayjobs.com/{site}` URLs. When found, hits the matching `/wday/cxs/{tenant}/{site}/jobs` endpoint directly - zero blind guesses.
-3. **ATS board APIs (parallel)** - eight providers, first returning postings wins: Greenhouse (`boards-api.greenhouse.io`), Lever (`api.lever.co`), Ashby (`api.ashbyhq.com`), SmartRecruiters (`api.smartrecruiters.com`), Workday (bounded blind probing across `wd1`/`wd3`/`wd5`/`wd103` × `External`/`Careers`/`External_Careers`/`External_Career_Site`/`Global_External`), Workable (`apply.workable.com/api/v1/widget/accounts/{slug}`), Recruitee (`{slug}.recruitee.com/api/offers/`), Jobvite (RSS feed at `jobs.jobvite.com/{slug}/jobs?format=rss`). All are free, public, and designed for programmatic reading. Workday's JSON endpoint is undocumented; the provider fails closed on schema mismatch and falls through to subsequent paths rather than crashing.
-4. **HTML careers-page fallback** - if every ATS misses, crawl the company's own `/careers` or `/jobs` page via the popup-free external orchestrator, extract individual posting URLs with a regex scan, cap at 80 discovered links.
-5. **DuckDuckGo web-search fallback** - only fires when the entire chain above returns zero postings. Searches `"{company}" jobs OR careers OR hiring {domain}`, filters results to known job-board hosts (LinkedIn, Indeed, Glassdoor, Workday boards, the ATS hosts, ZipRecruiter, BuiltIn, Monster, Dice, iCIMS pattern), strips suffix noise from titles ("| LinkedIn", "at {Company}"), returns metadata-only postings. Bodies are rarely recoverable from these hosts and the downstream no-bodies branch populates `signals.roles` directly from posting titles so the skill pack still sees role-type signal.
+1. **Explicit career URLs** - operator-supplied boards are intentional identity assertions and may merge segmented hiring sites.
+2. **First-party careers pages** - probe the supplied website's careers paths and subdomains, reuse only company-site corpus entries, and follow hosted ATS links or redirects. Canonical Workday URLs in first-party corpus also resolve directly without blind guesses.
+3. **ATS guesses with identity checks** - recon hints precede hostname and name variants, capped at six slugs. Ten public adapters cover Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Workable, Recruitee, Jobvite, iCIMS, and BambooHR. `hiring_identity.py` requires a company-site posting URL, explicit board-level company homepage, or `JobPosting.hiringOrganization.url` / `sameAs` from a bounded posting sample. Employer metadata links only the individual role it describes; arbitrary customer or tool links never promote a board. It ranks only verified boards, keeping unrelated matches from masking a valid tenant. Workday blind discovery retains its existing bounded probe budget.
+4. **DuckDuckGo search fallback** - when the earlier chain yields no postings, search known job-board hosts. Each result must independently pass the employer metadata check before its metadata can contribute roles or counts.
+5. **Identity receipts** - accepted postings carry `identity: verified` and `identity_evidence`. Prep excludes unverified rows from its source index and reports identity-linked counts. The `verified` status records an association basis, including operator assertions and self-reported provider metadata; it does not independently establish that every posting claim is true. `first_party_url.py` owns normalized host-tree matching and link parsing; sibling brand domains require explicit operator career URLs rather than inferred ownership.
 6. **LLM triage** - small Grok call picks up to 15 signal-rich postings (biased toward senior / engineering / product / data / security / platform roles; down-weights retail / sales SDR / entry-level). Deterministic title-based ranker as fallback when the LLM call fails.
 7. **Body fetch** - ATS postings usually include the body inline. HTML postings fetched in parallel via the external orchestrator.
 8. **Batched LLM extraction** - one Grok reasoning call over the aggregated JD text produces structured JSON: roles & locations, tech-stack frequency, strategic initiatives, culture signals, notable absences, hiring volume, summary.
@@ -494,6 +494,18 @@ Outputs:
 - `<working>/_hiring/hiring_signals.json` - structured extraction
 - `<working>/_hiring/postings_index.json` - full discovered list before triage
 - `<working>/_hiring/raw/jd_NNN_*.txt` - individual JD bodies with metadata
+
+Wikipedia fallback identity lives in `data/wikipedia_identity.py`. A bounded
+MediaWiki search resolves article redirects and `pageprops.wikibase_item`, then
+checks current Wikidata P856 official website claims against the supplied site
+tree. Missing, deprecated, ended, and mismatched claims are omitted. Provider
+contracts: [MediaWiki page properties](https://www.mediawiki.org/wiki/API:Pageprops),
+[Wikidata entity API](https://www.wikidata.org/w/api.php?action=help&modules=wbgetentities),
+[official website property](https://www.wikidata.org/wiki/Property:P856),
+[Greenhouse public boards](https://docs.greenhouse.io/job-board.html),
+[Lever postings](https://github.com/lever/postings-api), and
+[JobPosting employer identity](https://developers.google.com/search/docs/appearance/structured-data/job-posting). Every added fetch uses
+the existing SSRF-safe HTTP seam; identity metadata never authorizes egress.
 
 Integration: the extracted signals are rendered via `render_for_prompt` into a `=== HIRING SIGNALS ===` block and appended to `insights.txt` plus the raw external-sources bundle. The Phase 2 gap-filling rebuild preserves this block so every downstream phase (workbook, section writing, cross-validation, Phase 6 strategy) can see it.
 

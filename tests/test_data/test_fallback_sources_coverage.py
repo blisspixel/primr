@@ -251,18 +251,18 @@ class TestEdgarFiling:
 class TestWikipedia:
     def test_find_title_search_failure_returns_none(self):
         with patch("primr.data.fallback_sources._http_get", return_value=(500, None, None)):
-            assert find_wikipedia_title("Acme") is None
+            assert find_wikipedia_title("Acme", website="https://acme.example") is None
 
     def test_find_title_bad_json_returns_none(self):
         with patch(
             "primr.data.fallback_sources._http_get",
             return_value=(200, b"not json", None),
         ):
-            assert find_wikipedia_title("Acme") is None
+            assert find_wikipedia_title("Acme", website="https://acme.example") is None
 
     def test_fetch_content_no_title(self):
         with patch("primr.data.fallback_sources.find_wikipedia_title", return_value=None):
-            assert fetch_wikipedia_content("Acme") == []
+            assert fetch_wikipedia_content("Acme", website="https://acme.example") == []
 
     def test_fetch_content_success(self):
         extract_body = json.dumps(
@@ -288,7 +288,7 @@ class TestWikipedia:
                 return_value=(200, extract_body, None),
             ),
         ):
-            pages = fetch_wikipedia_content("Acme")
+            pages = fetch_wikipedia_content("Acme", website="https://acme.example")
         assert len(pages) == 1
         assert pages[0].source == "wikipedia"
         assert "acme_inc" in pages[0].url.lower()
@@ -307,7 +307,7 @@ class TestWikipedia:
                 return_value=(200, extract_body, None),
             ),
         ):
-            assert fetch_wikipedia_content("Acme") == []
+            assert fetch_wikipedia_content("Acme", website="https://acme.example") == []
 
     def test_fetch_content_extract_fetch_failure(self):
         with (
@@ -320,7 +320,7 @@ class TestWikipedia:
                 return_value=(503, None, None),
             ),
         ):
-            assert fetch_wikipedia_content("Acme") == []
+            assert fetch_wikipedia_content("Acme", website="https://acme.example") == []
 
 
 # =============================================================================

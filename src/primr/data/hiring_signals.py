@@ -22,6 +22,7 @@ from urllib.parse import urljoin, urlparse
 from primr.ai import stage_routing
 from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.data import hiring_public_boards as public_boards
+from primr.data.first_party_url import belongs_to_website, website_links
 from primr.data.hiring_career_urls import discover_career_url_postings, normalize_career_urls
 from primr.data.hiring_extraction import (
     _coerce_extraction as _coerce_extraction,
@@ -31,6 +32,11 @@ from primr.data.hiring_extraction import (
 )
 from primr.data.hiring_extraction import (
     _parse_json_blob as _parse_json_blob,
+)
+from primr.data.hiring_identity import (
+    associate_postings,
+    discover_verified_ats,
+    verify_search_postings,
 )
 from primr.data.hiring_redirects import post_json_no_redirect
 from primr.data.hiring_signal_artifacts import (
@@ -111,6 +117,8 @@ class Posting:
     updated_at: str | None = None  # ISO8601 if known
     body: str | None = None
     apply_url: str | None = None
+    identity: str = "unverified"
+    identity_evidence: str = ""
 
     def age_days(self) -> int | None:
         if not self.updated_at:
@@ -822,43 +830,18 @@ _ATS_PROVIDERS: list[tuple[str, Any]] = [
 def _discover_via_ats(
     slugs: list[str],
     max_workers: int = 8,
+    *,
+    website: str = "",
 ) -> tuple[list[Posting], str | None]:
-    """Fan out every (provider, slug) combo in parallel. First provider
-    that returns a non-empty listing wins; we don't merge across providers
-    because the slug spaces aren't interchangeable (acme on Greenhouse is
-    not necessarily the same company as acme on Lever).
-
-    Returns (postings, provider_name) or ([], None) on total miss.
-    """
-    results: dict[str, list[Posting]] = {}
-
-    def _probe(provider: str, fetcher: Any, slug: str) -> tuple[str, str, list[Posting] | None]:
-        try:
-            return provider, slug, fetcher(slug)
-        except Exception as e:
-            logger.debug("ATS probe %s/%s failed: %s", provider, slug, e)
-            return provider, slug, None
-
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = [
-            pool.submit(_probe, provider, fetcher, slug)
-            for provider, fetcher in _ATS_PROVIDERS
-            for slug in slugs
-        ]
-        for fut in as_completed(futures):
-            try:
-                provider, _, postings = fut.result()
-            except Exception:
-                continue
-            if postings and provider not in results:
-                results[provider] = postings
-
-    # Prefer the provider that returned the most postings — on the rare
-    # occasion two providers both match, that's our best tiebreak signal.
-    if not results:
-        return [], None
-    provider = max(results.keys(), key=lambda p: len(results[p]))
-    return results[provider], provider
+    """Fan out guessed boards and rank only identity-linked results."""
+    return discover_verified_ats(
+        slugs,
+        website,
+        providers=_ATS_PROVIDERS,
+        http_get=_http_get,
+        timeout=_ATS_TIMEOUT_S,
+        max_workers=max_workers,
+    )
 
 
 # =============================================================================
@@ -1001,7 +984,7 @@ def _careers_url_candidates(website: str, corpus: dict[str, str] | None) -> list
 
     if corpus:
         for raw_url in corpus:
-            if not (url := public_web_url(raw_url)):
+            if not (url := public_web_url(raw_url)) or not belongs_to_website(url, website):
                 continue
             path = urlparse(url).path.lower()
             host = normalized_hostname(url)
@@ -1055,39 +1038,43 @@ _ATS_HOST_FETCHERS: tuple[tuple[re.Pattern[str], str, str | None], ...] = (
     (
         re.compile(
             r"^(?:[a-z]{2}-[a-z]{2}\.)?([A-Za-z0-9][A-Za-z0-9-]*)"
-            r"\.(wd\d+)\.myworkdayjobs\.com",
+            r"\.(wd\d+)\.myworkdayjobs\.com$",
             re.IGNORECASE,
         ),
         "workday",
         None,
     ),
-    (re.compile(r"^boards\.greenhouse\.io", re.IGNORECASE), "greenhouse", "_fetch_greenhouse"),
-    (re.compile(r"^jobs\.lever\.co", re.IGNORECASE), "lever", "_fetch_lever"),
-    (re.compile(r"^jobs\.ashbyhq\.com", re.IGNORECASE), "ashby", "_fetch_ashby"),
     (
-        re.compile(r"^jobs\.smartrecruiters\.com", re.IGNORECASE),
+        re.compile(r"^(?:boards|job-boards)\.greenhouse\.io$", re.IGNORECASE),
+        "greenhouse",
+        "_fetch_greenhouse",
+    ),
+    (re.compile(r"^jobs\.lever\.co$", re.IGNORECASE), "lever", "_fetch_lever"),
+    (re.compile(r"^jobs\.ashbyhq\.com$", re.IGNORECASE), "ashby", "_fetch_ashby"),
+    (
+        re.compile(r"^jobs\.smartrecruiters\.com$", re.IGNORECASE),
         "smartrecruiters",
         "_fetch_smartrecruiters",
     ),
-    (re.compile(r"^apply\.workable\.com", re.IGNORECASE), "workable", "_fetch_workable"),
+    (re.compile(r"^apply\.workable\.com$", re.IGNORECASE), "workable", "_fetch_workable"),
     (
-        re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]*)\.recruitee\.com", re.IGNORECASE),
+        re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]*)\.recruitee\.com$", re.IGNORECASE),
         "recruitee",
         "_fetch_recruitee",
     ),
-    (re.compile(r"^jobs\.jobvite\.com", re.IGNORECASE), "jobvite", "_fetch_jobvite"),
+    (re.compile(r"^jobs\.jobvite\.com$", re.IGNORECASE), "jobvite", "_fetch_jobvite"),
     (
-        re.compile(r"^(?:careers|jobs)-([A-Za-z0-9][A-Za-z0-9-]*)\.icims\.com", re.IGNORECASE),
+        re.compile(r"^(?:careers|jobs)-([A-Za-z0-9][A-Za-z0-9-]*)\.icims\.com$", re.IGNORECASE),
         "icims",
         "_fetch_icims",
     ),
     (
-        re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]*)\.icims\.com", re.IGNORECASE),
+        re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]*)\.icims\.com$", re.IGNORECASE),
         "icims",
         "_fetch_icims",
     ),
     (
-        re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]*)\.bamboohr\.com", re.IGNORECASE),
+        re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]*)\.bamboohr\.com$", re.IGNORECASE),
         "bamboohr",
         "_fetch_bamboohr",
     ),
@@ -1192,10 +1179,19 @@ def _discover_via_html(
         # the provider directly with the slug extracted from the final
         # URL. Avoids both the HTML parse and the Workday blind discovery
         # loop when we already know the canonical board.
-        redirect_hit = _detect_ats_redirect(final_url)
+        referral_urls = [
+            final_url,
+            *website_links(html_bytes.decode("utf-8", errors="replace"), final_url),
+        ]
+        redirect_hit = next(
+            (hit for url in referral_urls if (hit := _detect_ats_redirect(url))), None
+        )
         if redirect_hit is not None:
             provider_name, redirect_postings = redirect_hit
-            new = [p for p in redirect_postings if p.url not in seen_urls]
+            new = associate_postings(
+                [p for p in redirect_postings if p.url not in seen_urls],
+                f"first_party_careers:{careers_url}",
+            )
             for p in new:
                 seen_urls.add(p.url)
             postings.extend(new)
@@ -1215,6 +1211,8 @@ def _discover_via_html(
                     location="",
                     department="",
                     source="html",
+                    identity="verified",
+                    identity_evidence=f"first_party_careers:{careers_url}",
                 )
             )
             if len(postings) >= MAX_DISCOVERED_POSTINGS:
@@ -1353,7 +1351,14 @@ def gather_hiring_signals(
             max_discovered=MAX_DISCOVERED_POSTINGS,
         )
 
-    corpus_workday_triples = _discover_workday_triples(corpus)
+        associate_postings(postings, "operator_supplied_career_url")
+
+    first_party_corpus = {
+        url: text for url, text in (corpus or {}).items() if belongs_to_website(url, website)
+    }
+    if not postings:
+        postings, ats_source = _discover_via_html(website, first_party_corpus)
+    corpus_workday_triples = _discover_workday_triples(first_party_corpus)
     if not postings and corpus_workday_triples:
         logger.info(
             "Hiring signals: corpus revealed %d Workday triple(s); fetching directly",
@@ -1362,35 +1367,19 @@ def gather_hiring_signals(
         for triple in corpus_workday_triples:
             direct = _workday_fetch_one(triple)
             if direct:
-                postings = direct
+                postings = associate_postings(direct, "first_party_corpus:workday")
                 ats_source = "workday"
                 break
 
     if not postings and slugs:
         logger.info("Hiring signals: trying ATS slugs %s", slugs)
-        postings, ats_source = _discover_via_ats(slugs)
+        postings, ats_source = _discover_via_ats(slugs, website=website)
 
-    discovery_source: str
+    discovery_source = ats_source or "none"
     if postings:
-        discovery_source = ats_source or "ats"
         logger.info(
-            "Hiring signals: %d postings via %s (slugs=%s)",
-            len(postings),
-            discovery_source,
-            slugs,
+            "Hiring signals: %d identity-verified postings via %s", len(postings), discovery_source
         )
-    else:
-        logger.info("Hiring signals: no ATS match, falling back to HTML discovery")
-        postings, html_source = _discover_via_html(website, corpus)
-        if postings:
-            discovery_source = html_source or "html"
-            logger.info(
-                "Hiring signals: %d postings via %s (HTML / subdomain probe)",
-                len(postings),
-                discovery_source,
-            )
-        else:
-            discovery_source = "none"
 
     # Web-search fallback: when ATS providers + careers-page crawl both
     # came up empty, sweep DDG across major job-board hosts to pick up
@@ -1399,7 +1388,12 @@ def gather_hiring_signals(
     # below. Only triggered when truly empty so we don't augment a
     # working ATS hit with noisier web-search rows.
     if not postings:
-        web_hits = _discover_via_web_search(company_name, website)
+        web_hits = verify_search_postings(
+            _discover_via_web_search(company_name, website),
+            website,
+            http_get=_http_get,
+            timeout=_ATS_TIMEOUT_S,
+        )
         if web_hits:
             logger.info(
                 "Hiring signals: web-search fallback found %d postings",

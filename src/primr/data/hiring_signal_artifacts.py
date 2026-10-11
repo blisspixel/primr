@@ -22,6 +22,8 @@ class PostingLike(Protocol):
     source: str
     updated_at: str | None
     body: str | None
+    identity: str
+    identity_evidence: str
 
 
 class HiringSignalsLike(Protocol):
@@ -139,6 +141,8 @@ def _persist(
                 "department": posting.department,
                 "source": posting.source,
                 "updated_at": posting.updated_at,
+                "identity": posting.identity,
+                "identity_evidence": posting.identity_evidence,
             }
             for posting in all_postings
         ]

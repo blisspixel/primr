@@ -45,6 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tier exhaustion, and the CLI explains why additional sources are needed.
   Explicit challenge, status, and content-quality checks remain in effect.
 
+- **Company evidence requires an identity link.** Wikipedia candidates must
+  match the target website through current Wikidata official website claims.
+  Hiring collection tries first-party careers pages before guessed ATS tenants,
+  checks guessed boards and search results for employer identity, and retains
+  identity evidence in posting indexes. Prep excludes unverified hiring rows
+  and reports identity-linked posting counts. Arbitrary customer or tool links
+  cannot verify an employer or promote unrelated roles on a mixed board.
+
 ## [1.39.17] - 2026-09-17
 
 ### Added

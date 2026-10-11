@@ -324,7 +324,9 @@ def _build_source_rows(
                 (
                     posting
                     for posting in postings
-                    if isinstance(posting, dict) and posting.get("url")
+                    if isinstance(posting, dict)
+                    and posting.get("url")
+                    and posting.get("identity") == "verified"
                 ),
                 key=lambda posting: (
                     str(posting.get("url") or "").casefold(),
@@ -342,6 +344,10 @@ def _build_source_rows(
                         "url": _clean_external_metadata(str(posting["url"]), max_chars=2_048),
                         "title": _clean_external_metadata(str(posting.get("title") or "")),
                         "characters": 0,
+                        "identity": "verified",
+                        "identity_evidence": _clean_external_metadata(
+                            str(posting.get("identity_evidence") or "")
+                        ),
                     }
                 )
                 next_id += 1
