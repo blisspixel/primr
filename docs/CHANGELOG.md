@@ -39,6 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   versions and remove stale `doctor --local` examples. Missing provider keys
   point to the $0 `primr prep` evidence path. Refs #202.
 
+- **Sparse pages are distinguished from access blocks.** Small HTML responses
+  no longer count as soft blocks solely because of their byte length. Reachable
+  but insufficient pages retain their HTTP status and content assessment through
+  tier exhaustion, and the CLI explains why additional sources are needed.
+  Explicit challenge, status, and content-quality checks remain in effect.
+
 ## [1.39.17] - 2026-09-17
 
 ### Added

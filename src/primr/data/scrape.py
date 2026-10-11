@@ -903,7 +903,7 @@ def fetch_web_content(
             console.clear_line()
             total_found = len(selected_urls)
         else:
-            console.status("Homepage blocked - probing first-party fallback paths...")
+            console.status("Homepage content insufficient - probing first-party fallback paths...")
             selected_urls = _discover_first_party_recovery_urls(
                 website,
                 organization_type=organization_type,
@@ -915,7 +915,7 @@ def fetch_web_content(
             _append_trace(
                 "RECOVER",
                 website,
-                f"first-party recovery candidates={total_found} reason={homepage_recovery_reason or 'homepage blocked'}",
+                f"first-party recovery candidates={total_found} reason={homepage_recovery_reason or 'no usable homepage'}",
             )
 
     homepage_slot = 1 if homepage_access_ok else 0
@@ -942,7 +942,7 @@ def fetch_web_content(
         _append_trace(
             "FALLBACK",
             website,
-            f"origin blocked ({homepage_recovery_reason or 'unknown'}) — firing public-data fallbacks",
+            f"no usable homepage ({homepage_recovery_reason or 'unknown'}) - collecting public-data fallbacks",
         )
 
         fallback_content = _collect_fallback_content(
