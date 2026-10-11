@@ -28,7 +28,7 @@ $pipxInstalled = $false
 if (Get-Command pipx -ErrorAction SilentlyContinue) {
     try {
         $pipxList = & pipx list 2>$null | Out-String
-        $pipxInstalled = $LASTEXITCODE -eq 0 -and $pipxList -match "(?im)^\s*package\s+$Package\b"
+        $pipxInstalled = $LASTEXITCODE -eq 0 -and $pipxList -match "(?im)^\s*package\s+$Package(?:\s|$)"
     } catch {
         $pipxInstalled = $false
     }

@@ -146,8 +146,17 @@ def installer(request, tmp_path):
     return run
 
 
-def test_uv_needs_no_system_python_and_wins_over_unused_pipx(installer):
-    result, calls, _ = installer(tools=("uv", "pipx"), listing="primr is not installed")
+@pytest.mark.parametrize(
+    "listing",
+    [
+        "primr is not installed",
+        "    package primr-helper 1.0.0, installed using Python 3.14",
+        "    package primr_tools 1.0.0, installed using Python 3.14",
+        "    package primr2 1.0.0, installed using Python 3.14",
+    ],
+)
+def test_uv_needs_no_system_python_and_wins_over_unused_pipx(installer, listing):
+    result, calls, _ = installer(tools=("uv", "pipx"), listing=listing)
     assert result.returncode == 0, result.stderr
     assert ["uv", "tool", "install", "--upgrade", "--python", "3.14", "primr"] in calls
     assert not any(call[0].startswith("python") for call in calls)
