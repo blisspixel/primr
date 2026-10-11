@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the OS argument boundary, preventing surrogate encoding failures before the
   adapter runs while preserving malformed JSON coverage.
 
+- **Usage history survives tool reinstallations.** Usage tracking, doctor, and
+  evaluation auto-staging share the durable per-user history, honoring
+  `PRIMR_DATA_DIR`. Legacy history is imported atomically without replacing
+  distinct existing records, with original bytes retained for recovery.
+  Malformed histories are preserved and reported instead of silently erased;
+  explicit library storage paths remain isolated. Cooperating local writers
+  serialize migrations and saves, preserving other processes' committed usage
+  and keeping failed saves retryable without duplicating session records.
+
 ## [1.39.17] - 2026-09-17
 
 ### Added
