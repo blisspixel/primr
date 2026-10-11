@@ -192,16 +192,16 @@ class TestRepetitiveContent:
 
 
 # =============================================================================
-# Content length last-resort gate
+# Small responses without block signals
 # =============================================================================
 
 
-class TestContentLengthGate:
-    def test_short_html_without_structure_blocked(self):
+class TestSmallResponses:
+    def test_short_html_without_structure_is_not_blocked(self):
         html = b"<html><body>tiny</body></html>"
         blocked, reason = detect_soft_block(html, http_status=200, content_type="text/html")
-        assert blocked is True
-        assert "too short" in reason.lower()
+        assert blocked is False
+        assert reason is None
 
     def test_short_but_well_structured_passes(self):
         html = (

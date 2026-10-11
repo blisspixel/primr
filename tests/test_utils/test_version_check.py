@@ -142,6 +142,24 @@ def test_check_for_update_swallows_errors(monkeypatch):
 # --- install-method detection ---
 
 
+def test_detect_uv_tool_install_with_custom_location(tmp_path, monkeypatch):
+    tool_env = tmp_path / "custom-tools" / "primr"
+    tool_env.mkdir(parents=True)
+    (tool_env / "uv-receipt.toml").write_text("[tool]\n", encoding="utf-8")
+    monkeypatch.setattr(vc.sys, "prefix", str(tool_env))
+
+    method = vc.detect_install_method()
+    assert method.kind == "uv"
+    assert method.upgrade_command == ["uv", "tool", "upgrade", "primr"]
+
+
+def test_unmanaged_virtualenv_uses_its_own_pip(tmp_path, monkeypatch):
+    monkeypatch.setattr(vc.sys, "prefix", str(tmp_path / ".venv"))
+    method = vc.detect_install_method()
+    assert method.kind == "pip"
+    assert method.upgrade_command[:3] == [vc.sys.executable, "-m", "pip"]
+
+
 def test_detect_pipx_install(monkeypatch):
     monkeypatch.setattr(vc.sys, "prefix", "/home/u/.local/pipx/venvs/primr")
     method = vc.detect_install_method()

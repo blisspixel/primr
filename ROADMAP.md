@@ -467,7 +467,7 @@ from run history.
   `primr --help-all` retaining the complete command reference. Console and
   `python -m primr` execution share one dispatcher; version and focused help
   avoid operational CLI imports and workspace initialization.
-- One-command install/update: idempotent `scripts/install.{ps1,sh}` one-liners (pipx-based, upgrade on re-run), a `primr update` self-upgrade command (detects pipx vs pip), and a passive once-a-day "update available" notice (cached in the per-user dir, opt-out via `PRIMR_NO_UPDATE_CHECK`)
+- Install/update: idempotent `scripts/install.{ps1,sh}` (uv preferred, existing pipx installs preserved, explicit Python 3.12 through 3.14), a `primr update` self-upgrade command (detects uv, pipx, or pip), and a passive once-a-day "update available" notice (cached in the per-user dir, opt-out via `PRIMR_NO_UPDATE_CHECK`)
 - 10,000+ tests, full ruff compliance, mypy clean on an incremental strict ratchet (see [Engineering Standards & Toolchain](#engineering-standards--toolchain))
 - Serverless cloud deployment templates (AWS, Azure, GCP); Azure validated end-to-end (remaining hardening below)
 - Agentic architecture: hypothesis tracking, subagents, hooks, orchestrator
@@ -1884,7 +1884,7 @@ What gets built:
 - Production-safe local/cloud/hybrid stage routing (extends the capability-requirement routing layer above)
 - Per-stage model selection based on capability requirements + available backends
 - Cost estimator reflects local inference as $0.00 API cost while tracking runtime
-- `primr doctor --local` validates Ollama is running, models are pulled, VRAM is sufficient
+- Extend `primr doctor` with Ollama model and VRAM readiness checks
 - Graceful degradation: if a local model can't handle a stage, fall back to cloud (hybrid) or skip (local) with clear logging
 - Progress display shows which backend each stage is using: `Analysis (local: qwen3:32b)` vs `Analysis (cloud: grok-4.3)`
 

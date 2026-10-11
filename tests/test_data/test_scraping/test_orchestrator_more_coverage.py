@@ -223,6 +223,19 @@ class TestBestTierReorder:
 
 
 class TestWrongPageEscalation:
+    def test_wrong_page_diagnosis_survives_an_earlier_small_response(self):
+        thin = make_tier("requests", content=b"<html><body>Welcome</body></html>")
+        wrong_html = GOOD_HTML.replace(
+            b"<head>", b'<head><link rel="canonical" href="https://example.com/elsewhere">'
+        )
+        orch = build([thin, make_tier("browser", content=wrong_html)])
+        result = orch.scrape_url("https://example.com/services")
+        assert result.success is False
+        assert result.http_status == 200
+        assert result.error_type == ErrorType.SUCCESS_SIGNAL_FAILED
+        assert "Wrong page served" in result.error
+        assert result.access_assessment is None
+
     def test_wrong_page_breaks_with_error_result(self):
         wrong_html = (
             b'<html><head><link rel="canonical" href="https://example.com/elsewhere">'
@@ -295,6 +308,31 @@ class TestThinContentEscalation:
         result = orch.scrape_url("https://example.com/page")
         assert result.success is True
         assert result.tier == "t2"
+
+    @pytest.mark.parametrize("later_failure", [False, True])
+    def test_small_reachable_page_retains_access_evidence_at_tier_exhaustion(self, later_failure):
+        html = (
+            b"<html><head><title>Example Domain</title></head><body>"
+            b"<h1>Example Domain</h1><p>This domain is for use in illustrative examples "
+            b"in documents. You may use this domain in literature without prior coordination "
+            b"or asking for permission.</p></body></html>"
+        )
+        tiers = [make_tier("requests", content=html)]
+        if later_failure:
+            tiers.append(make_tier("browser", success=False))
+        orch = build(tiers)
+        result = orch.scrape_url("https://example.com/")
+        assert result.success is False
+        assert result.http_status == 200
+        assert result.error_type == ErrorType.SUCCESS_SIGNAL_FAILED
+        assert result.access_assessment.state in {
+            PageAccessState.THIN_CONTENT,
+            PageAccessState.UNKNOWN,
+        }
+        assert result.access_assessment.visible_text_length > 100
+        assert "soft block" not in result.error.lower()
+        assert len(result.attempts) == len(tiers)
+        assert orch.get_host_state("example.com").hard_blocked is False
 
     def test_classifier_thin_content_escalates(self):
         """A page the real classifier rates THIN_CONTENT escalates (no stub)."""

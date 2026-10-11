@@ -16,6 +16,7 @@ import os
 import random
 import re
 import time
+from dataclasses import replace
 from urllib.parse import urlparse
 
 from .cache import ScrapeCache
@@ -495,6 +496,7 @@ class ScrapeOrchestrator:
 
         # 3. Try each tier (start with best_tier if known for this host)
         last_result: ScrapeResult | None = None
+        content_result: ScrapeResult | None = None
         host_state = self._get_host_state(host)
         expected_markers = get_positive_markers(host)
 
@@ -755,10 +757,8 @@ class ScrapeOrchestrator:
 
             if access_assessment.state in (PageAccessState.THIN_CONTENT, PageAccessState.UNKNOWN):
                 logger.debug(
-                    "Access classifier rejected %s on %s for %s: %s",
-                    access_assessment.state.value,
+                    "Insufficient page content on %s: %s",
                     tier.name,
-                    url,
                     access_assessment.reason,
                 )
                 retry_result = self._maybe_retry_browser_tier(
@@ -784,10 +784,8 @@ class ScrapeOrchestrator:
                         access_assessment = retry_assessment
                     else:
                         logger.debug(
-                            "Adaptive browser retry remained %s on %s for %s",
+                            "Adaptive browser retry remained %s",
                             retry_assessment.state.value,
-                            tier.name,
-                            url,
                         )
                         host_state.browser_headed_preferred = False
                         retry_result = None
@@ -805,10 +803,12 @@ class ScrapeOrchestrator:
                         error=access_assessment.reason
                         or "Page loaded without convincing real-content markers",
                         error_type=ErrorType.SUCCESS_SIGNAL_FAILED,
+                        http_status=tier_result.http_status,
                         tier=tier.name,
                         elapsed_ms=(time.time() - start_time) * 1000,
                         access_assessment=access_assessment,
                     )
+                    content_result = last_result
                     error_key = access_assessment.state.value
                     if last_error_type == error_key:
                         consecutive_failures += 1
@@ -831,21 +831,20 @@ class ScrapeOrchestrator:
                         _safe_for_log(tier_result.final_url),
                     )
                     host_state.record_tier_attempt(tier.name, success=False)
-                    # Overwrite last_result so the "all tiers failed" block
-                    # reports a meaningful error instead of success=True.
+                    # Keep a content rejection distinct from a transport failure.
                     last_result = ScrapeResult(
                         url=url,
                         success=False,
                         error=f"Wrong page served (canonical={canonical})",
-                        error_type=ErrorType.NETWORK_ERROR,
+                        error_type=ErrorType.SUCCESS_SIGNAL_FAILED,
+                        http_status=tier_result.http_status,
                         tier=tier.name,
                         elapsed_ms=(time.time() - start_time) * 1000,
                     )
                     # Don't retry — other tiers will get the same redirect.
                     break
 
-            # 3g. Tentative success — defer best_tier promotion until after
-            # binary content and quality checks (below) confirm usable output.
+            # Defer best_tier promotion until content quality is confirmed.
             consecutive_failures = 0
 
             # Store cookies if browser tier provided them (for cookie handoff)
@@ -904,8 +903,7 @@ class ScrapeOrchestrator:
 
             validation = validate_content(extracted, url) if extracted else None
 
-            # Check content quality - if garbage, try next tier unless richer
-            # validation says this is a useful structured short page.
+            # Retry poor content unless validation confirms a structured short page.
             is_quality, quality_reason = is_quality_content(extracted)
             allow_structured_short = bool(
                 validation and validation.valid and validation.content_class == "structured_short"
@@ -977,14 +975,16 @@ class ScrapeOrchestrator:
 
             return result
 
-        # All tiers failed
         elapsed_ms = (time.time() - start_time) * 1000
 
-        result = ScrapeResult(
-            url=url,
-            success=False,
-            error_type=last_result.error_type if last_result else ErrorType.NETWORK_ERROR,
-            error=last_result.error if last_result else "All tiers failed",
+        if content_result and last_result and last_result.http_status is None:
+            if last_result.error_type in (ErrorType.TIMEOUT, ErrorType.NETWORK_ERROR):
+                last_result = content_result
+        result = replace(
+            last_result
+            or ScrapeResult(
+                url=url, success=False, error="All tiers failed", error_type=ErrorType.NETWORK_ERROR
+            ),
             tier=None,
             elapsed_ms=elapsed_ms,
             attempts=all_attempts,

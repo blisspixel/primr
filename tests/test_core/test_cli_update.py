@@ -187,12 +187,31 @@ def test_run_update_propagates_failure(monkeypatch):
     assert cli_update.run_update(yes=True) == 3
 
 
-def test_run_update_handles_missing_tool(monkeypatch):
+def test_uv_tool_update_uses_uv_without_pip(tmp_path, monkeypatch):
+    from primr.utils import version_check
+
+    (tmp_path / "uv-receipt.toml").write_text("[tool]\n", encoding="utf-8")
+    monkeypatch.setattr(version_check.sys, "prefix", str(tmp_path))
+    monkeypatch.setattr(cli_update, "get_latest_version", lambda **_kwargs: "999.0.0")
+    commands = []
+
+    def fake_run(command, check=False):
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert cli_update.run_update(yes=True) == 0
+    assert commands == [["uv", "tool", "upgrade", "primr"]]
+
+
+@pytest.mark.parametrize("kind", ["pipx", "uv"])
+def test_run_update_handles_missing_tool(monkeypatch, capsys, kind):
     monkeypatch.setattr(cli_update, "get_latest_version", lambda **k: "999.0.0")
+    command = ["uv", "tool", "upgrade", "primr"] if kind == "uv" else ["pipx", "upgrade", "primr"]
     monkeypatch.setattr(
         cli_update,
         "detect_install_method",
-        lambda: InstallMethod(kind="pipx", upgrade_command=["pipx", "upgrade", "primr"]),
+        lambda: InstallMethod(kind=kind, upgrade_command=command),
     )
 
     def boom(*a, **k):
@@ -200,6 +219,8 @@ def test_run_update_handles_missing_tool(monkeypatch):
 
     monkeypatch.setattr(subprocess, "run", boom)
     assert cli_update.run_update(yes=True) == 1
+    if kind == "uv":
+        assert "Restore uv to PATH" in capsys.readouterr().out
 
 
 # --- passive notice ---

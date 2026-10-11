@@ -256,7 +256,11 @@ def test_public_install_guidance_avoids_remote_code_piping() -> None:
     shell_installer = (REPO_ROOT / "scripts" / "install.sh").read_text(encoding="utf-8")
     combined = "\n".join((readme, powershell_installer, shell_installer)).lower()
 
-    assert readme.index("pipx install primr") < readme.index("convenience installers")
+    for command in (
+        "uv tool install --python 3.14 primr",
+        "pipx install --python python3.14 primr",
+    ):
+        assert readme.index(command) < readme.index("convenience installers")
     assert "download and inspect" in readme.lower()
     assert re.search(r"\|\s*(?:iex|bash|sh)\b", combined) is None
 

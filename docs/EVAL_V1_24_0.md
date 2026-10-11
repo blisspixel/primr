@@ -173,7 +173,8 @@ When the RTX 4090 is free:
 
 1. Verify Ollama is running and the target local models are pulled:
    - `ollama pull qwen3:32b qwen3.6:35b-a3b llama4:scout`
-2. Run `primr doctor --local` - confirms VRAM, Ollama health.
+2. Run `primr doctor` to check runtime and configured providers. Check Ollama
+   health and available VRAM separately.
 3. Stage outputs to `output/evals/eval-2026-05-r2/<slot-name>/` and run the scorecard against the v1.24.0 winner only. Incremental scoring; no need to re-run cloud cells.
 
 ### 4B. Generation

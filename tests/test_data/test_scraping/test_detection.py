@@ -114,13 +114,13 @@ class TestDetectSoftBlock:
         assert is_blocked is True
         assert "empty" in reason.lower()
 
-    def test_detects_short_content(self):
-        """Should detect suspiciously short content."""
+    def test_short_content_is_not_block_evidence(self):
+        """A small response alone does not establish an access block."""
         html = b"<html><body>Short</body></html>"
         is_blocked, reason = detect_soft_block(html, content_type="text/html")
 
-        assert is_blocked is True
-        assert "short" in reason.lower()
+        assert is_blocked is False
+        assert reason is None
 
     def test_detects_http_403(self):
         """Should detect HTTP 403 status."""

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from primr.data.scraping.blocked_summary import (
     build_blocked_site_summary,
     emit_blocked_site_summary,
@@ -15,6 +17,9 @@ class RecordingConsole:
 
     def fail(self, msg):
         self.events.append(("fail", msg))
+
+    def warn(self, msg):
+        self.events.append(("warn", msg))
 
     def muted(self, msg):
         self.events.append(("muted", msg))
@@ -64,3 +69,41 @@ def test_emit_blocked_site_summary_uses_console_methods():
     assert any(
         kind == "muted" and "2 same-site candidate page(s)" in msg for kind, msg in console.events
     )
+
+
+@pytest.mark.parametrize("state", [PageAccessState.THIN_CONTENT, PageAccessState.UNKNOWN])
+def test_reachable_insufficient_page_is_reported_without_block_diagnosis(state):
+    console = RecordingConsole()
+    result = ScrapeResult(
+        url="https://example.com",
+        success=False,
+        http_status=200,
+        error="Content signals are inconclusive",
+        access_assessment=PageAccessAssessment(
+            state=state,
+            reason="insufficient content",
+            visible_text_length=140,
+            evidence=["visible_text_length:140"],
+        ),
+    )
+    emit_blocked_site_summary(console, "example.com", result, None, recovery_count=0)
+    assert console.events[0][0] == "warn"
+    assert "Reached example.com" in console.events[0][1]
+    messages = "\n".join(msg for _, msg in console.events)
+    assert "visible_text_length:140" in messages
+    assert "collecting additional public sources" in messages
+    assert "Could not access" not in messages
+    assert "check site availability" not in messages
+
+
+@pytest.mark.parametrize("status", [None, 403, 429])
+def test_insufficient_assessment_without_success_status_does_not_claim_reachable(status):
+    console = RecordingConsole()
+    result = ScrapeResult(
+        url="https://example.com",
+        success=False,
+        http_status=status,
+        access_assessment=PageAccessAssessment(state=PageAccessState.UNKNOWN),
+    )
+    emit_blocked_site_summary(console, "example.com", result, None, recovery_count=0)
+    assert console.events[0] == ("fail", "Could not access example.com")
