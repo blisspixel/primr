@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transitive security constraints, and the directly used urllib3 client has a
   published minimum of 2.8.0. Regenerated the hash-locked container exports.
 
+### Fixed
+
+- Restricted TypeScript adapter process-input fuzzing to strings that can cross
+  the OS argument boundary, preventing surrogate encoding failures before the
+  adapter runs while preserving malformed JSON coverage.
+
 ## [1.39.17] - 2026-09-17
 
 ### Added

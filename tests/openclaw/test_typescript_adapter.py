@@ -75,7 +75,8 @@ valid_status_strategy = st.fixed_dictionaries(
 ).map(lambda d: json.dumps(d))
 
 # Strategy for generating invalid inputs
-# Excludes null bytes (mangled by OS process arg handling) and valid JSON objects
+# Excludes NUL and surrogate code points that cannot reliably cross OS argv,
+# and valid JSON objects.
 invalid_input_strategy = st.one_of(
     st.just(""),
     st.just("not json"),
@@ -84,9 +85,11 @@ invalid_input_strategy = st.one_of(
     st.just("[]"),
     st.just("42"),
     st.just('"a string"'),
-    st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_characters="\x00")).filter(
-        lambda s: not s.startswith("{")
-    ),
+    st.text(
+        min_size=1,
+        max_size=100,
+        alphabet=st.characters(blacklist_categories=("Cs",), blacklist_characters="\x00"),
+    ).filter(lambda s: not s.startswith("{")),
 )
 
 
