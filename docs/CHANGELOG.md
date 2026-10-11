@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Point private vulnerability reports to GitHub's reporting form and update
+  the supported security-fix series to 1.39.x.
+
 - Updated the locked HTTP, TLS, JWT, HTML-selector, and development-environment
   dependencies to patched releases. Source and container resolution now enforce
   transitive security constraints, and the directly used urllib3 client has a
