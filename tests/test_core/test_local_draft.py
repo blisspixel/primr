@@ -61,6 +61,7 @@ def prep_bundle(tmp_path: Path) -> Path:
     (root / "scraped_content.txt").write_text(
         f"# ExampleCo - Scraped Content\n\n{'=' * 60}\nURL: https://example.co\n{'=' * 60}\n{SOURCE_TEXT}\n",
         encoding="utf-8",
+        newline="",  # Match the producer's platform-independent atomic byte writer.
     )
     artifacts = []
     for name in ("source_index.json", "scraped_content.txt"):
