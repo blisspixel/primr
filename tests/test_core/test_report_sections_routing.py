@@ -47,8 +47,6 @@ def test_report_sections_fails_closed_when_writing_route_unavailable(monkeypatch
         called["write"] = True
         raise AssertionError("section writer must not run when route is unavailable")
 
-    monkeypatch.setattr("primr.core.research_agent._write_section_with_retry", boom)
-
     result = write_report_sections(
         company_label="ExampleCo",
         website=None,
@@ -57,6 +55,8 @@ def test_report_sections_fails_closed_when_writing_route_unavailable(monkeypatch
         external_sources_raw="ext",
         source_urls=[],
         grok_writing="legacy-writer",
+        write_section=boom,
+        cohere_report=boom,
         recovery_executor=object(),
         folder_path=str(tmp_path),
         total_phases=6,

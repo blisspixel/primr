@@ -2277,9 +2277,7 @@ def perform_fast_research(
             prebuilt_day1_block=day1_block,
         )
 
-        # =================================================================
-        # Phase 4: Report writing (extracted: core/fast_run_sections.py)
-        # =================================================================
+        # Phase 4: Report writing with coordinator-owned behavior callbacks.
         _sections_result = write_report_sections(
             company_label=company_name or display_name,
             website=website,
@@ -2288,6 +2286,8 @@ def perform_fast_research(
             external_sources_raw=external_sources_raw,
             source_urls=source_urls,
             grok_writing=grok_writing,
+            write_section=_write_section_with_retry,
+            cohere_report=_fast_coherence_pass,
             recovery_executor=_recovery_executor,
             folder_path=folder_path,
             total_phases=total_phases,

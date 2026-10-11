@@ -354,7 +354,7 @@ complete:
 | `insights_assembly.py` | Combined-insights / external-sources string assembly (pure) |
 | `fast_run_gaps.py` | Gap analysis and targeted research deepening |
 | `fast_run_workbook.py` | Analysis workbook; constructs the shared reasoning session |
-| `fast_run_sections.py` | Section planning and report writing |
+| `fast_run_sections.py` | Section planning and writing orchestration with injected writer/coherence callbacks |
 | `fast_run_validation.py` | Cross-validation, contradiction handling, and enrichment |
 | `fast_run_trust.py` | Trust polish, citation repair, QA gate (frozen `FastTrustResult`) |
 | `fast_run_strategy.py` | Strategy generation: budget checkpoint, per-vendor + YAML (frozen `StrategyPhaseResult`) |
@@ -362,6 +362,12 @@ complete:
 
 Artifact assembly remains a deliberately small inline coordinator step rather
 than a separate stage module.
+
+The section stage owns parallel dispatch, frozen prior-section snapshots,
+executive-summary ordering, recovery integration, and route accounting. The
+research coordinator supplies its section-writing and coherence helpers through
+typed callbacks. The stage does not import the coordinator, and the existing
+facade helper names remain available to callers and patch-based integrations.
 
 ### Planned Epistemic Data Flow
 

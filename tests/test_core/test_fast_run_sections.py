@@ -45,14 +45,14 @@ def seams(monkeypatch, tmp_path):
                 "system": args[6],
                 "corpus": args[3],
                 "external": args[4],
+                "framing": kwargs.get("framing_block", ""),
+                "prior": prior,
             }
         )
         return _parsed(sec.name)
 
     writer = MagicMock(side_effect=fake_writer)
     coherence = MagicMock(side_effect=lambda company, website, content, model=None: content)
-    monkeypatch.setattr("primr.core.research_agent._write_section_with_retry", writer)
-    monkeypatch.setattr("primr.core.research_agent._fast_coherence_pass", coherence)
 
     def fake_recovery(executor, fn, folder):
         # Mirror production semantics: a raising write_fn degrades to a
@@ -126,6 +126,8 @@ def _call(seams, **overrides) -> SectionWritingResult:
         "external_sources_raw": "external",
         "source_urls": ["https://acme.example/about"],
         "grok_writing": "writer-model",
+        "write_section": seams["writer"],
+        "cohere_report": seams["coherence"],
         "recovery_executor": object(),
         "folder_path": str(seams["tmp"]),
         "total_phases": 5,
@@ -159,6 +161,8 @@ class TestFrozenPriorSnapshots:
         # Part 2 workers share the frozen part-1 snapshot — never each other
         assert by_id["market"]["prior_titles"] == ["Overview"]
         assert by_id["competitors"]["prior_titles"] == ["Overview"]
+        assert by_id["market"]["prior"] is by_id["competitors"]["prior"]
+        assert [section.title for section in by_id["market"]["prior"]] == ["Overview"]
 
 
 class TestOrderingAndDedup:
@@ -262,6 +266,102 @@ class TestChainAndMetrics:
     def test_writing_model_threaded(self, seams):
         _call(seams, grok_writing="special-writer")
         assert seams["writer"].call_args.kwargs["model"] == "special-writer"
+
+    def test_selected_route_model_and_accounting_survive_callback_injection(self, seams):
+        from primr.ai import stage_routing
+        from primr.ai.capability_routing import InferenceProfile
+        from primr.ai.stage_routing import StageModelRoute
+
+        route = StageModelRoute(
+            stage_id="fast.report_sections",
+            profile=InferenceProfile.CLOUD,
+            model_name="routed-writer",
+            backend_id="cloud-writing",
+            backend_kind="cloud",
+            billing_mode="metered_api",
+            estimated_cost_usd=0.05,
+            expected_input_tokens=100,
+            expected_output_tokens=100,
+            routed=True,
+            reasons=("test",),
+            rejections=(),
+        )
+        before = object()
+        usage = {"input_tokens": 100, "output_tokens": 25}
+        record = MagicMock()
+        patch = seams["monkeypatch"]
+        patch.setattr(stage_routing, "resolve_stage_model", lambda *a, **k: route)
+        patch.setattr(stage_routing, "capture_stage_usage", lambda: before)
+        delta = MagicMock(return_value=usage)
+        patch.setattr(stage_routing, "stage_usage_delta", delta)
+        patch.setattr(stage_routing, "record_stage_route_usage", record)
+
+        result = _call(seams)
+
+        assert result.report_complete
+        assert all(
+            call.kwargs["model"] == "routed-writer" for call in seams["writer"].call_args_list
+        )
+        assert seams["coherence"].call_args.kwargs["model"] == "routed-writer"
+        delta.assert_called_once_with(before)
+        record.assert_called_once()
+        assert record.call_args.args == (str(seams["tmp"]), route)
+        assert record.call_args.kwargs["input_items"] == 4
+        assert record.call_args.kwargs["output_items"] == 4
+        assert record.call_args.kwargs["outcome"] == "selected"
+        assert record.call_args.kwargs["usage_delta"] is usage
+
+    def test_operator_framing_reaches_every_injected_write(self, seams):
+        _call(seams, framing_block="Investigate customer concentration.")
+        assert {call["framing"] for call in seams["calls"]} == {
+            "Investigate customer concentration."
+        }
+
+
+@pytest.mark.parametrize("retry_result", ["longer", "shorter", "error"])
+def test_injected_facade_writer_keeps_one_content_retry(seams, retry_result):
+    from primr.core import research_agent
+    from primr.output.final_artifact import GeneratedSection
+    from primr.prompts.loader import SectionConfig
+
+    summary = SectionConfig("executive_summary", "Executive Summary", 1, "Synthesize")
+    overview = SectionConfig("overview", "Overview", 1, "Explain the offering")
+    seams["monkeypatch"].setattr(
+        "primr.core.fast_run_sections._group_sections_by_part", lambda: [[summary, overview]]
+    )
+    requests = []
+
+    def complete(role, prompt, **kwargs):
+        requests.append((prompt, kwargs))
+        if len(requests) % 2:
+            return "Reported " * 80
+        if retry_result == "error":
+            raise RuntimeError("Synthetic retry failure")
+        return "Reported " * (700 if retry_result == "longer" else 20)
+
+    seams["monkeypatch"].setattr("primr.pipeline.llm_failover.call_with_failover", complete)
+
+    result = _call(
+        seams,
+        write_section=research_agent._write_section_with_retry,
+        framing_block="Investigate customer concentration.",
+    )
+
+    assert len(requests) == 4  # One initial call and one retry for each section.
+    assert requests[1][0].endswith(requests[0][0])
+    assert requests[3][0].endswith(requests[2][0])
+    assert all(options["preferred_model"] == "writer-model" for _, options in requests)
+    assert all("Investigate customer concentration." in prompt for prompt, _ in requests)
+    assert all("UNTRUSTED_WEBSITE_CORPUS_BEGIN" in prompt for prompt, _ in requests)
+    assert all("UNTRUSTED_EXTERNAL_SOURCES_BEGIN" in prompt for prompt, _ in requests)
+    assert all(isinstance(section, GeneratedSection) for section in result.written_sections)
+    assert [section.title for section in result.written_sections] == [
+        "Executive Summary",
+        "Overview",
+    ]
+    assert {section.content.split().count("Reported") for section in result.written_sections} == {
+        700 if retry_result == "longer" else 80
+    }
 
 
 class TestReasoningModes:
