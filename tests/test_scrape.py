@@ -162,12 +162,17 @@ class TestDetectSoftBlock:
         is_blocked, reason = detect_soft_block(text)
         assert is_blocked is True
 
-    def test_short_content(self):
-        """Should detect suspiciously short HTML content."""
-        # The new detection module only flags short content if it looks like HTML
+    def test_short_placeholder_is_low_quality_without_block_evidence(self):
+        """Sparse reachable HTML is not a block or useful research evidence."""
+        from primr.data.scraping.validation import validate_content
+
         text = "<html><body>Loading...</body></html>"
         is_blocked, reason = detect_soft_block(text)
-        assert is_blocked is True
+        assert is_blocked is False
+        assert reason is None
+        validation = validate_content("Loading...", "https://example.com")
+        assert validation.valid is False
+        assert "too short" in validation.reason.lower()
 
     def test_valid_content(self):
         """Should not block valid content."""
