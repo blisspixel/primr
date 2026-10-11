@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   serialize migrations and saves, preserving other processes' committed usage
   and keeping failed saves retryable without duplicating session records.
 
+- Added a root security-policy entry pointing to the existing reporting and
+  threat-model documentation so repository security tooling can discover it.
+
 ## [1.39.17] - 2026-09-17
 
 ### Added
