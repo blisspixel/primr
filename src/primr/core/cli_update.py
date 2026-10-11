@@ -1,6 +1,6 @@
 """``primr update`` — self-upgrade to the latest published release.
 
-Detects whether primr was installed via pipx or pip and runs the matching
+Detects whether primr was installed via uv, pipx, or pip and runs the matching
 upgrade command, reporting the before/after version. This is the explicit
 counterpart to the passive "update available" notice: the notice tells you a
 new version exists; this command installs it in one step.
@@ -60,7 +60,8 @@ def run_update(*, check_only: bool = False, yes: bool = False) -> int:
     if latest is None:
         console.warn("Could not reach PyPI to check for updates.")
         console.info("Check your connection, or upgrade manually:")
-        console.info("  pipx upgrade primr   (or)   pip install --upgrade primr")
+        console.info("  uv tool upgrade primr   (or)   pipx upgrade primr")
+        console.info("  In a pip virtual environment: python -m pip install --upgrade primr")
         return 1
 
     console.detail("Latest", latest)
@@ -115,7 +116,9 @@ def run_update(*, check_only: bool = False, yes: bool = False) -> int:
     except FileNotFoundError:
         console.status_line_done()
         console.error(f"Could not run: {method.upgrade_command[0]} (not found on PATH).")
-        if method.kind == "pipx":
+        if method.kind == "uv":
+            console.info("Restore uv to PATH, then retry: uv tool upgrade primr")
+        elif method.kind == "pipx":
             console.info("Install pipx, or upgrade with: pip install --upgrade primr")
         return 1
     except Exception as exc:  # pragma: no cover - defensive

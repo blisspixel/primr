@@ -113,11 +113,13 @@ Mode matrix, platforms, strategy types, and cost controls:
 - `primr init` installs browser deps for scrape tiers
 
 ```bash
-pipx install primr
+uv tool install --python 3.14 primr
 primr --version
 ```
 
-Plain `pip install primr` also works. Download and inspect convenience installers
+With pipx, use `pipx install --python python3.14 primr` and an installed Python
+3.14. Plain `pip install primr` also works inside a Python 3.12 through 3.14
+virtual environment. Download and inspect convenience installers
 before running them. For those scripts, upgrades, PATH troubleshooting, and
 source-checkout setup, see
 [Installation and Upgrades](docs/INSTALLATION.md).

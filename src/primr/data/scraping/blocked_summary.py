@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from urllib.parse import urlparse, urlunparse
 
-from primr.data.scraping.models import ScrapeResult
+from primr.data.scraping.models import PageAccessState, ScrapeResult
 from primr.utils.security import mask_sensitive_data
 
 MAX_SNIPPET_CHARS = 180
@@ -58,18 +58,35 @@ def build_blocked_site_summary(
     reason: str | None,
     recovery_count: int,
 ) -> list[str]:
-    """Build compact evidence and next-action lines for a blocked origin."""
+    """Build compact evidence and next-action lines for unavailable research content."""
     reason_text = _snippet(reason or result.error or "no verified first-party page content")
     evidence = list(dict.fromkeys([reason_text, *_assessment_evidence(result)]))
     lines = [f"Evidence: {'; '.join(evidence[:MAX_EVIDENCE_SNIPPETS])}"]
     lines.append(
         f"First-party recovery: {max(0, recovery_count)} same-site candidate page(s) found"
     )
-    lines.append(
-        "Next: routing around the origin via Wayback, subdomains, EDGAR, and Wikipedia; "
-        "if fallback content is still empty, check site availability or rerun with --mode deep"
-    )
+    if _reachable_but_insufficient(result):
+        lines.append(
+            "Next: collecting additional public sources via Wayback, subdomains, EDGAR, "
+            "and Wikipedia; the origin responded but did not provide enough usable content"
+        )
+    else:
+        lines.append(
+            "Next: routing around the origin via Wayback, subdomains, EDGAR, and Wikipedia; "
+            "if fallback content is still empty, check site availability or rerun with --mode deep"
+        )
     return lines
+
+
+def _reachable_but_insufficient(result: ScrapeResult) -> bool:
+    assessment = getattr(result, "access_assessment", None)
+    status = getattr(result, "http_status", None)
+    return bool(
+        isinstance(status, int)
+        and 200 <= status < 300
+        and getattr(assessment, "state", None)
+        in {PageAccessState.THIN_CONTENT, PageAccessState.UNKNOWN}
+    )
 
 
 def emit_blocked_site_summary(
@@ -80,6 +97,9 @@ def emit_blocked_site_summary(
     recovery_count: int,
 ) -> None:
     """Print the blocked-site summary through the existing console abstraction."""
-    console.fail(f"Could not access {domain}")
+    if _reachable_but_insufficient(result):
+        console.warn(f"Reached {domain}, but content is too thin or inconclusive for research")
+    else:
+        console.fail(f"Could not access {domain}")
     for line in build_blocked_site_summary(result, reason, recovery_count):
         console.muted(f"  {line}")

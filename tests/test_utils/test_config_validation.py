@@ -60,6 +60,8 @@ class TestAPIKeysConfig:
 
             assert len(errors) == 1
             assert "MODEL_PROVIDER_API_KEY" in errors[0].field
+            assert 'primr prep "ExampleCo" https://example.co' in errors[0].suggestion
+            assert "$0" in errors[0].suggestion
 
     def test_validates_short_api_key(self):
         """Should report error for suspiciously short API key."""

@@ -96,7 +96,6 @@ def detect_soft_block(
     4. Template-based detection (hash matches known block template for this host)
     5. JavaScript-only pages that haven't rendered
     6. Repetitive content (< 30% unique lines)
-    7. Content length (only if no structural elements present)
 
     Returns: (is_blocked, reason)
     """
@@ -200,30 +199,7 @@ def detect_soft_block(
         if unique_ratio < MIN_UNIQUE_LINE_RATIO:
             return True, f"Suspiciously repetitive content ({unique_ratio:.0%} unique)"
 
-    # 7. Content length check - only if no structural elements present
-    # This is the last check because legitimate small pages with good structure should pass
-    if content_length < MIN_CONTENT_LENGTH_BYTES:
-        # Check for structural elements that indicate legitimate content
-        has_title = bool(re.search(r"<title[^>]*>.+</title>", text, re.DOTALL | re.IGNORECASE))
-        has_h1 = bool(re.search(r"<h1[^>]*>.+</h1>", text, re.DOTALL | re.IGNORECASE))
-        has_main = bool(
-            re.search(r"<main[^>]*>", text_lower) or re.search(r"<article[^>]*>", text_lower)
-        )
-        has_nav = bool(re.search(r"<nav[^>]*>", text_lower))
-        has_header = bool(re.search(r"<header[^>]*>", text_lower))
-
-        # If page has good structure (title + h1 + semantic elements), allow it
-        if has_title and has_h1 and (has_main or has_nav or has_header):
-            return False, None
-
-        # Check if it's HTML (not JSON/API response)
-        if (
-            (content_type and "html" in content_type.lower())
-            or "<html" in text_lower
-            or "<!doctype" in text_lower
-        ):
-            return True, f"Content too short ({content_length} bytes)"
-
+    # Size alone is a content-quality signal, not evidence of an access block.
     return False, None
 
 

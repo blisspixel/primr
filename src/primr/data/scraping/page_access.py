@@ -124,10 +124,6 @@ def classify_page_access(
     snapshot_positive = bool(
         render_snapshot and render_snapshot.state in {"cleared_challenge", "stable_real_page"}
     )
-    if blocked and snapshot_positive and "content too short" in (blocked_reason or "").lower():
-        blocked = False
-        blocked_reason = None
-
     soup = _parse_html(raw_content)
     html = raw_content.decode("utf-8", errors="ignore")
     html_lower = html.lower()

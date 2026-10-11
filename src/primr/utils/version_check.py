@@ -187,7 +187,7 @@ def check_for_update(current: str, *, force: bool = False) -> str | None:
 class InstallMethod:
     """How this primr was installed, and the command to upgrade it."""
 
-    kind: str  # "pipx" | "pip" | "unknown"
+    kind: str  # "uv" | "pipx" | "pip" | "unknown"
     upgrade_command: list[str]
     note: str = ""
 
@@ -195,11 +195,17 @@ class InstallMethod:
 def detect_install_method() -> InstallMethod:
     """Best-effort detection of how the running primr was installed.
 
-    pipx installs live under a ``pipx/venvs`` path; everything else is treated
-    as a pip install into the current interpreter. The returned command is what
-    ``primr update`` will run.
+    uv tool installs carry a receipt in their environment; pipx installs live
+    under a ``pipx/venvs`` path. Other environments use pip with the current
+    interpreter. The returned command is what ``primr update`` will run.
     """
     exe = Path(sys.prefix).resolve()
+    if (exe / "uv-receipt.toml").is_file():
+        return InstallMethod(
+            kind="uv",
+            upgrade_command=["uv", "tool", "upgrade", "primr"],
+            note="Detected a uv tool install.",
+        )
     parts = {p.lower() for p in exe.parts}
     looks_like_pipx = "pipx" in parts or "venvs" in {p.lower() for p in exe.parts}
 
