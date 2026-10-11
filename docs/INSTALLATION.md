@@ -24,20 +24,42 @@ compatible and the guard is removed.
 
 ## Recommended installation
 
-Install Primr in an isolated environment with pipx:
+Install Primr in an isolated tool environment with [uv](https://docs.astral.sh/uv/).
+The explicit Python request avoids an unsupported default interpreter; uv can
+download Python 3.14 automatically if needed:
 
 ```bash
-pipx install primr
+uv tool install --python 3.14 primr
 primr --version
 ```
 
-Plain `pip install primr` also works. On Windows, prefer pipx or the convenience
-installer if `primr` is not on `PATH` after installation.
+Alternatively, install with pipx and an existing supported Python:
+
+```bash
+pipx install --python python3.14 primr
+```
+
+On Windows, `pipx install --python 3.14 primr` selects an installed Python 3.14
+through the Python launcher. Python 3.12 and 3.13 are also supported. Plain
+`pip install primr` works inside a virtual environment created with one of the
+supported interpreters. Avoid installing into a distro-managed system Python,
+including with `pip install --user`.
 
 ## Convenience installers
 
-The repository installers set up pipx and handle common `PATH` issues. Download
-and inspect the script before running it.
+The repository installers prefer an existing uv and request Python 3.14. They
+keep existing pipx installs with pipx, or use pipx with an installed Python 3.12
+through 3.14 when uv is unavailable. Running a script from a Primr checkout
+preserves the editable source installation. Download and inspect the script
+before running it.
+
+If neither tool is available, the installers can bootstrap pipx only with an
+unmanaged Python outside a virtual environment that already has pip. If the
+selected Python is externally managed, is a virtual environment, or lacks pip,
+install uv or your distro's pipx package and rerun the script.
+For example, Arch Linux uses `sudo pacman -S python-pipx`. See the
+[pipx installation guide](https://pipx.pypa.io/stable/how-to/install-pipx.html)
+for other platforms. The scripts report failed install commands as failures.
 
 PowerShell:
 
@@ -83,18 +105,19 @@ An approved automated upgrade must use `primr update --yes`; without `--yes`,
 a noninteractive invocation exits before inspecting or changing the installed
 package.
 
+The update command uses the tool that owns the installation: `uv tool upgrade
+primr`, `pipx upgrade primr`, or the current virtual environment's pip.
+
 ## PATH troubleshooting
 
-After installing with pipx, run `pipx ensurepath`, open a new terminal, and
-retry `primr --version`. You can also verify the installed module directly:
+After installing with uv, run `uv tool update-shell`. With pipx, run
+`pipx ensurepath`. Open a new terminal and retry `primr --version`. Inspect the
+isolated installation with `uv tool list` or `pipx list`; the system Python
+does not normally see packages in a tool's environment.
 
-```bash
-python -m primr --version
-```
-
-If the module command works but `primr` does not, the Python scripts directory
-is not on the shell's `PATH`. The convenience installers above cover the common
-Windows and Unix cases.
+For a plain pip install in an activated virtual environment, `python -m primr
+--version` verifies the module. If that works but `primr` does not, check that
+the environment's scripts directory is on the shell's `PATH`.
 
 ## Source checkout
 

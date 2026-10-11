@@ -11,31 +11,103 @@ $Cli = "primr"
 Write-Host "==> Installing / updating $Package ..." -ForegroundColor Cyan
 Write-Host ""
 
-# --- Locate a suitable Python (3.12+) ---
-$python = "python"
-if (-not (Get-Command $python -ErrorAction SilentlyContinue)) {
-    $python = "py"
-}
-if (-not (Get-Command $python -ErrorAction SilentlyContinue)) {
-    Write-Host "Error: Python 3.12+ is required." -ForegroundColor Red
-    Write-Host "Install from https://www.python.org/downloads/"
-    exit 1
+function Show-ToolGuidance {
+    Write-Host "Install uv (https://docs.astral.sh/uv/getting-started/installation/) and rerun this script."
+    Write-Host "Or install pipx: https://pipx.pypa.io/stable/how-to/install-pipx.html"
 }
 
-$ver = & $python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
-if (-not $ver -or ([version]$ver -lt [version]"3.12")) {
-    Write-Host "Error: Python 3.12+ is required (found $ver)." -ForegroundColor Red
-    Write-Host "Install from https://www.python.org/downloads/"
-    exit 1
+function Invoke-Checked([string]$Command, [string[]]$Arguments) {
+    & $Command @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Command failed (exit $LASTEXITCODE)."
+    }
 }
-Write-Host "==> Using Python $ver" -ForegroundColor DarkGray
 
-# --- Ensure pipx is available ---
-if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
-    Write-Host "==> pipx not found. Installing pipx..." -ForegroundColor Yellow
-    & $python -m pip install --user pipx --quiet
-    & $python -m pipx ensurepath
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","User") + ";" + [System.Environment]::GetEnvironmentVariable("Path","Machine")
+# Keep an existing pipx install with its manager; prefer uv for fresh installs.
+$pipxInstalled = $false
+if (Get-Command pipx -ErrorAction SilentlyContinue) {
+    try {
+        $pipxList = & pipx list 2>$null | Out-String
+        $pipxInstalled = $LASTEXITCODE -eq 0 -and $pipxList -match "(?im)^\s*package\s+$Package\b"
+    } catch {
+        $pipxInstalled = $false
+    }
+}
+
+if (-not $pipxInstalled -and (Get-Command uv -ErrorAction SilentlyContinue)) {
+    $installer = "uv"
+    $pathCommand = "uv tool update-shell"
+    Write-Host "==> Using uv with Python 3.14 (downloaded automatically if needed)" -ForegroundColor DarkGray
+} else {
+    $installer = "pipx"
+    $pathCommand = "pipx ensurepath"
+    $pipxCommand = "pipx"
+    $pipxPrefix = @()
+    $pythonPath = $null
+    $candidates = @()
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        foreach ($minor in @("3.14", "3.13", "3.12")) {
+            $candidates += @{ Command = "py"; Prefix = @("-$minor") }
+        }
+    }
+    foreach ($name in @("python3.14", "python3.13", "python3.12", "python", "python3")) {
+        if (Get-Command $name -ErrorAction SilentlyContinue) {
+            $candidates += @{ Command = $name; Prefix = @() }
+        }
+    }
+    foreach ($candidate in $candidates) {
+        $prefix = $candidate.Prefix
+        # Validate actual versions: a versioned executable can itself be a shim.
+        try {
+            & $candidate.Command @prefix -c 'import sys; sys.exit(not ((3, 12) <= sys.version_info[:2] <= (3, 14)))' 2>$null
+        } catch {
+            continue
+        }
+        if ($LASTEXITCODE -eq 0) {
+            $pythonPath = & $candidate.Command @prefix -c 'import sys; print(sys.executable)'
+            break
+        }
+    }
+    if (-not $pythonPath) {
+        Write-Host "Error: pipx needs Python 3.12 through 3.14 for browser-complete Primr installs." -ForegroundColor Red
+        Show-ToolGuidance
+        exit 1
+    }
+    $ver = & $pythonPath -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+    Write-Host "==> Using Python $ver" -ForegroundColor DarkGray
+
+    if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
+        & $pythonPath -c 'import sys; sys.exit(0 if sys.prefix != sys.base_prefix else 1)'
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Error: the selected Python is a virtual environment; install uv or pipx separately." -ForegroundColor Red
+            Show-ToolGuidance
+            exit 1
+        }
+        # PEP 668 also prohibits --user installs outside a virtual environment.
+        & $pythonPath -c 'import sys, sysconfig; from pathlib import Path; sys.exit(not (sys.prefix == sys.base_prefix and (Path(sysconfig.get_path("stdlib")) / "EXTERNALLY-MANAGED").is_file()))'
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Error: this Python is externally managed; install pipx with your package manager." -ForegroundColor Red
+            Show-ToolGuidance
+            exit 1
+        }
+        $pipAvailable = $false
+        try {
+            & $pythonPath -m pip --version 2>$null
+            $pipAvailable = $LASTEXITCODE -eq 0
+        } catch {
+            $pipAvailable = $false
+        }
+        if (-not $pipAvailable) {
+            Write-Host "Error: pipx and pip are unavailable." -ForegroundColor Red
+            Show-ToolGuidance
+            exit 1
+        }
+        Write-Host "==> pipx not found. Installing pipx..." -ForegroundColor Yellow
+        Invoke-Checked $pythonPath @("-m", "pip", "install", "--user", "pipx")
+        $pipxCommand = $pythonPath
+        $pipxPrefix = @("-m", "pipx")
+        Invoke-Checked $pipxCommand ($pipxPrefix + @("ensurepath"))
+    }
 }
 
 # --- Dev mode: if run from inside a primr checkout, install EDITABLE from source
@@ -56,25 +128,27 @@ if ($repoRoot) {
     Write-Host "==> Detected a primr checkout at $repoRoot" -ForegroundColor Green
     Write-Host "==> Installing EDITABLE from source (dev mode) so 'primr' tracks your working tree." -ForegroundColor Green
     Write-Host "    For day-to-day dev, 'uv run primr' from the repo is the lightest path." -ForegroundColor DarkGray
-    pipx install --force --editable "$repoRoot"
-} else {
-    # --- Install fresh, or upgrade an existing install (idempotent) ---
-    $alreadyInstalled = $false
-    try {
-        $pipxList = & pipx list 2>$null | Out-String
-        if ($pipxList -match "(?im)^\s*package\s+$Package\b" -or $pipxList -match "(?i)\b$Package\b") {
-            $alreadyInstalled = $true
-        }
-    } catch {
-        $alreadyInstalled = $false
-    }
+}
 
-    if ($alreadyInstalled) {
-        Write-Host "==> $Package is already installed. Upgrading to the latest release..." -ForegroundColor Green
-        pipx upgrade $Package
+if ($installer -eq "uv") {
+    $installArguments = @("tool", "install", "--upgrade", "--python", "3.14")
+    if ($repoRoot) {
+        $installArguments += @("--editable", "$repoRoot")
     } else {
+        $installArguments += $Package
+    }
+    Invoke-Checked "uv" $installArguments
+} else {
+    if ($pipxInstalled) {
+        # --force install ignores --python in older distro pipx releases.
+        Write-Host "==> Reinstalling $Package with Python $ver..." -ForegroundColor Green
+        Invoke-Checked $pipxCommand ($pipxPrefix + @("reinstall", "--python", $pythonPath, $Package))
+    }
+    if ($repoRoot) {
+        Invoke-Checked $pipxCommand ($pipxPrefix + @("install", "--force", "--editable", "--python", $pythonPath, "$repoRoot"))
+    } elseif (-not $pipxInstalled) {
         Write-Host "==> Installing $Package with pipx..." -ForegroundColor Green
-        pipx install $Package
+        Invoke-Checked $pipxCommand ($pipxPrefix + @("install", "--python", $pythonPath, $Package))
     }
 }
 
@@ -87,7 +161,7 @@ if ($resolved) {
     Write-Host "    at $($resolved.Source)" -ForegroundColor DarkGray
 } else {
     Write-Host "==> Installed, but '$Cli' is not on PATH in this shell yet." -ForegroundColor Yellow
-    Write-Host "    Open a NEW terminal so the updated PATH takes effect." -ForegroundColor Yellow
+    Write-Host "    Run '$pathCommand', then open a new terminal." -ForegroundColor Yellow
 }
 
 Write-Host ""
@@ -110,5 +184,5 @@ Write-Host ""
 Write-Host "For development / editable from source:"
 Write-Host "  git clone https://github.com/blisspixel/primr.git"
 Write-Host "  cd primr"
-Write-Host "  pipx install -e ."
+Write-Host "  uv tool install --python 3.14 --editable ."
 Write-Host ""
