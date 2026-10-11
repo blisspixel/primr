@@ -33,6 +33,7 @@ Recovery and outputs
   primr --clear-jobs --yes    Non-interactive destructive confirmation
 
 Other keyless and agent workflows
+  primr draft --local BUNDLE  Cited local draft from captured prep evidence
   primr recon example.co      Run standalone DNS intelligence
   primr render report.md      Markdown to DOCX/TXT at $0
   primr skills "ExampleCo" https://example.co --dry-run
@@ -51,6 +52,7 @@ Focused help
   primr init --help
   primr doctor --help
   primr prep --help
+  primr draft --help
   primr recon --help
   primr update --help
 

@@ -309,6 +309,10 @@ def _build_source_rows(
                 "url": _clean_external_metadata(url, max_chars=2_048),
                 "title": "",
                 "characters": len(content or ""),
+                "captured_characters": len((content or "").strip()),
+                "captured_text_sha256": hashlib.sha256(
+                    (content or "").strip().encode("utf-8")
+                ).hexdigest(),
             }
         )
         next_id += 1

@@ -14,6 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transitive security constraints, and the directly used urllib3 client has a
   published minimum of 2.8.0. Regenerated the hash-locked container exports.
 
+### Added
+
+- `primr draft --local [--model MODEL] BUNDLE` writes cited draft Markdown and
+  DOCX from verified prep evidence through an installed local or explicitly
+  configured private-network model. Dry runs inspect live capacity and report
+  conservative timing guidance. Outputs include source excerpts, coverage,
+  model/quantization/runtime provenance, and zero model API spend; they are
+  explicitly unvalidated drafts. Busy runtimes preserve non-report checkpoints.
+- Local-stage evaluation discovers drafts inside flat prep bundles and copied
+  or renamed directories, records their artifact-owned baseline provenance,
+  and excludes local/self comparisons from promotion evidence and model
+  recommendations. Malformed draft markers cannot become provider baselines.
+
+
 ### Fixed
 
 - Restricted TypeScript adapter process-input fuzzing to strings that can cross
@@ -52,6 +66,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   identity evidence in posting indexes. Prep excludes unverified hiring rows
   and reports identity-linked posting counts. Arbitrary customer or tool links
   cannot verify an employer or promote unrelated roles on a mixed board.
+
+
+- Local metadata and chat transports bypass environment proxies and refuse
+  redirects. Draft model selection rejects detectable cloud names and remote
+  aliases without pulling models or using a cloud fallback.
+- Captured prep text is reconciled with its source index before draft citation
+  assignment, including in copied evaluation inputs. Embedded URL framing cannot
+  turn captured page text into a hiring citation or silently truncate evidence.
+  New prep rows include per-source stripped-text digests; valid legacy whitespace
+  and metadata-only duplicate URLs remain supported.
 
 ## [1.39.17] - 2026-09-17
 

@@ -24,6 +24,11 @@ def main(args: list[str] | None = None) -> int:
 
         return run_prep_cli(argv)
 
+    if argv and argv[0] == "draft":
+        from primr.cli_draft import run_draft_cli
+
+        return run_draft_cli(argv)
+
     from primr.core.cli import main as run_operational_cli
 
     return run_operational_cli(argv)

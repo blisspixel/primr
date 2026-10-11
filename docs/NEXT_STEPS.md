@@ -137,6 +137,13 @@ matrix and Python 3.15 remains an explicitly limited preview.
 
 ### Documentation integrity
 
+The explicit `primr draft --local BUNDLE` path produces an unvalidated draft
+from frozen prep text using an installed model. Keep runtime isolation, source
+excerpt review, transactional MD/DOCX artifacts, and truthful coverage in the
+free regression gate. Local draft and self-comparison eval rows remain
+review-only; full-report or backend promotion still depends on the quality
+instruments and independent comparisons above.
+
 Every user-facing patch updates the smallest appropriate surface:
 
 - Keep the root README as the front door.

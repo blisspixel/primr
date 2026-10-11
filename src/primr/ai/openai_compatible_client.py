@@ -11,9 +11,10 @@ import random
 import re
 import time
 from dataclasses import dataclass
+from typing import Any, Literal
 
+from primr.ai.openai_transport import create_openai_sdk_client
 from primr.ai.provider_availability import LocalCapacityBusyError
-from primr.ai.providers.openai_compatible import create_openai_sdk_client
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("openai_compatible_client")
@@ -85,6 +86,9 @@ def chat_completion(
     retries: int = 2,
     system_prompt: str | None = None,
     capacity_retry_attempt: int = 0,
+    timeout_seconds: float | None = None,
+    reasoning_effort: Literal["none"] | None = None,
+    json_mode: bool = False,
 ) -> ChatCompletionResult:
     """Call an OpenAI-compatible chat completions endpoint and normalize the result."""
     from primr.utils.model_policy import require_model_calls_allowed
@@ -105,6 +109,8 @@ def chat_completion(
         openai,
         api_key=resolved_api_key or "ollama",
         base_url=resolved_base_url,
+        trust_env=False,
+        timeout=timeout_seconds,
     )
 
     messages: list[dict[str, str]] = []
@@ -113,41 +119,50 @@ def chat_completion(
     messages.append({"role": "user", "content": prompt})
 
     last_error: Exception | None = None
-    for attempt in range(retries + 1):
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,  # type: ignore[arg-type]
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            if not response.choices:
-                raise RuntimeError("OpenAI-compatible backend returned no choices")
-            text = response.choices[0].message.content or ""
-            usage = response.usage
-            return ChatCompletionResult(
-                text=text,
-                prompt_tokens=(usage.prompt_tokens if usage else 0) or 0,
-                completion_tokens=(usage.completion_tokens if usage else 0) or 0,
-            )
-        except Exception as exc:
-            last_error = exc
-            capacity_busy = LocalCapacityBusyError.from_exception(
-                exc,
-                attempt=capacity_retry_attempt,
-            )
-            if attempt < retries and (_is_retryable_error(exc) or capacity_busy is not None):
-                wait = _compute_backoff_delay(attempt)
-                logger.warning(
-                    "Transient OpenAI-compatible error, retrying in %.1fs (attempt %d/%d): %s",
-                    wait,
-                    attempt + 1,
-                    retries + 1,
-                    exc,
+    request_options: dict[str, Any] = {}
+    if reasoning_effort is not None:
+        request_options["reasoning_effort"] = reasoning_effort
+    if json_mode:
+        request_options["response_format"] = {"type": "json_object"}
+    try:
+        for attempt in range(retries + 1):
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages,  # type: ignore[arg-type]
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    **request_options,
                 )
-                time.sleep(wait)
-                continue
-            break
+                if not response.choices:
+                    raise RuntimeError("OpenAI-compatible backend returned no choices")
+                text = response.choices[0].message.content or ""
+                usage = response.usage
+                return ChatCompletionResult(
+                    text=text,
+                    prompt_tokens=(usage.prompt_tokens if usage else 0) or 0,
+                    completion_tokens=(usage.completion_tokens if usage else 0) or 0,
+                )
+            except Exception as exc:
+                last_error = exc
+                capacity_busy = LocalCapacityBusyError.from_exception(
+                    exc,
+                    attempt=capacity_retry_attempt,
+                )
+                if attempt < retries and (_is_retryable_error(exc) or capacity_busy is not None):
+                    wait = _compute_backoff_delay(attempt)
+                    logger.warning(
+                        "Transient OpenAI-compatible error, retrying in %.1fs (attempt %d/%d): %s",
+                        wait,
+                        attempt + 1,
+                        retries + 1,
+                        exc,
+                    )
+                    time.sleep(wait)
+                    continue
+                break
+    finally:
+        client.close()
 
     if last_error is not None:
         busy_error = LocalCapacityBusyError.from_exception(

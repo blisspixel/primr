@@ -7,17 +7,22 @@ from pathlib import Path
 from typing import Any
 
 from primr.ai.summarize import summarize_scraped_content_local
-from primr.core.model_eval import _company_similarity
+from primr.core.evidence_bundle_input import (
+    parse_prepared_scraped_content_files,
+    parse_scraped_content_text,
+)
 from primr.core.stage_eval_scorecard import StageQualityEvidence
+from primr.core.website_summary_eval_inputs import (
+    WebsiteSummaryEvalInput as WebsiteSummaryEvalInput,
+)
+from primr.core.website_summary_eval_inputs import (
+    _display_company_name as _display_company_name,
+)
+from primr.core.website_summary_eval_inputs import (
+    find_latest_website_summary_eval_inputs as find_latest_website_summary_eval_inputs,
+)
+from primr.core.website_summary_eval_inputs import resolve_website_summary_eval_input
 from primr.utils.security import write_redacted_text
-
-
-@dataclass(frozen=True)
-class WebsiteSummaryEvalInput:
-    company: str
-    working_dir: Path
-    scraped_content_path: Path
-    baseline_summary_path: Path
 
 
 @dataclass(frozen=True)
@@ -43,6 +48,9 @@ class WebsiteSummaryEvalRow:
     open_questions_ratio: float
     word_ratio: float
     completeness_score: float
+    baseline_kind: str = "provider_run"
+    baseline_model: str | None = None
+    promotion_eligible: bool = True
 
 
 @dataclass(frozen=True)
@@ -57,6 +65,13 @@ class WebsiteSummarySemanticEvalRow:
     response_valid: bool
     input_tokens: int
     output_tokens: int
+    baseline_kind: str = "provider_run"
+    baseline_model: str | None = None
+    promotion_eligible: bool = True
+
+
+def _promotion_eligible(row: WebsiteSummaryEvalRow | WebsiteSummarySemanticEvalRow) -> bool:
+    return row.baseline_kind == "provider_run" and row.promotion_eligible
 
 
 _SEMANTIC_ASPECT_WEIGHTS = {
@@ -67,29 +82,14 @@ _SEMANTIC_ASPECT_WEIGHTS = {
 }
 
 
-def _display_company_name(raw: str) -> str:
-    return re.sub(r"\s+", " ", raw.replace("_", " ")).strip()
-
-
 def parse_scraped_content_file(path: Path) -> dict[str, str]:
-    text = path.read_text(encoding="utf-8")
-    pattern = re.compile(
-        r"^URL:\s*(?P<url>.+?)\n=+\n(?P<content>.*?)(?=^=+\nURL:\s|\Z)",
-        re.MULTILINE | re.DOTALL,
-    )
-    scraped: dict[str, str] = {}
-    for match in pattern.finditer(text):
-        url = match.group("url").strip()
-        content = match.group("content").strip()
-        if url and content:
-            scraped[url] = content
-    return scraped
+    return parse_scraped_content_text(path.read_text(encoding="utf-8"))
 
 
 def extract_summary_metrics(text: str) -> dict[str, Any]:
     words = len(re.findall(r"\b\w+\b", text))
     source_sections = len(re.findall(r"^### Source:", text, re.MULTILINE))
-    source_citations = len(re.findall(r"\[Source:", text))
+    source_citations = len(re.findall(r"(?<!\\)\[Source:|(?<!\\)\[S\d{3,6}\]", text))
     has_synthesis = "## Cross-Page Synthesis" in text
 
     open_questions = 0
@@ -255,69 +255,6 @@ def parse_website_summary_semantic_judge_response(
     return semantic_score, aspects, rationale[:600], True
 
 
-def find_latest_website_summary_eval_inputs(
-    working_root: Path,
-    *,
-    companies: list[str] | None = None,
-) -> list[WebsiteSummaryEvalInput]:
-    results: list[WebsiteSummaryEvalInput] = []
-    company_dirs = (
-        [p for p in working_root.iterdir() if p.is_dir()] if working_root.exists() else []
-    )
-
-    if companies:
-        for target in companies:
-            best_company_dir: Path | None = None
-            best_score = 0.0
-            for company_dir in company_dirs:
-                score = _company_similarity(target, _display_company_name(company_dir.name))
-                if score > best_score:
-                    best_score = score
-                    best_company_dir = company_dir
-            if not best_company_dir or best_score < 0.6:
-                continue
-            candidate_runs = [
-                run_dir
-                for run_dir in best_company_dir.iterdir()
-                if run_dir.is_dir()
-                and (run_dir / "scraped_content.txt").exists()
-                and (run_dir / "scraped_website_summary.txt").exists()
-            ]
-            if not candidate_runs:
-                continue
-            selected = max(candidate_runs, key=lambda p: p.name)
-            results.append(
-                WebsiteSummaryEvalInput(
-                    company=target,
-                    working_dir=selected,
-                    scraped_content_path=selected / "scraped_content.txt",
-                    baseline_summary_path=selected / "scraped_website_summary.txt",
-                )
-            )
-        return results
-
-    for company_dir in company_dirs:
-        candidate_runs = [
-            run_dir
-            for run_dir in company_dir.iterdir()
-            if run_dir.is_dir()
-            and (run_dir / "scraped_content.txt").exists()
-            and (run_dir / "scraped_website_summary.txt").exists()
-        ]
-        if not candidate_runs:
-            continue
-        selected = max(candidate_runs, key=lambda p: p.name)
-        results.append(
-            WebsiteSummaryEvalInput(
-                company=_display_company_name(company_dir.name),
-                working_dir=selected,
-                scraped_content_path=selected / "scraped_content.txt",
-                baseline_summary_path=selected / "scraped_website_summary.txt",
-            )
-        )
-    return sorted(results, key=lambda row: row.company.lower())
-
-
 def run_local_website_summary_stage_eval(
     *,
     inputs: list[WebsiteSummaryEvalInput],
@@ -329,8 +266,13 @@ def run_local_website_summary_stage_eval(
     rows: list[WebsiteSummaryEvalRow] = []
     model_slug = re.sub(r"[^a-zA-Z0-9]+", "-", model).strip("-").lower() or "model"
 
-    for item in inputs:
-        scraped_data = parse_scraped_content_file(item.scraped_content_path)
+    for supplied in inputs:
+        item = resolve_website_summary_eval_input(supplied)
+        scraped_data = (
+            parse_prepared_scraped_content_files(item.scraped_content_path)
+            if item.baseline_kind != "provider_run"
+            else parse_scraped_content_file(item.scraped_content_path)
+        )
         if not scraped_data:
             continue
         company_slug = re.sub(r"[^a-zA-Z0-9]+", "_", item.company).strip("_") or "company"
@@ -381,6 +323,9 @@ def run_local_website_summary_stage_eval(
                     baseline=baseline_metrics,
                     local=local_metrics,
                 ),
+                baseline_kind=item.baseline_kind,
+                baseline_model=item.baseline_model,
+                promotion_eligible=item.baseline_kind == "provider_run",
             )
         )
 
@@ -435,6 +380,9 @@ def run_local_website_summary_semantic_eval(
                 response_valid=response_valid,
                 input_tokens=result.prompt_tokens,
                 output_tokens=result.completion_tokens,
+                baseline_kind=row.baseline_kind,
+                baseline_model=row.baseline_model,
+                promotion_eligible=_promotion_eligible(row),
             )
         )
     return semantic_rows
@@ -451,6 +399,9 @@ def write_website_summary_stage_eval_report(
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "model": model,
+        "decision_policy": "local_draft_review_only"
+        if any(not _promotion_eligible(row) for row in rows)
+        else "provider_baseline_comparison",
         "base_url": base_url,
         "credential_source": "environment" if credential_env_var else "none",
         "companies_evaluated": len(rows),
@@ -508,11 +459,24 @@ def write_website_summary_stage_eval_summary(
             row["model"],
         )
     )
+    eligible_results = [
+        (model, [row for row in rows if _promotion_eligible(row)]) for model, rows in results
+    ]
+    recommended = sorted(
+        [(model, rows) for model, rows in eligible_results if rows],
+        key=lambda item: (
+            -sum(row.completeness_score for row in item[1]) / len(item[1]),
+            -sum(row.source_section_ratio for row in item[1]) / len(item[1]),
+            -sum(row.word_ratio for row in item[1]) / len(item[1]),
+            item[0],
+        ),
+    )
     payload = {
         "eval_id": eval_id,
         "stage": "website-summary",
         "models_evaluated": len(results),
-        "recommended_models": [row["model"] for row in ranked[:3]],
+        "recommended_models": [model for model, _ in recommended[:3]],
+        "local_draft_policy": "Review only; local/self comparisons do not establish validated quality",
         "results": ranked,
     }
     write_redacted_text(path, json.dumps(payload, indent=2))
@@ -608,7 +572,11 @@ def write_website_summary_semantic_eval_report(
         "eval_id": eval_id,
         "stage": "website-summary",
         "evidence_type": "website_summary_semantic_eval",
-        "decision_policy": "scorecard_input_only",
+        "decision_policy": (
+            "local_draft_review_only"
+            if any(not _promotion_eligible(row) for row in all_rows)
+            else "scorecard_input_only"
+        ),
         "judge_policy": judge_policy,
         "judge_model": judge_model,
         "judge_models": judge_models,
@@ -639,7 +607,7 @@ def build_website_summary_semantic_quality_evidence(
 
     evidence: list[StageQualityEvidence] = []
     for model, rows in results:
-        valid_rows = [row for row in rows if row.response_valid]
+        valid_rows = [row for row in rows if row.response_valid and _promotion_eligible(row)]
         if not valid_rows:
             continue
         quality_score = round(
@@ -686,6 +654,9 @@ def write_website_summary_semantic_quality_evidence(
         "eval_id": eval_id,
         "stage_id": stage_id,
         "quality_evidence": [asdict(row) for row in evidence],
+        "local_draft_rows_excluded": sum(
+            not _promotion_eligible(row) for _, rows in results for row in rows
+        ),
     }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -700,10 +671,11 @@ def build_website_summary_stage_quality_evidence(
 
     evidence: list[StageQualityEvidence] = []
     for model, rows in results:
-        if not rows:
+        eligible_rows = [row for row in rows if _promotion_eligible(row)]
+        if not eligible_rows:
             continue
         quality_score = round(
-            sum(row.completeness_score for row in rows) / max(1, len(rows)),
+            sum(row.completeness_score for row in eligible_rows) / len(eligible_rows),
             2,
         )
         evidence.append(
@@ -711,7 +683,7 @@ def build_website_summary_stage_quality_evidence(
                 stage_id=stage_id,
                 backend_id=model,
                 quality_score=quality_score,
-                sample_size=len(rows),
+                sample_size=len(eligible_rows),
                 source=f"website_summary_stage:{eval_id}:{model}",
             )
         )
@@ -740,6 +712,9 @@ def write_website_summary_stage_quality_evidence(
         "eval_id": eval_id,
         "stage_id": stage_id,
         "quality_evidence": [asdict(row) for row in evidence],
+        "local_draft_rows_excluded": sum(
+            not _promotion_eligible(row) for _, rows in results for row in rows
+        ),
     }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -779,6 +754,9 @@ def write_website_summary_stage_eval_markdown(
     lines = [
         f"# Local Website Summary Stage Eval: {eval_id}",
         "",
+        "Local draft baselines, including self comparisons, are review signals only. "
+        "They are excluded from promotion quality evidence and recommendations.",
+        "",
         "| Rank | Model | Companies | Avg Completeness | Source Ratio | Word Ratio | Open Questions Ratio |",
         "|---:|---|---:|---:|---:|---:|---:|",
     ]
@@ -796,6 +774,8 @@ def write_website_summary_stage_eval_markdown(
         for row in rows:
             lines.append(
                 f"{row.company}: score={row.completeness_score:.2f}, pages={row.input_pages}, "
+                f"baseline={row.baseline_kind}, baseline_model={row.baseline_model}, "
+                f"promotion_eligible={_promotion_eligible(row)}, "
                 f"sources={row.local_source_sections}/{row.baseline_source_sections}, "
                 f"words={row.local_words}/{row.baseline_words}, "
                 f"questions={row.local_open_questions}/{row.baseline_open_questions}, "

@@ -60,6 +60,7 @@ platform, or a tool for bypassing authentication, paywalls, or site restrictions
 |---|---|---|---|
 | Agent chat pointed at Primr | Primr Zero | No Primr model API spend; verify host plan allowance | Evidence bundle + host-written sourced dossier |
 | Terminal or script | Provider-backed | Billable after a fresh quote and explicit approval | Primr Strategic Overview + strategy artifacts |
+| Explicit `primr draft --local BUNDLE` | Installed model at your configured runtime | $0 model API spend when that runtime executes without billing | Cited, unvalidated draft Markdown + DOCX from captured prep evidence |
 
 Both paths can deliver a Strategic Overview and AI Strategy as Markdown and
 DOCX (on the Zero path, `primr render <file>.md` converts host Markdown to DOCX
@@ -87,6 +88,14 @@ provider-backed, or premium execution. Its `primr prep` collection is already
 noninteractive and needs no approval flag. Routing, confirmation rules, MCP
 setup, and host handoff live in [Agent Integration](docs/AGENT_INTEGRATION.md)
 and [Zero-Cost / Primr Zero](docs/ZERO_COST.md).
+
+For a smaller draft using an installed local model, run
+`primr draft --local BUNDLE --dry-run`, then remove `--dry-run` to execute.
+This also supports an explicitly configured private-network inference box.
+The draft records evidence coverage, model, quantization, runtime, and zero
+model API spend. It does not run Primr's external research or validation stages;
+review each claim against its displayed source excerpt. See
+[local draft setup and limits](docs/ZERO_COST.md#draft-with-an-installed-local-model).
 
 ### Terminal path
 
