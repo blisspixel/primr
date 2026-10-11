@@ -219,4 +219,4 @@ def reset_all_for_testing() -> None:
             try:
                 path.unlink()
             except OSError:
-                pass
+                pass  # Disk cleanup is best effort; the in-memory cache is already empty.

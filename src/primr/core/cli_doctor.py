@@ -609,12 +609,11 @@ def _show_install_source() -> None:
     the repo the user is sitting in.
     """
     import primr as _pkg
-    from primr import __version__
 
     pkg_dir = os.path.dirname(_pkg.__file__)
     editable = "site-packages" not in pkg_dir.replace("\\", "/")
     kind = "editable/dev" if editable else "installed release"
-    console.ok(f"primr {__version__} ({kind})")
+    console.ok(f"primr {_pkg.__version__} ({kind})")
     console.muted(f"  running from {pkg_dir}")
     console.muted(f"  python {sys.version.split()[0]} @ {sys.executable}")
 

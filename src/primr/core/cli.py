@@ -1356,7 +1356,7 @@ def _find_refine_inputs(company: str) -> tuple[str | None, str | None, str, str 
                 state = _json.loads(state_file.read_text(encoding="utf-8"))
                 website = state.get("website")
             except Exception:
-                pass
+                pass  # Refinement can proceed without website metadata from this run.
             workbook_file = run_dir / "analysis_workbook.md"
             if workbook_file.exists():
                 try:

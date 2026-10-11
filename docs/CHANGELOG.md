@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a bounded Atheris URL-parser fuzz smoke to the primary Linux CI job,
+  with deterministic regression seeds, acceptance invariants, network guards,
+  and retained failure inputs. The hash-pinned engine is a CI-only tool and
+  adds no application dependency or external account requirement.
+
 - `primr draft --local [--model MODEL] BUNDLE` writes cited draft Markdown and
   DOCX from verified prep evidence through an installed local or explicitly
   configured private-network model. Dry runs inspect live capacity and report
@@ -29,6 +34,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ### Fixed
+
+- Section writing receives its writer and coherence callbacks from the research
+  coordinator, removing the stage's import back edge while preserving facade
+  helper patch seams, recovery, routing, source fencing, and section order.
+  The largest import-cycle component shrinks from 11 modules to 10, with no
+  added production module and a tighter architecture gate.
+
+- Remove dead local assignments, redundant imports, and unused implementation
+  loggers identified by code scanning. Preserve document rendering, URL port
+  validation, compatibility exports, and retry behavior. Explain deliberate
+  best-effort exception recovery at the owning handlers.
+
+- URL validation now rejects a port-only authority such as `https://:443`
+  when a host is required, matching its documented contract. Explicit
+  `require_host=False` and custom hostless schemes remain supported.
 
 - Restricted TypeScript adapter process-input fuzzing to strings that can cross
   the OS argument boundary, preventing surrogate encoding failures before the

@@ -1,8 +1,8 @@
 """Fast-run report-section writing stage (roadmap #23, Batch D).
 
-Extracted verbatim from stage 5 (Phase 4 banner) of ``perform_fast_research``
-— no behavior change. Writes report sections in parallel within parts,
-assembles the report, and runs the coherence pass.
+Writes report sections in parallel within parts, assembles the report, and
+runs the coherence pass. The coordinator supplies writer and coherence
+callbacks without a stage-to-coordinator import.
 
 Tangle point handled here (refactor map #3): each part's worker pool shares a
 FROZEN snapshot of prior sections (``prior_sections = list(written_sections)``
@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 from primr.core.fast_mode_helpers import _assemble_fast_report
 from primr.core.section_planning import (
@@ -32,6 +32,7 @@ from primr.utils.logging_config import get_logger
 
 if TYPE_CHECKING:
     from primr.output.final_artifact import GeneratedSection
+    from primr.pipeline.executor import RecoveryExecutor
     from primr.prompts.loader import SectionConfig
 
 logger = get_logger("core.fast_run_sections")
@@ -69,6 +70,40 @@ REPORT_SYSTEM_PROMPT = (
     "- Sub-headings (###) within sections for readability\n"
     "- Each insight lives in ONE section — cross-reference, don't repeat"
 )
+
+
+class SectionWriter(Protocol):
+    """Section-writing behavior supplied by the research composition root."""
+
+    def __call__(
+        self,
+        section: SectionConfig,
+        section_index: int,
+        all_section_names: list[str],
+        written_sections: list[GeneratedSection],
+        company_name: str,
+        website: str | None,
+        analysis_workbook: str,
+        raw_corpus_subset: str,
+        external_sources_raw: str,
+        source_urls: list[str],
+        report_system: str,
+        reasoning_mode: str = "standard",
+        model: str | None = None,
+        framing_block: str = "",
+    ) -> GeneratedSection | None: ...
+
+
+class ReportCoherencePass(Protocol):
+    """Report-preserving coherence behavior supplied by the coordinator."""
+
+    def __call__(
+        self,
+        company_name: str,
+        website: str | None,
+        report_content: str,
+        model: str | None = None,
+    ) -> str: ...
 
 
 @dataclass(frozen=True)
@@ -112,7 +147,9 @@ def write_report_sections(
     external_sources_raw: str,
     source_urls: list[str],
     grok_writing: str,
-    recovery_executor,
+    write_section: SectionWriter,
+    cohere_report: ReportCoherencePass,
+    recovery_executor: RecoveryExecutor,
     folder_path: str,
     total_phases: int,
     framing_block: str = "",
@@ -124,11 +161,7 @@ def write_report_sections(
     prefix and stays byte-identical across the parallel section writes. Empty
     when no framing was supplied.
     """
-    # Lazy import: research_agent imports this module, so the LLM-backed
-    # section writer and coherence pass (which stay there until their own
-    # extraction) must be resolved at call time to avoid a circular import.
     from primr.core.cli_labels import model_provider_label
-    from primr.core.research_agent import _fast_coherence_pass, _write_section_with_retry
 
     phase_label = f"Report Writing ({model_provider_label(grok_writing)})"
 
@@ -232,8 +265,8 @@ def write_report_sections(
         ) -> tuple[int, GeneratedSection | None]:
             local_idx, sec = idx_section
 
-            def _do_write():
-                result = _write_section_with_retry(
+            def _do_write() -> GeneratedSection:
+                result = write_section(
                     sec,
                     _offset + local_idx,
                     all_section_names,
@@ -255,10 +288,14 @@ def write_report_sections(
 
             from primr.pipeline.integration import write_section_with_recovery
 
-            stage_result = write_section_with_recovery(recovery_executor, _do_write, folder_path)
+            # The legacy recovery channel is typed dict-or-None, but passes
+            # the GeneratedSection from this callback through unchanged.
+            stage_result = write_section_with_recovery(
+                recovery_executor,
+                _do_write,  # type: ignore[arg-type]
+                folder_path,
+            )
             if stage_result.success:
-                # The recovery channel is typed dict-or-None but carries the
-                # GeneratedSection produced by _do_write through unchanged.
                 return (local_idx, cast("GeneratedSection | None", stage_result.output))
             return (local_idx, None)
 
@@ -295,7 +332,7 @@ def write_report_sections(
     executive_summary_written = False
     if exec_summary_section is not None:
         console.info("Writing Executive Summary (with full report context)")
-        exec_parsed = _write_section_with_retry(
+        exec_parsed = write_section(
             exec_summary_section,
             0,  # section_index 0 — first section in final report
             all_section_names,
@@ -338,9 +375,7 @@ def write_report_sections(
 
     # Coherence pass: deduplicate and smooth transitions
     with console.timed_operation("Running coherence pass"):
-        report_content = _fast_coherence_pass(
-            company_label, website, report_content, model=writing_model
-        )
+        report_content = cohere_report(company_label, website, report_content, model=writing_model)
 
     _record_report_sections_route(
         folder_path,

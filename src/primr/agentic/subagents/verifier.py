@@ -481,7 +481,7 @@ class VerifierSubagent(Subagent[VerificationResult]):
                     url, snippet = future.result(timeout=30)
                     snippets[url] = snippet
                 except Exception:
-                    pass
+                    pass  # A failed fetch leaves this URL without a source snippet.
 
         # Re-shape per claim with provenance + snippet
         evidence: dict[str, list[dict[str, Any]]] = {}

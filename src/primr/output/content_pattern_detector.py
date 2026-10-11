@@ -142,7 +142,7 @@ class ContentPatternDetector:
                                     if best_count is None or count > best_count:
                                         best_count = count
                             except ValueError:
-                                pass
+                                pass  # Ignore this invalid count and try the remaining matches.
                             break
                 if best_count:
                     # Format with commas for display

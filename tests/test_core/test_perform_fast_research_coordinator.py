@@ -10,18 +10,22 @@ catch-all degradation — the wiring that no stage-level suite can see.
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
-from primr.core import research_agent
+from primr.core import fast_run_sections, research_agent
 from primr.core.fast_run_collection import DataCollectionResult
 from primr.core.fast_run_gaps import GapDeepeningResult
 from primr.core.fast_run_sections import SectionWritingResult
 from primr.core.fast_run_strategy import StrategyPhaseResult
 from primr.core.fast_run_trust import FastTrustResult
 from primr.core.fast_run_validation import CrossValidationResult
+from primr.output.final_artifact import GeneratedSection
+from primr.pipeline.executor import RecoveryExecutor
+from primr.prompts.loader import SectionConfig
 
 
 @pytest.fixture
@@ -130,6 +134,62 @@ def _run(stages, **overrides):
 
 
 class TestHappyPathWiring:
+    @pytest.mark.parametrize("empty", [False, True])
+    def test_real_sections_stage_uses_current_facade_callbacks(self, stages, monkeypatch, empty):
+        summary = SectionConfig("executive_summary", "Executive Summary", 1, "Synthesize")
+        overview = SectionConfig("overview", "Overview", 1, "Explain the offering")
+        monkeypatch.setattr(
+            fast_run_sections, "_group_sections_by_part", lambda: [[summary, overview]]
+        )
+        monkeypatch.setattr(
+            fast_run_sections,
+            "_resolve_report_sections_route",
+            lambda *args: ("routed-writer", None, None, 0.0),
+        )
+        writer = MagicMock(
+            side_effect=lambda section, *args, **kwargs: (
+                None
+                if empty
+                else GeneratedSection(section.name, "Reported company evidence.", 3, "")
+            )
+        )
+        coherence = MagicMock(
+            side_effect=lambda company, website, content, **kwargs: (
+                content + "\nReviewed transitions."
+            )
+        )
+        monkeypatch.setattr(research_agent, "_write_section_with_retry", writer)
+        monkeypatch.setattr(research_agent, "_fast_coherence_pass", coherence)
+        monkeypatch.setattr(
+            research_agent, "write_report_sections", fast_run_sections.write_report_sections
+        )
+        stages["collect"].return_value = replace(
+            stages["collect"].return_value,
+            recovery_executor=RecoveryExecutor(sleep_fn=lambda _: None),
+        )
+
+        result = _run(stages)
+
+        stages["sections"].assert_not_called()
+        assert writer.called
+        assert all(call.kwargs["model"] == "routed-writer" for call in writer.call_args_list)
+        if empty:
+            assert result is None
+            coherence.assert_not_called()
+            stages["cv"].assert_not_called()
+        else:
+            assert result == str(stages["tmp"] / "report.docx")
+            assert [call.args[0].id for call in writer.call_args_list] == [
+                "overview",
+                "executive_summary",
+            ]
+            coherence.assert_called_once()
+            assembled = coherence.call_args.args[2]
+            assert assembled.index("## Executive Summary") < assembled.index("## Overview")
+            assert stages["cv"].call_args.kwargs["report_content"] == (
+                assembled + "\nReviewed transitions."
+            )
+
     def test_returns_finalize_result(self, stages):
         result = _run(stages)
         assert result == str(stages["tmp"] / "report.docx")

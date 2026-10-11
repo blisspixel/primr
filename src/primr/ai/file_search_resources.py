@@ -103,7 +103,7 @@ def _resource_age_seconds(resource: Any) -> float | None:
                 parsed = datetime.fromisoformat(create_time.replace("Z", "+00:00"))
                 return max(0.0, datetime.now(timezone.utc).timestamp() - parsed.timestamp())
         except Exception:
-            pass
+            pass  # Fall back to the timestamp in the Primr display name.
 
     display_name = getattr(resource, "display_name", None) or ""
     if isinstance(display_name, str):

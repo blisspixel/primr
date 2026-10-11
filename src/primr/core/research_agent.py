@@ -2277,9 +2277,7 @@ def perform_fast_research(
             prebuilt_day1_block=day1_block,
         )
 
-        # =================================================================
-        # Phase 4: Report writing (extracted: core/fast_run_sections.py)
-        # =================================================================
+        # Phase 4: Report writing with coordinator-owned behavior callbacks.
         _sections_result = write_report_sections(
             company_label=company_name or display_name,
             website=website,
@@ -2288,6 +2286,8 @@ def perform_fast_research(
             external_sources_raw=external_sources_raw,
             source_urls=source_urls,
             grok_writing=grok_writing,
+            write_section=_write_section_with_retry,
+            cohere_report=_fast_coherence_pass,
             recovery_executor=_recovery_executor,
             folder_path=folder_path,
             total_phases=total_phases,
@@ -2679,7 +2679,6 @@ def perform_research(
         _append_run_event(folder_path, "initializing", "failed", framing_error)
         return None
 
-    recon_info = None  # TenantInfo | None
     recon_context_path: str | None = None
 
     if not skip_recon and website:
@@ -2697,8 +2696,6 @@ def perform_research(
                 info, _recon_results = asyncio.run(
                     asyncio.wait_for(resolve_tenant(domain), timeout=15.0)
                 )
-                recon_info = info  # noqa: F841 - kept for future downstream use
-
                 from primr.core.platform_mapper import map_platforms, select_strategy_platforms
 
                 detected_platforms = tuple(map_platforms(info.slugs))
@@ -4085,6 +4082,7 @@ def _run_claim_verification_non_blocking(
     except Exception as e:
         logger.warning(f"Claim verification failed: {e}")
         console.warn(f"Verification failed (non-blocking): {e}")
+        return None
 
 
 def _run_verification(
@@ -4093,7 +4091,6 @@ def _run_verification(
     report_path: str,
 ) -> Any:
     """Run claim verification on a report. Returns VerificationResult or None."""
-    import asyncio
     from pathlib import Path
 
     from primr.agentic.subagents.base import SubagentContext

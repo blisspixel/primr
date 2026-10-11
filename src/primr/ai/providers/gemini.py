@@ -436,7 +436,7 @@ class GeminiProvider(Provider):
                     if uri:
                         citations.append(str(uri))
         except (AttributeError, IndexError, TypeError):
-            pass
+            pass  # Preserve any metadata already read when optional SDK fields are absent.
         return tuple(dict.fromkeys(citations)), tuple(queries)
 
     # -----------------------------------------------------------------
