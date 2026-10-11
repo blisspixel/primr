@@ -200,7 +200,7 @@ def test_find_edgar_cik_handles_index_fetch_failure():
 # =============================================================================
 
 
-def test_find_wikipedia_title_prefers_matching_title():
+def test_find_wikipedia_title_requires_matching_official_website():
     search_response = json.dumps(
         {
             "query": {
@@ -214,13 +214,52 @@ def test_find_wikipedia_title_prefers_matching_title():
 
     with patch(
         "primr.data.fallback_sources._http_get",
-        return_value=(200, search_response, None),
+        side_effect=[
+            (200, search_response, None),
+            (
+                200,
+                json.dumps(
+                    {
+                        "query": {
+                            "pages": {
+                                "1": {
+                                    "title": "Example Holdings",
+                                    "pageprops": {"wikibase_item": "Q1"},
+                                }
+                            }
+                        }
+                    }
+                ).encode(),
+                None,
+            ),
+            (
+                200,
+                json.dumps(
+                    {
+                        "entities": {
+                            "Q1": {
+                                "claims": {
+                                    "P856": [
+                                        {
+                                            "mainsnak": {
+                                                "datavalue": {"value": "https://acme.example"}
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                ).encode(),
+                None,
+            ),
+        ],
     ):
-        title = find_wikipedia_title("Example Holdings Inc.")
+        title = find_wikipedia_title("Example Holdings Inc.", website="https://acme.example")
         assert title == "Example Holdings"
 
 
-def test_find_wikipedia_title_falls_back_to_top_hit():
+def test_find_wikipedia_title_drops_unverified_top_hit():
     search_response = json.dumps(
         {
             "query": {
@@ -235,8 +274,8 @@ def test_find_wikipedia_title_falls_back_to_top_hit():
         "primr.data.fallback_sources._http_get",
         return_value=(200, search_response, None),
     ):
-        title = find_wikipedia_title("Completely Unrelated Name")
-        assert title == "Some Other Article"
+        title = find_wikipedia_title("Completely Unrelated Name", website="https://acme.example")
+        assert title is None
 
 
 def test_find_wikipedia_title_empty_results():
@@ -246,7 +285,7 @@ def test_find_wikipedia_title_empty_results():
         "primr.data.fallback_sources._http_get",
         return_value=(200, search_response, None),
     ):
-        title = find_wikipedia_title("Anything")
+        title = find_wikipedia_title("Anything", website="https://acme.example")
         assert title is None
 
 

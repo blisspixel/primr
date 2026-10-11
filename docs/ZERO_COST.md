@@ -98,6 +98,26 @@ The command writes a dated directory under `output/` containing:
 Read the manifest first. A `partial` bundle is still usable, but its missing
 coverage must remain visible in the final report.
 
+Wikipedia references require a current Wikidata official website claim linked
+to the supplied company website. Hiring collection prefers operator-supplied
+career URLs and the company's own careers pages, including ATS links and
+redirects. Guessed ATS tenants need an explicit company-homepage link on the
+board; otherwise only individual roles whose employer website matches through
+`JobPosting.hiringOrganization.url` or `sameAs` can enter the posting index,
+source index, or synthesis. Search results use the individual employer check.
+Customer, tool, and other links in descriptions establish no employer identity.
+The prep summary reports identity-linked hiring rows; their `identity_evidence` records
+the association basis. The `identity: verified` record means an identity link
+was found, including operator assertions and provider-reported metadata. It is
+not an independent guarantee of posting authenticity or claim accuracy.
+
+Identity matching normalizes HTTP(S) hostnames and accepts the supplied host,
+its `www` form, and child hosts. It keeps the complete host instead of guessing
+public suffixes or accepting similarly named organizations. A separate brand
+domain, missing official website claim, or inaccessible employer metadata can
+therefore reduce coverage. Unverified candidates are omitted; no model call is
+used to guess identity.
+
 ## Why the collection is hard-zero
 
 `primr prep` enters an execution-context no-model-call policy before scraping,

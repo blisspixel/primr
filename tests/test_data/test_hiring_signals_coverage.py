@@ -144,24 +144,27 @@ class TestDiscoverViaAts:
             ("lever", lambda slug: None),
         ]
         with patch.object(hs, "_ATS_PROVIDERS", providers):
-            postings, provider = _discover_via_ats(["acme"])
+            postings, provider = _discover_via_ats(["acme"], website="https://acme.example")
         assert postings == []
         assert provider is None
 
     def test_picks_provider_with_most_postings(self):
-        few = [Posting(url="u1", title="A", source="lever")]
-        many = [Posting(url=f"u{i}", title=str(i), source="greenhouse") for i in range(5)]
+        few = [Posting(url="https://acme.example/jobs/1", title="A", source="lever")]
+        many = [
+            Posting(url=f"https://acme.example/jobs/{i}", title=str(i), source="greenhouse")
+            for i in range(5)
+        ]
         providers = [
             ("greenhouse", lambda slug: many),
             ("lever", lambda slug: few),
         ]
         with patch.object(hs, "_ATS_PROVIDERS", providers):
-            postings, provider = _discover_via_ats(["acme"])
+            postings, provider = _discover_via_ats(["acme"], website="https://acme.example")
         assert provider == "greenhouse"
         assert len(postings) == 5
 
     def test_provider_exception_swallowed(self):
-        good = [Posting(url="u", title="A", source="ashby")]
+        good = [Posting(url="https://acme.example/jobs/1", title="A", source="ashby")]
 
         def _raise(slug):
             raise RuntimeError("boom")
@@ -171,7 +174,7 @@ class TestDiscoverViaAts:
             ("ashby", lambda slug: good),
         ]
         with patch.object(hs, "_ATS_PROVIDERS", providers):
-            postings, provider = _discover_via_ats(["acme"])
+            postings, provider = _discover_via_ats(["acme"], website="https://acme.example")
         assert provider == "ashby"
 
 

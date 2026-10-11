@@ -29,6 +29,7 @@ from defusedxml.common import DefusedXmlException
 from primr.data.first_party_pdf import fetch_first_party_pdf_content
 from primr.data.first_party_structured_data import fetch_structured_data_content
 from primr.data.first_party_url import same_site as _same_site
+from primr.data.wikipedia_identity import find_verified_wikipedia_title
 
 logger = logging.getLogger(__name__)
 # =============================================================================
@@ -721,57 +722,33 @@ WIKIPEDIA_SUMMARY = "https://en.wikipedia.org/api/rest_v1/page/summary"
 WIKIPEDIA_EXTRACT = "https://en.wikipedia.org/w/api.php"
 
 
-def find_wikipedia_title(company_name: str, timeout: float = 15.0) -> str | None:
-    """Find the best-matching Wikipedia article title for a company."""
-    status, body, _ = _http_get(
-        WIKIPEDIA_SEARCH,
+def find_wikipedia_title(
+    company_name: str,
+    timeout: float = 15.0,
+    *,
+    website: str = "",
+) -> str | None:
+    """Find an article whose current official website matches the target."""
+    return find_verified_wikipedia_title(
+        company_name,
+        website,
+        http_get=_http_get,
         timeout=timeout,
-        params={
-            "action": "query",
-            "list": "search",
-            "srsearch": f"{company_name} company",
-            "srlimit": 5,
-            "format": "json",
-        },
     )
-    if status != 200 or not body:
-        return None
-
-    try:
-        data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
-        return None
-
-    results = (data.get("query") or {}).get("search") or []
-    if not results:
-        return None
-
-    normalized_target = _normalize_company_name(company_name)
-    target_tokens = {t for t in normalized_target.split() if len(t) >= 3}
-
-    if target_tokens:
-        for hit in results:
-            title = hit.get("title") or ""
-            if not title:
-                continue
-            title_norm = _normalize_company_name(title)
-            title_tokens = set(title_norm.split())
-            # Prefer titles that share at least one meaningful token with the
-            # target name (cheap way to reject unrelated top hits).
-            if target_tokens & title_tokens:
-                return title
-
-    # Otherwise the top hit
-    return results[0].get("title")
 
 
-def fetch_wikipedia_content(company_name: str, timeout: float = 20.0) -> list[FallbackPage]:
+def fetch_wikipedia_content(
+    company_name: str,
+    timeout: float = 20.0,
+    *,
+    website: str = "",
+) -> list[FallbackPage]:
     """
     Fetch the Wikipedia article for a company as plain text.
 
     Returns a list with one FallbackPage, or empty if no article found.
     """
-    title = find_wikipedia_title(company_name, timeout=timeout)
+    title = find_wikipedia_title(company_name, timeout=timeout, website=website)
     if not title:
         logger.info("Wikipedia: no article for %r", company_name)
         return []
@@ -812,7 +789,11 @@ def fetch_wikipedia_content(company_name: str, timeout: float = 20.0) -> list[Fa
                 content=extract,
                 raw_html=None,
                 title=title,
-                metadata={"pageid": page.get("pageid")},
+                metadata={
+                    "pageid": page.get("pageid"),
+                    "identity": "verified",
+                    "identity_evidence": "wikidata_official_website",
+                },
             )
         ]
 
@@ -1023,7 +1004,7 @@ def gather_fallback_content(
             pool.submit(fetch_first_party_pdf_content, base_host): "first_party_pdf",
             pool.submit(fetch_structured_data_content, base_host): "structured_data",
             pool.submit(fetch_edgar_content, company_name): "edgar",
-            pool.submit(fetch_wikipedia_content, company_name): "wikipedia",
+            pool.submit(fetch_wikipedia_content, company_name, website=website): "wikipedia",
         }
         if wayback_urls:
             futures[pool.submit(fetch_wayback_pages, wayback_urls)] = "wayback"
