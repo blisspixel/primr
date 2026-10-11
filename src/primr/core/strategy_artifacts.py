@@ -391,9 +391,7 @@ def _split_markdown_sections(content: str) -> tuple[str, list[tuple[str, str]]]:
 
     for line in lines:
         if line.startswith("## "):
-            if current_heading is None:
-                preamble = "\n".join(preamble_lines).strip()
-            else:
+            if current_heading is not None:
                 sections.append((current_heading, "\n".join(current_body).strip()))
             current_heading = line[3:].strip()
             current_body = []

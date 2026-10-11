@@ -770,7 +770,6 @@ class ResearchOrchestrator:
             )
 
         except Exception as e:
-            duration = time.time() - start_time
             self._state = OrchestratorState.FAILED
 
             logger.error(f"Unexpected error during research: {e}")

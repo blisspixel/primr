@@ -138,7 +138,7 @@ def validate_url(
 
     # urllib validates port range lazily when parsed.port is accessed.
     try:
-        _port = parsed.port
+        _ = parsed.port
     except ValueError as e:
         raise InputValidationError("url", f"Invalid URL port: {e}") from e
 

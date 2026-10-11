@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Remove dead local assignments, redundant imports, and unused implementation
+  loggers identified by code scanning. Preserve document rendering, URL port
+  validation, compatibility exports, and retry behavior. Explain deliberate
+  best-effort exception recovery at the owning handlers.
+
 - Restricted TypeScript adapter process-input fuzzing to strings that can cross
   the OS argument boundary, preventing surrogate encoding failures before the
   adapter runs while preserving malformed JSON coverage.

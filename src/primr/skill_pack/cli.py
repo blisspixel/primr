@@ -8,7 +8,6 @@ ourselves.
 from __future__ import annotations
 
 import argparse
-import logging
 import math
 import sys
 import tempfile
@@ -40,8 +39,6 @@ from primr.skill_pack.evidence import collect_evidence
 from primr.skill_pack.pipeline import run_skill_pack_pipeline
 from primr.skill_pack.saved_plan import prepare_saved_plan
 from primr.utils.terminal import can_prompt_for_input
-
-logger = logging.getLogger(__name__)
 
 
 def _behavioral_eval_estimate(skill_count: int, cases_per_skill: int) -> tuple[float, int]:

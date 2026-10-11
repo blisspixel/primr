@@ -463,7 +463,7 @@ class HeartbeatWriter:
         try:
             self._write_heartbeat()
         except Exception:
-            pass
+            pass  # Final heartbeat failures must not interrupt worker cleanup.
 
 
 def build_primr_command(job_spec: JobSpec, output_dir: Path) -> list[str]:
@@ -816,7 +816,7 @@ def main() -> int:
             )
             store.put_manifest(job_spec.job_id, manifest)
         except Exception:
-            pass
+            pass  # Preserve the original job failure if diagnostic manifest writing fails.
 
         return EXIT_FAILURE
 

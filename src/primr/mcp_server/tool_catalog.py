@@ -364,6 +364,6 @@ def build_base_tools() -> list[Tool]:
             ),
         )
     except ImportError:
-        pass
+        pass  # Optional A2A tools stay unavailable without their dependency.
 
     return base_tools

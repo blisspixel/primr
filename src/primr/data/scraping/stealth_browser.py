@@ -460,7 +460,7 @@ def _run_patchright(
                 try:
                     on_progress(len(html), len(body_text or ""))
                 except Exception:
-                    pass
+                    pass  # Progress reporting must not discard successfully fetched content.
 
             return html, body_text or "", status
         finally:

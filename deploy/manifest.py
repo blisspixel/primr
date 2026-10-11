@@ -472,7 +472,7 @@ def write_manifest_local(output_dir: Path, manifest: JobManifest) -> None:
         try:
             Path(temp_path).unlink()
         except OSError:
-            pass
+            pass  # Preserve the original write failure if temporary-file cleanup also fails.
         raise
 
 

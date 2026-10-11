@@ -56,10 +56,10 @@ NEW_FILE_MAX_LINES = 1000
 FILE_LINE_CEILINGS: dict[str, int] = {
     # research_agent.py and cli.py remain below their committed-main baselines.
     # These ceilings track the current measured sizes and may only shrink.
-    "core/research_agent.py": 4259,
+    "core/research_agent.py": 4256,
     "core/cli.py": 2439,
     "ai/deep_research.py": 3812,
-    "data/scraping/browsers.py": 1834,
+    "data/scraping/browsers.py": 1833,
     "data/hiring_signals.py": 1571,
     "core/model_eval.py": 1828,
     "data/scrape.py": 1828,

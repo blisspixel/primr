@@ -352,9 +352,6 @@ class ScrapeCache:
 
                     # Delete meta file and corresponding data file
                     f.unlink()
-                    data_file = f.with_suffix("").with_suffix(
-                        ".bin" if "_raw" in f.stem else ".txt"
-                    )
                     # Handle the naming pattern
                     base = f.stem.replace("_meta", "").replace("_text", "")
                     if "_text" in f.stem:

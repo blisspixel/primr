@@ -294,7 +294,7 @@ def get_local_env_path() -> Path | None:
         if path.resolve() == user_path.resolve():
             return None
     except OSError:
-        pass
+        pass  # A failed canonical-path check does not discard the located env file.
     return path
 
 

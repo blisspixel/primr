@@ -399,9 +399,8 @@ class RetryPolicyManager:
                 )
 
                 await asyncio.sleep(delay)
-            except Exception as e:
+            except Exception:
                 # Non-PrimrError exceptions are not retried
-                last_error = e
                 raise
 
         # All retries exhausted
@@ -462,8 +461,7 @@ class RetryPolicyManager:
                 )
 
                 time.sleep(delay)
-            except Exception as e:
-                last_error = e
+            except Exception:
                 raise
 
         if last_error is not None:

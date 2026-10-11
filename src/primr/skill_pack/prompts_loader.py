@@ -11,14 +11,11 @@ from __future__ import annotations
 
 import functools
 import json
-import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
-
-logger = logging.getLogger(__name__)
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts" / "skill_pack"
 

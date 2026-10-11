@@ -31,7 +31,6 @@ Usage:
 
 from __future__ import annotations
 
-import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -39,8 +38,6 @@ from typing import Any, Literal
 
 from primr.config.env import load_primr_env
 from primr.config.models import PrimrModels
-
-logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_primr_env()

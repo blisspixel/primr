@@ -338,7 +338,7 @@ def render_animated_banner(ctx: BannerContext, duration_ms: int = 1500) -> None:
             out.write(_ANSI_SHOW_CURSOR + _ANSI_RESET + "\n")
             out.flush()
         except Exception:
-            pass
+            pass  # Still attempt the static banner if cursor restoration fails.
         # Fall back to static banner via Rich
         console.print(Text.from_markup(render_banner_static(BANNER_ART)))
 
