@@ -84,7 +84,7 @@ if (-not $pipxInstalled -and (Get-Command uv -ErrorAction SilentlyContinue)) {
             exit 1
         }
         # PEP 668 also prohibits --user installs outside a virtual environment.
-        & $pythonPath -c 'import sys, sysconfig; from pathlib import Path; sys.exit(not (sys.prefix == sys.base_prefix and (Path(sysconfig.get_path("stdlib")) / "EXTERNALLY-MANAGED").is_file()))'
+        & $pythonPath -c "import sys, sysconfig; from pathlib import Path; sys.exit(not (sys.prefix == sys.base_prefix and (Path(sysconfig.get_path('stdlib')) / 'EXTERNALLY-MANAGED').is_file()))"
         if ($LASTEXITCODE -eq 0) {
             Write-Host "Error: this Python is externally managed; install pipx with your package manager." -ForegroundColor Red
             Show-ToolGuidance

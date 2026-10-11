@@ -65,11 +65,11 @@ def _ps_quote(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-@pytest.fixture(params=["bash", "powershell"])
+@pytest.fixture(params=["bash", "powershell", "powershell-legacy"])
 def installer(request, tmp_path):
     shell = request.param
     executable = shutil.which("bash" if shell == "bash" else "pwsh")
-    if executable is None and shell == "powershell":
+    if executable is None and shell.startswith("powershell"):
         executable = shutil.which("powershell")
     if executable is None or (shell == "bash" and os.name == "nt"):
         pytest.skip(f"{shell} is unavailable")
@@ -132,7 +132,10 @@ def installer(request, tmp_path):
             visible = ", ".join(_ps_quote(name) for name in available)
             wrapper = tmp_path / "run.ps1"
             wrapper.write_text(
-                "\n".join(definitions)
+                # Legacy models native argument passing in Windows PowerShell
+                # 5.1, which is still the documented Windows entry point.
+                f"$PSNativeCommandArgumentPassing = '{'Legacy' if shell.endswith('-legacy') else 'Standard'}'\n"
+                + "\n".join(definitions)
                 + "\nfunction global:Get-Command { param($Name, $ErrorAction) "
                 + f"if ($Name -in @({visible})) {{ [pscustomobject]@{{Source=$Name}} }} }}\n"
                 + f"& {_ps_quote(str(script))}\nexit $LASTEXITCODE\n",
@@ -194,7 +197,7 @@ def test_supported_python_selected_with_preview_launcher_default(installer, requ
     assert result.returncode == 0, result.stderr
     install = next(call for call in calls if call[:2] == ["pipx", "install"])
     assert Path(install[3]).name == "python3.14"
-    if request.node.callspec.params["installer"] == "powershell":
+    if request.node.callspec.params["installer"].startswith("powershell"):
         assert any(call[:2] == ["py", "-3.14"] for call in calls)
 
 
