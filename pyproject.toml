@@ -46,6 +46,9 @@ dependencies = [
     # core runtime requirement, not an optional add-on.
     "openai>=1.0.0",
     "requests>=2.34.0",
+    # Directly used by the pinned HTTP adapter and retry policy. Version 2.8.0
+    # fixes unbounded chunk headers, deflate streaming, and proxy TLS handling.
+    "urllib3>=2.8.0",
     # Directly used for IDNA 2008 hostname canonicalization. Keeping Unicode
     # domains in ASCII form prevents faß.de/fass.de case-fold collisions at
     # first-party filtering boundaries.
@@ -215,6 +218,17 @@ primr = [
 # per-module ignore list, and the strict allowlist there, not here. This
 # avoids the two-config drift trap (the prior [tool.mypy] block was dead
 # config that never took effect).
+
+[tool.uv]
+# These transitive packages already belong to the runtime or development graph.
+# Constrain locked source and container installs without adding unused direct
+# dependencies. Constraints are not part of published wheel metadata.
+constraint-dependencies = [
+    "anyio>=4.14.2",
+    "PyJWT>=2.15.1",
+    "soupsieve>=2.9.0",
+    "virtualenv>=21.14.4",
+]
 
 [tool.ruff]
 line-length = 100
