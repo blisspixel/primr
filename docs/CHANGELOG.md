@@ -38,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Redirect followers request each `Location` target exactly as `urljoin` resolved it. Normalization remains the SSRF and identity check, so a server that canonicalizes `/en-us` to `/en-us/` no longer loops until too many redirects.
+- The default OpenRouter utility model is `google/gemini-3.1-flash-lite`. `google/gemini-2.5-flash-lite` stays in the catalog for an explicit override and expires 2026-10-20. The successor was present on the OpenRouter model list on 2026-10-12, with no expiration date.
+- OpenRouter full-run cost guidance now matches the 2026-10-12 dry run: about $1.07, from an estimator total of $1.0655. Prompt-cache savings are not assumed, and OpenRouter credit-purchase fees are not included.
+- `primr prep` reports `completed` only when current, human-readable first-party pages were captured. A run with no such pages is `partial`, names the concrete reason, and suggests a next step the prep command accepts. The manifest records each source class as captured, queried and empty, queried and failed, or not queried.
+
 - Section writing receives its writer and coherence callbacks from the research
   coordinator, removing the stage's import back edge while preserving facade
   helper patch seams, recovery, routing, source fencing, and section order.
@@ -104,7 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **OpenRouter default single-key provider routing.** OpenRouter is now the preferred default provider route whenever `OPENROUTER_API_KEY` is configured, providing single-key coverage across utility (`google/gemini-2.5-flash-lite`), writing (`openai/gpt-4.1-mini`), and reasoning (`deepseek/deepseek-v3.2`) roles at ~$0.15-$0.25 per run.
+- **OpenRouter default single-key provider routing.** OpenRouter is now the preferred default provider route whenever `OPENROUTER_API_KEY` is configured, providing single-key coverage across utility (`google/gemini-2.5-flash-lite`), writing (`openai/gpt-4.1-mini`), and reasoning (`deepseek/deepseek-v3.2`). Per-run cost is the dry-run estimate.
 - **Provider override and explicit opt-out controls.** Added automatic priority for OpenRouter with explicit opt-out support via `PRIMR_OPENROUTER_ENABLED=0` and provider overrides via `PRIMR_PROVIDER=gemini` or `PRIMR_PROVIDER=xai`.
 
 ### Changed

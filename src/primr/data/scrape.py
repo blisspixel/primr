@@ -462,6 +462,17 @@ def scrape_page(
         return None, result.error
 
 
+def pilot_validation_abort_hint(*, suggest_skip_validation: bool) -> str:
+    """Return the pilot-abort next step for the command that is running.
+
+    ``primr prep`` does not accept ``--skip-scrape-validation``. Only the main
+    research parser does, so prep must not be told to pass that flag.
+    """
+    if suggest_skip_validation:
+        return "Re-run with --skip-scrape-validation to continue anyway"
+    return "Re-run primr prep, or raise --max-pages, after checking why the sample failed."
+
+
 def fetch_web_content(
     website: str,
     company_name: str | None,
@@ -469,6 +480,8 @@ def fetch_web_content(
     use_vision: bool = False,
     working_folder: str | None = None,
     allow_model_fallbacks: bool = True,
+    *,
+    suggest_skip_validation: bool = True,
 ) -> dict[str, str]:
     """
     build_site_corpus: Discover and scrape pages from a company website.
@@ -492,6 +505,8 @@ def fetch_web_content(
         use_vision: Enable vision tier for hard-to-scrape pages
         working_folder: If provided, save raw scrapes incrementally to this folder
         allow_model_fallbacks: Allow billable model-backed recovery sources
+        suggest_skip_validation: Mention ``--skip-scrape-validation`` when the
+            pilot aborts. Prep passes False because that flag is not on its parser.
 
     Returns:
         Dict mapping URL -> extracted text (cleaned, boilerplate removed)
@@ -1160,7 +1175,12 @@ def fetch_web_content(
                     console.muted(
                         "  Defensive stop: initial sample quality too low to trust full crawl"
                     )
-                    console.muted("  Re-run with --skip-scrape-validation to continue anyway")
+                    console.muted(
+                        "  "
+                        + pilot_validation_abort_hint(
+                            suggest_skip_validation=suggest_skip_validation
+                        )
+                    )
                     console.muted(
                         "  Or tune SCRAPE_PILOT_* env vars (ex: SCRAPE_PILOT_MIN_CHARS=700)"
                     )
