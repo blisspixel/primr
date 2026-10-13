@@ -1,6 +1,6 @@
 # Next Steps
 
-Released baseline: **v1.39.18**
+Released baseline: **v1.39.19**
 
 Next implementation candidate: **v1.40.0**
 
@@ -37,11 +37,13 @@ product.
 
 ## Current executable card
 
-v1.39.18 is the released baseline. It ships the OpenRouter utility default
+v1.39.19 is the released baseline. It ships the OpenRouter utility default
 `google/gemini-3.1-flash-lite`, redirect requests that follow each `urljoin`
 Location after the existing scheme, credential, and private-network checks,
 prep completeness that stays partial until current first-party pages are
-captured, and the section-writer ownership move.
+captured, and the section-writer ownership move. It also rejects retired OpenRouter
+Gemini 2.5 routes at their provider deadline and honors configured utility and
+reasoning routes. These maintenance fixes do not advance the quality gate.
 
 ### v1.40.0 candidate: epistemic and analyst-quality readiness
 
@@ -50,7 +52,7 @@ independently validated evaluators, before any hard report-quality gate or
 hybrid-routing promotion.
 
 **Why this is next:** the version ladder already places quality claims after
-that corpus. Operator polish through v1.39.18 is the released baseline.
+that corpus. Operator polish through v1.39.19 is the released baseline.
 
 **Exit criteria:**
 
@@ -153,7 +155,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.18
+## Version gates after v1.39.19
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.
