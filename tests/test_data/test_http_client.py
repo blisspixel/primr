@@ -203,6 +203,30 @@ class TestHTTPClient:
         mock_get.assert_called_once()
 
     @patch("requests.Session.get")
+    def test_get_preserves_trailing_slash_on_redirect_hop(self, mock_get):
+        """A canonical slash redirect is requested once, not normalized away."""
+        redirect = _response(301, "https://example.com/a", "/a/")
+        final = _response(200, "https://example.com/a/")
+        mock_get.side_effect = [redirect, final]
+
+        with HTTPClient() as client:
+            assert client.get("https://example.com/a") is final
+
+        assert mock_get.call_count == 2
+        assert mock_get.call_args_list[0].args[0] == "https://example.com/a"
+        assert mock_get.call_args_list[1].args[0] == "https://example.com/a/"
+
+    @patch("requests.Session.get")
+    def test_get_blocks_credential_redirect_before_second_request(self, mock_get):
+        redirect = _response(302, "https://example.com/a", "https://user:pass@example.com/a/")
+        mock_get.return_value = redirect
+
+        with HTTPClient() as client, pytest.raises(ValueError, match="credentials"):
+            client.get("https://example.com/a")
+
+        mock_get.assert_called_once()
+
+    @patch("requests.Session.get")
     def test_get_failure_raises_scraping_error(self, mock_get):
         """Test that request failure raises ScrapingError."""
         mock_get.side_effect = requests.RequestException("Connection failed")

@@ -100,13 +100,21 @@ def make_request(
     current_url = url
     with create_pinned_session() as session:
         for redirect_count in range(_MAX_REDIRECTS + 1):
-            is_valid, normalized_url, error = validate_url_for_request(current_url)
+            # The first hop keeps historical normalization. Later hops request
+            # the Location target from urljoin exactly; normalization is only
+            # the SSRF and identity check.
+            if redirect_count == 0:
+                is_valid, request_url, error = validate_url_for_request(current_url)
+            else:
+                from primr.utils.validators import request_url_for_validated_target
+
+                is_valid, request_url, error = request_url_for_validated_target(current_url)
             if not is_valid:
                 raise ValueError(f"Invalid URL: {error}")
 
             response = session.request(
                 method=method,
-                url=normalized_url,
+                url=request_url,
                 headers=default_headers,
                 timeout=timeout,
                 allow_redirects=False,
@@ -129,7 +137,7 @@ def make_request(
             ):
                 return response
 
-            response_url = getattr(response, "url", normalized_url)
+            response_url = getattr(response, "url", request_url)
             current_url = urljoin(str(response_url), location)
 
             if redirect_count == _MAX_REDIRECTS:

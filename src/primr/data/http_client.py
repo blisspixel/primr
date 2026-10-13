@@ -188,7 +188,17 @@ class HTTPClient:
         current_url = url
 
         for redirect_count in range(_MAX_REDIRECTS + 1):
-            normalized_url = self._validate_outbound_url(current_url)
+            # The caller-normalized first hop stays as-is. A redirect hop is
+            # requested exactly as urljoin resolved Location; normalization
+            # remains the SSRF and identity check, not the request URL.
+            if redirect_count == 0:
+                request_url = self._validate_outbound_url(current_url)
+            else:
+                from primr.utils.validators import request_url_for_validated_target
+
+                is_valid, request_url, error = request_url_for_validated_target(current_url)
+                if not is_valid:
+                    raise ValueError(f"SSRF protection: {error}")
             request_kwargs = dict(kwargs)
             if current_url != url:
                 request_kwargs.pop("params", None)
@@ -196,7 +206,7 @@ class HTTPClient:
                 request_kwargs["headers"] = headers
 
             response = request_func(
-                normalized_url,
+                request_url,
                 timeout=timeout,
                 allow_redirects=False,
                 verify=verify,
@@ -219,7 +229,7 @@ class HTTPClient:
             ):
                 return response
 
-            response_url = getattr(response, "url", normalized_url)
+            response_url = getattr(response, "url", request_url)
             current_url = urljoin(str(response_url), location)
 
             if redirect_count == _MAX_REDIRECTS:
