@@ -853,6 +853,9 @@ src/primr/
 │   └── subagents/          # Scraper, analyst, writer, QA, and verifier roles
 ├── skill_pack/              # Role planning, skill authoring, validation, packaging
 ├── config/                  # Environment, settings, models, sections, eval profiles
+│   ├── model_config.py      # Shared model metadata, pricing, and provider retirement checks
+│   ├── model_registry.py    # Direct-provider registrations; re-exports ModelConfig
+│   └── openrouter_models.py # OpenRouter registrations and published route retirements
 ├── utils/                   # Shared async, I/O, security, console, and logging seams
 │   └── errors/             # Typed error hierarchy and retry helpers
 │

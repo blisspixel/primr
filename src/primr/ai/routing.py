@@ -187,6 +187,7 @@ def _openrouter_model(default_model: str, role: Role | None = None) -> str:
             "PRIMR_OPENROUTER_MODEL requires finite nonnegative "
             "PRIMR_OPENROUTER_INPUT_PRICE and PRIMR_OPENROUTER_OUTPUT_PRICE values"
         )
+    config.require_available()
     return selected
 
 
@@ -285,7 +286,9 @@ def _pick_utility_model(has_openrouter: bool, prefer_openrouter: bool) -> str:
             ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name, role=Role.UTILITY
         )
     if os.getenv("GEMINI_API_KEY"):
-        return os.getenv("PRIMR_GEMINI_UTILITY_MODEL", PrimrModels.FLASH_MODEL)
+        return os.getenv(
+            "PRIMR_GEMINI_UTILITY_MODEL", os.getenv("AI_FAST_MODEL", PrimrModels.FLASH_MODEL)
+        )
     if has_openrouter:
         return _openrouter_model(
             ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name, role=Role.UTILITY
@@ -321,7 +324,9 @@ def _pick_reasoning_model(has_openrouter: bool, prefer_openrouter: bool) -> str:
     if os.getenv("XAI_API_KEY"):
         return PrimrModels.GROK_MODEL_43
     if os.getenv("GEMINI_API_KEY"):
-        return os.getenv("PRIMR_GEMINI_REASONING_MODEL", PrimrModels.PRO_MODEL)
+        return os.getenv(
+            "PRIMR_GEMINI_REASONING_MODEL", os.getenv("AI_REASONING_MODEL", PrimrModels.PRO_MODEL)
+        )
     if has_openrouter:
         return _openrouter_model(ModelRegistry.OPENROUTER_DEEPSEEK_V3_2.name, role=Role.REASONING)
     if os.getenv("OPENAI_API_KEY"):

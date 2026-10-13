@@ -1,9 +1,10 @@
 """Volatile model data behind the ``config.models`` selection and cost facade."""
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from datetime import date
 from enum import Enum
 
+from primr.config.model_config import ModelConfig
 from primr.config.openrouter_models import build_openrouter_models
 
 
@@ -27,62 +28,6 @@ class ModelType(Enum):
     ANALYSIS = "analysis"  # Pro - complex analysis
     DEEP_RESEARCH = "deep_research"  # Deep Research Agent - 12+ page reports
     IMAGE = "image"  # Image generation
-
-
-@dataclass
-class ModelConfig:
-    """Configuration for a specific AI model."""
-
-    name: str
-    display_name: str
-    provider: str
-    cost_per_1m_input_tokens: float
-    cost_per_1m_output_tokens: float
-    max_input_tokens: int
-    max_output_tokens: int
-    supports_thinking: bool = True
-    supports_tools: bool = True
-    supports_multimodal: bool = True
-    cost_per_1m_input_tokens_high: float | None = None
-    cost_per_1m_output_tokens_high: float | None = None
-    tier_threshold_tokens: int | None = None
-    cost_per_1m_input_tokens_cached: float | None = None
-    cost_per_1m_input_tokens_cached_high: float | None = None
-    tier_threshold_inclusive: bool = False
-    price_change_date: date | None = None
-    cost_per_1m_input_tokens_after: float | None = None
-    cost_per_1m_output_tokens_after: float | None = None
-    cost_per_1m_input_tokens_cached_after: float | None = None
-    deprecated: bool = False
-
-    @property
-    def has_tiered_pricing(self) -> bool:
-        """Whether this model uses tiered pricing based on prompt size."""
-        return (
-            self.cost_per_1m_input_tokens_high is not None
-            and self.cost_per_1m_output_tokens_high is not None
-            and self.tier_threshold_tokens is not None
-        )
-
-    def standard_rates(self, pricing_date: date | None = None) -> tuple[float, float, float | None]:
-        """Return flat input, output, and cache rates effective on a date."""
-        effective_date = pricing_date or date.today()
-        if self.price_change_date is not None and effective_date >= self.price_change_date:
-            if (
-                self.cost_per_1m_input_tokens_after is None
-                or self.cost_per_1m_output_tokens_after is None
-            ):
-                raise ValueError(f"Model {self.name} has an incomplete scheduled price change")
-            return (
-                self.cost_per_1m_input_tokens_after,
-                self.cost_per_1m_output_tokens_after,
-                self.cost_per_1m_input_tokens_cached_after,
-            )
-        return (
-            self.cost_per_1m_input_tokens,
-            self.cost_per_1m_output_tokens,
-            self.cost_per_1m_input_tokens_cached,
-        )
 
 
 _OPENROUTER_MODELS = build_openrouter_models(ModelConfig)
@@ -292,8 +237,9 @@ class ModelRegistry:
     # $1.25 input / $10.00 output per 1M tokens
     # Context: 1M tokens, Output: 8k tokens
     # June 2026 audit: context is 1M (1,048,576), NOT 2M — the 2M figure belongs
-    # to the unreleased Gemini 3.5 Pro. Now DEPRECATED (earliest shutdown
-    # Oct 16, 2026) → migrate to gemini-3.1-pro-preview.
+    # to the unreleased Gemini 3.5 Pro. Developer API access is limited to
+    # prior users; no shutdown date is announced (checked 2026-10-13).
+    # Vertex/OpenRouter retirement dates do not apply to this direct API row.
     GEMINI_2_5_PRO = ModelConfig(
         name="gemini-2.5-pro",
         display_name="Gemini 2.5 Pro",
@@ -306,7 +252,6 @@ class ModelRegistry:
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.125,  # Confirmed June 2026 (docs)
-        deprecated=True,  # Earliest shutdown 2026-10-16 → gemini-3.1-pro-preview
     )
 
     # GEMINI 2.5 FLASH - High-volume workhorse
@@ -326,7 +271,7 @@ class ModelRegistry:
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.03,  # Confirmed June 2026 (docs)
-        deprecated=True,  # June 2026 audit: shutdown ~2026-10-16 → gemini-3.5-flash
+        # Developer API: prior users only; no announced shutdown (2026-10-13).
     )
 
     # GEMINI 2.5 FLASH-LITE - Ultra-cheap utility tier
@@ -347,7 +292,7 @@ class ModelRegistry:
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.01,  # Confirmed June 2026 (docs)
-        deprecated=True,  # June 2026 audit: shutdown ~2026-10-16 → gemini-3.1-flash-lite
+        # Developer API: prior users only; no announced shutdown (2026-10-13).
     )
 
     # GEMINI 3 PRO IMAGE - Image generation

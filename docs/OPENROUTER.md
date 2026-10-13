@@ -140,7 +140,7 @@ Primr supports an expanded set of pre-priced, verified models through OpenRouter
 | Google | `google/gemini-3.8-flash` | `$0.75 / $3.75` | Writing, Reasoning |
 | Google | `google/gemini-3.7-flash` | `$0.75 / $3.75` | Writing, Reasoning |
 | Google | `google/gemini-3.1-flash-lite` | `$0.25 / $1.50` | Default utility |
-| Google | `google/gemini-2.5-flash-lite` | `$0.10 / $0.40` | Explicit override; expires 2026-10-20 |
+| Google | `google/gemini-2.5-flash-lite` | `$0.10 / $0.40` | Historical pricing; new requests rejected from 2026-10-20 UTC |
 | OpenAI | `openai/gpt-5.4-mini` | `$0.75 / $4.50` | Writing, Utility |
 | OpenAI | `openai/gpt-5.4-nano` | `$0.20 / $1.25` | Utility |
 | OpenAI | `openai/gpt-4.1-mini` | `$0.40 / $1.60` | Writing |
@@ -152,6 +152,30 @@ Primr supports an expanded set of pre-priced, verified models through OpenRouter
 | Meta | `meta-llama/llama-3.3-70b-instruct` | `$0.12 / $0.30` | Utility |
 
 ### Granular role overrides
+
+The October 13, 2026 [OpenRouter catalog](https://openrouter.ai/api/v1/models)
+lists October 20 expiration for Gemini 2.5 Flash-Lite, Flash, Pro, and the
+Flash/Pro batch slugs. Primr rejects those selections on or after that UTC
+date, including explicitly priced custom overrides, before model transport.
+It retains their historical pricing and catalog indices. Select a replacement
+explicitly and obtain a new estimate; Primr does not silently substitute one.
+For utility work, `google/gemini-3.1-flash-lite` is already the default at
+`$0.25 / $1.50` per million input/output tokens, compared with `$0.10 / $0.40`
+for 2.5 Flash-Lite.
+
+This deadline is provider-specific. The direct [Gemini Developer API](https://ai.google.dev/gemini-api/docs/deprecations)
+announces no 2.5 shutdown date and limits access to prior users. Primr's
+direct Gemini overrides use `AI_FAST_MODEL`, `AI_REASONING_MODEL`, and the
+role-specific `PRIMR_GEMINI_UTILITY_MODEL`, `PRIMR_GEMINI_WRITING_MODEL`, and
+`PRIMR_GEMINI_REASONING_MODEL`. When the selected provider is Gemini, its
+role-specific override takes precedence: utility then falls back to
+`AI_FAST_MODEL`, reasoning to `AI_REASONING_MODEL`, and writing to its
+registered default. Provider and evaluation-recipe priorities are unchanged.
+OpenRouter extensions cannot replace `model` or add fallback `models` through
+`extra_body`; the selected model must match the retirement and pricing checks.
+The developer pilot judge also uses
+`AI_REASONING_MODEL`, defaulting to the registered Pro model. Running that
+judge remains a paid evaluation requiring its own estimate and approval.
 
 You can configure specific models for individual pipeline roles without modifying code:
 

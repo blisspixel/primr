@@ -74,6 +74,7 @@ def _provider_policy(model: str) -> dict[str, Any]:
     config = PrimrModels.get_model_config(model)
     if config is None or config.provider != "openrouter":
         raise ValueError(f"OpenRouter model {model!r} is not registered with explicit pricing")
+    config.require_available()
     input_rate, output_rate, _cached_rate = config.standard_rates()
     policy: dict[str, Any] = {
         "allow_fallbacks": True,
@@ -153,6 +154,11 @@ class OpenRouterProvider(OpenAICompatibleProvider):
             raise ValueError(f"OpenRouter model {model!r} is not registered with explicit pricing")
         raw_extra_body = provider_kwargs.pop("extra_body", None)
         extra_body = dict(raw_extra_body) if isinstance(raw_extra_body, dict) else {}
+        if "model" in extra_body or "models" in extra_body:
+            raise ValueError(
+                "OpenRouter extra_body cannot override model or models; "
+                "select a single priced model through the model argument."
+            )
         # The caller may add unrelated OpenRouter fields, but cannot weaken the
         # price or privacy policy owned by this provider.
         extra_body["provider"] = _provider_policy(model)

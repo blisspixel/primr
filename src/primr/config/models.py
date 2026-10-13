@@ -16,7 +16,9 @@ KEY CHANGES (August 13, 2026 audit):
 - OpenAI long-context pricing is limited to the documented 1.05M-context
   models at >272K input. GPT-5.4 mini/nano remain flat-priced 400K models.
 - Gemini: gemini-2.5-pro is 1M ctx (the 2M figure belongs to the unreleased 3.5
-  Pro); the whole Gemini 2.5 family is now deprecated (~Oct 16, 2026 shutdown);
+  Pro). October 13 correction: the direct Developer API has no announced
+  2.5 shutdown date but limits access to prior users. OpenRouter and Vertex
+  retire their named 2.5 endpoints on October 20; Primr has no Vertex route.
   Deep Research slug refreshed to deep-research-preview-04-2026; cached-input
   rates filled in for the 3.x/2.5 entries.
 - Anthropic: claude-haiku-3-5 retired Feb 19, 2026 (404) — marked deprecated.
@@ -58,9 +60,9 @@ GOOGLE / GEMINI:
                                Leading writing-tier candidate for v1.24.0 sub-$1 default
   gemini-3-flash-preview     - $0.50/$3.00, 1M ctx, 65k out
   gemini-3-pro-preview       - DEPRECATED Mar 9, 2026 (replaced by 3.1 Pro)
-  gemini-2.5-flash-lite      - Ultra-cheap, $0.10/$0.40
-  gemini-2.5-flash           - $0.30/$2.50, 1M ctx (output rate updated May 2026)
-  gemini-2.5-pro             - Stable workhorse, $1.25/$10, 2M ctx, 8k out
+  gemini-2.5-flash-lite      - Prior Developer API users only, $0.10/$0.40
+  gemini-2.5-flash           - Prior Developer API users only, $0.30/$2.50, 1M ctx
+  gemini-2.5-pro             - Prior Developer API users only, $1.25/$10, 1M ctx
   deep-research-preview-04-2026 - Autonomous 12+ page research reports
 
 OPENAI:
@@ -141,6 +143,7 @@ from primr.config.model_registry import (
     ModelRegistry,
     ModelType,
 )
+from primr.config.openrouter_models import OPENROUTER_EXPIRATIONS
 
 
 @dataclass
@@ -270,6 +273,7 @@ def _openrouter_custom_model_config(model_name: str) -> "ModelConfig | None":
         return None
     return ModelConfig(
         name=configured,
+        expiration_date=OPENROUTER_EXPIRATIONS.get(configured),
         display_name=f"OpenRouter: {configured}",
         provider="openrouter",
         cost_per_1m_input_tokens=in_price,
