@@ -159,7 +159,7 @@ work, release timing, or a second version plan.
    decidable Confirmed floor. Raw report-bound sidecars preserve each
    disagreement as a body-free claim-index and verdict pointer while compact
    MCP and A2A summaries remain body-free. Recalibration on a fully decidable
-   production corpus remains required before backend promotion. Provider wiring
+   production corpus remains required before backend promotion. Gate recommendations now use a report-clustered Wilson lower bound at 95 percent confidence and record that bound. A human-confirmed honestly empty report, marked on the pack selection, stays out of the missing Confirmed-floor count. The July 13 measurement above remains historical. Provider wiring
    and deterministic readiness work may proceed without claiming promotion.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, and `core/stage_inventory.py` now records router-ready

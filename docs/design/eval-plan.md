@@ -83,13 +83,18 @@ Use `--inspect-baseline-decision` to verify the record against current artifacts
 operator has completed the required review. No example in this document
 authorizes arming `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` automatically.
 
-The implementation's minimum observed report rate is a candidate **regression
-floor**, not the desired **quality bar**. Define the latter from material error
-risk and analyst usefulness before evaluating a change. A low observed floor
+The candidate regression floor is a report-clustered Wilson lower bound at 95
+percent confidence. The gate records `bound_method`, `confidence`, and `bound`.
+That bound is not the desired quality bar. Define the bar from material error
+risk and analyst usefulness before evaluating a change. A low observed bound
 does not become acceptable quality because every report becomes decidable.
+Judges can score frozen `scraped_content.txt` captures, and an explicit abstain
+does not count as untraceable.
 Distinguish missing evidence or failed assessment from a sparse report with no
-warranted Confirmed claims. Do not add artificial Confirmed labels to make a
-baseline pass; preserve honest labels and the report-only decision when required.
+warranted Confirmed claims. A person records the latter with
+`honestly_empty_confirmed: true` on that report in the pack selection file.
+Do not add artificial Confirmed labels to make a baseline pass; preserve honest
+labels and the report-only decision when required.
 
 ### Validate the evaluators
 

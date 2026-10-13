@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from primr.qa.calibration_measurement import (
+    BOUND_CONFIDENCE,
+    BOUND_METHOD,
+    report_clustered_wilson_lower,
+)
+
 GATE_ENV_VAR = "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY"
 GATE_POLICY = (
     "Do not arm automatically; review the representative pack, measured floor, "
@@ -23,10 +29,7 @@ def baseline_gate_recommendation(
 ) -> dict[str, Any]:
     """Return the report-only gate recommendation for a calibration baseline."""
 
-    rates = [_optional_rate(report.get("confirmed_traceability")) for report in reports]
-    measured_rates = [rate for rate in rates if rate is not None]
-    report_count = len(rates)
-    missing_confirmed = report_count - len(measured_rates)
+    floor = _confirmed_floor_summary(reports)
     aggregate_confirmed = _optional_rate(
         _dict_value(traceability, "Confirmed").get("traceability_rate")
     )
@@ -34,11 +37,15 @@ def baseline_gate_recommendation(
         "environment_variable": GATE_ENV_VAR,
         "recommended_threshold": None,
         "measured_floor": None,
+        "bound": None,
+        "bound_method": floor["bound_method"],
+        "confidence": floor["confidence"],
         "aggregate_confirmed_traceability": aggregate_confirmed,
-        "reports_total": report_count,
-        "reports_considered": len(measured_rates),
-        "reports_without_decidable_confirmed": missing_confirmed,
-        "confirmed_traceability_floor_complete": missing_confirmed == 0,
+        "reports_total": floor["reports_total"],
+        "reports_considered": floor["reports_considered"],
+        "reports_without_decidable_confirmed": floor["reports_without_decidable_confirmed"],
+        "honestly_empty_reports": floor["honestly_empty_reports"],
+        "confirmed_traceability_floor_complete": floor["confirmed_traceability_floor_complete"],
         "evidence_source_reviews": _safe_int(evidence.get("source_reviews")),
         "judge_agreement_rate": _optional_rate(agreement.get("agreement_rate")),
         "required_tags": _string_list(representation.get("required_tags")),
@@ -49,37 +56,39 @@ def baseline_gate_recommendation(
     }
     if not ready:
         return {"status": "not_recommended", "reason": "baseline_not_ready", **base}
-    if not measured_rates:
+    if floor["reports_considered"] == 0:
         return {
             "status": "not_recommended",
             "reason": "no_decidable_confirmed_claims",
             **base,
         }
-    if missing_confirmed:
+    if not floor["confirmed_traceability_floor_complete"]:
         return {
             "status": "not_recommended",
             "reason": "incomplete_confirmed_traceability_floor",
             **base,
-            "measured_floor": round(min(measured_rates), 3),
+            "measured_floor": floor["measured_floor"],
+            "bound": floor["bound"],
         }
 
-    measured_floor = min(measured_rates)
-    if measured_floor <= 0:
+    measured_floor = floor["measured_floor"]
+    if measured_floor is None or measured_floor <= 0:
         return {
             "status": "not_recommended",
             "reason": "zero_confirmed_traceability_floor",
             **base,
-            "measured_floor": round(measured_floor, 3),
+            "measured_floor": measured_floor if measured_floor is not None else 0.0,
+            "bound": floor["bound"] if floor["bound"] is not None else 0.0,
         }
 
-    threshold = round(measured_floor, 3)
     return {
         "status": "candidate",
         "reason": "ready_baseline_measured_floor",
         **base,
-        "recommended_threshold": threshold,
-        "measured_floor": threshold,
-        "env_assignment": f"{GATE_ENV_VAR}={threshold:.3f}",
+        "recommended_threshold": measured_floor,
+        "measured_floor": measured_floor,
+        "bound": measured_floor,
+        "env_assignment": f"{GATE_ENV_VAR}={measured_floor:.3f}",
     }
 
 
@@ -123,10 +132,15 @@ def gate_with_report_floor_consistency(
         and expected_threshold is not None
         and _optional_rate(gate_recommendation.get("recommended_threshold")) == expected_threshold
         and _optional_rate(gate_recommendation.get("measured_floor")) == expected_threshold
+        and _optional_rate(gate_recommendation.get("bound")) == expected_threshold
+        and gate_recommendation.get("bound_method") == floor["bound_method"]
+        and gate_recommendation.get("confidence") == floor["confidence"]
         and _safe_int(gate_recommendation.get("reports_total")) == floor["reports_total"]
         and _safe_int(gate_recommendation.get("reports_considered")) == floor["reports_considered"]
         and _safe_int(gate_recommendation.get("reports_without_decidable_confirmed"))
         == floor["reports_without_decidable_confirmed"]
+        and _safe_int(gate_recommendation.get("honestly_empty_reports"))
+        == floor["honestly_empty_reports"]
     ):
         return gate_recommendation
 
@@ -155,6 +169,11 @@ def render_gate_recommendation_markdown(gate: dict[str, Any]) -> list[str]:
         ),
         "",
         f"Gate policy: {gate.get('gate_policy', '')}",
+        (
+            f"Bound: {gate.get('bound_method', '')} at "
+            f"{_confidence_text(gate.get('confidence'))} confidence, "
+            f"value {_percent_or_dash(gate.get('bound'))}."
+        ),
     ]
 
 
@@ -164,16 +183,33 @@ def _dict_value(source: dict[str, Any], key: str) -> dict[str, Any]:
 
 
 def _confirmed_floor_summary(reports: list[dict[str, Any]]) -> dict[str, Any]:
-    rates = [_optional_rate(report.get("confirmed_traceability")) for report in reports]
-    measured_rates = [rate for rate in rates if rate is not None]
-    reports_total = len(rates)
-    reports_without_floor = reports_total - len(measured_rates)
+    pairs: list[tuple[int, int]] = []
+    missing = 0
+    honestly_empty = 0
+    considered = 0
+    for report in reports:
+        if is_honestly_empty_report(report):
+            honestly_empty += 1
+            continue
+        if not has_decidable_confirmed_floor(report):
+            missing += 1
+            continue
+        considered += 1
+        counts = _confirmed_counts(report)
+        if counts is not None:
+            pairs.append(counts)
+    bound = _rounded_bound(pairs) if pairs else None
+    complete = missing == 0 and considered > 0 and len(pairs) == considered
     return {
-        "reports_total": reports_total,
-        "reports_considered": len(measured_rates),
-        "reports_without_decidable_confirmed": reports_without_floor,
-        "confirmed_traceability_floor_complete": reports_without_floor == 0,
-        "measured_floor": round(min(measured_rates), 3) if measured_rates else None,
+        "reports_total": len(reports),
+        "reports_considered": considered,
+        "reports_without_decidable_confirmed": missing,
+        "honestly_empty_reports": honestly_empty,
+        "confirmed_traceability_floor_complete": complete,
+        "measured_floor": bound,
+        "bound": bound,
+        "bound_method": BOUND_METHOD,
+        "confidence": BOUND_CONFIDENCE,
     }
 
 
@@ -182,11 +218,47 @@ def has_decidable_confirmed_floor(report: dict[str, Any]) -> bool:
     return _optional_rate(report.get("confirmed_traceability")) is not None
 
 
+def is_honestly_empty_report(report: dict[str, Any]) -> bool:
+    """True when a human confirmed the report has no Confirmed claims to judge."""
+    return report.get("honestly_empty_confirmed") is True and not has_decidable_confirmed_floor(
+        report
+    )
+
+
 def reports_missing_decidable_confirmed_floor(
     reports: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Body-free report entries that cannot contribute a Confirmed floor."""
-    return [report for report in reports if not has_decidable_confirmed_floor(report)]
+    """Report entries that lack a Confirmed floor and are not honestly empty."""
+    return [
+        report
+        for report in reports
+        if not has_decidable_confirmed_floor(report) and not is_honestly_empty_report(report)
+    ]
+
+
+def _confirmed_counts(report: dict[str, Any]) -> tuple[int, int] | None:
+    if "confirmed_traceable" not in report or "confirmed_decidable" not in report:
+        return None
+    traceable = _safe_int(report.get("confirmed_traceable"))
+    decidable = _safe_int(report.get("confirmed_decidable"))
+    if decidable <= 0 or traceable > decidable:
+        return None
+    return traceable, decidable
+
+
+def _rounded_bound(pairs: list[tuple[int, int]]) -> float | None:
+    raw = report_clustered_wilson_lower(pairs, confidence=BOUND_CONFIDENCE)
+    if raw is None:
+        return None
+    return round(raw, 3)
+
+
+def _confidence_text(value: Any) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "-"
+    return f"{number:.0%}"
 
 
 def _optional_rate(value: Any) -> float | None:

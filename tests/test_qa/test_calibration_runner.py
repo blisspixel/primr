@@ -558,6 +558,30 @@ class TestPackManifest:
         assert payload["representation"]["present_tags"] == ["clean"]
         assert payload["representation"]["missing_tags"] == ["blocked_origin"]
         assert payload["reports"][0]["coverage_tags"] == ["clean"]
+        assert "honestly_empty_confirmed" not in payload["reports"][0]
+
+    def test_manifest_copies_honestly_empty_confirmation(self, tmp_path):
+        from primr.qa.calibration_selection import CalibrationPackSelection
+
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        outcomes = run_calibration([path], dry_run=True)
+        selection = CalibrationPackSelection(
+            source_path=tmp_path / "selection.json",
+            report_paths=(path,),
+            required_tags=("clean",),
+            tags_by_report={str(path.resolve(strict=False)): ("clean",)},
+            honestly_empty_by_report={str(path.resolve(strict=False)): True},
+        )
+
+        payload = write_calibration_pack_manifest(
+            tmp_path / "calibration-pack.json",
+            [path],
+            outcomes,
+            max_per_label=10,
+            selection=selection,
+        )
+
+        assert payload["reports"][0]["honestly_empty_confirmed"] is True
 
 
 class TestJudgeSelection:

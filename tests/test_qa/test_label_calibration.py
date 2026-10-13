@@ -380,6 +380,11 @@ class TestParseEvidenceReview:
         assert parse_evidence_review("yes, supported").supported is True
         assert parse_evidence_review("the source is merely related").supported is False
 
+    def test_abstain_supported_value_stays_distinct(self):
+        review = parse_evidence_review(json.dumps({"supported": "abstain"}))
+        assert review.supported is False
+        assert review.judge_verdict == "abstain"
+
 
 class TestParseJudgeAnswer:
     def _parse(self, raw):

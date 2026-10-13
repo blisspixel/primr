@@ -195,3 +195,52 @@ def test_write_selection_template_leaves_tags_empty(tmp_path: Path):
             "tags": [],
         }
     ]
+
+
+def test_load_selection_reads_honestly_empty_confirmation(tmp_path: Path, monkeypatch):
+    empty_report = _report(tmp_path, "Empty_Strategic_Overview_01-01-2026.md")
+    other_report = _report(tmp_path, "Other_Strategic_Overview_01-01-2026.md")
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(
+        json.dumps(
+            {
+                "selection_format": SELECTION_FORMAT,
+                "reports": [
+                    {
+                        "path": empty_report.name,
+                        "tags": ["clean"],
+                        "honestly_empty_confirmed": True,
+                    },
+                    {"path": other_report.name, "tags": ["clean"]},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    selection = load_calibration_pack_selection(selection_path)
+    inspection = inspect_calibration_pack_selection(selection)
+
+    assert selection.honestly_empty_for(empty_report) is True
+    assert selection.honestly_empty_for(other_report) is False
+    assert inspection["reports"][0]["honestly_empty_confirmed"] is True
+    assert "honestly_empty_confirmed" not in inspection["reports"][1]
+
+
+def test_load_selection_rejects_non_boolean_honestly_empty(tmp_path: Path):
+    report = _report(tmp_path)
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(
+        json.dumps(
+            {
+                "selection_format": SELECTION_FORMAT,
+                "base_dir": ".",
+                "reports": [{"path": report.name, "tags": [], "honestly_empty_confirmed": "yes"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="honestly_empty_confirmed must be true or false"):
+        load_calibration_pack_selection(selection_path)

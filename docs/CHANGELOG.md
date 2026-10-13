@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Label-calibration gate.** The candidate `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` value is now a report-clustered Wilson lower bound at 95 percent confidence, recorded as `bound_method`, `confidence`, and `bound`. Calibration can judge frozen `scraped_content.txt` captures, sends the judge claim text with the confidence label removed, draws a seeded sample, and records each judge verdict. An explicit abstain does not count as untraceable. A human-confirmed `honestly_empty_confirmed` report with no Confirmed claims does not block the floor. The operator sets that boolean on the pack selection report; Primr does not infer it.
+
 ## [1.39.19] - 2026-10-13
 
 ### Fixed

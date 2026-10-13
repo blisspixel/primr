@@ -289,14 +289,23 @@ continue to measure both failure directions as classifier behavior changes.
   selected pack. Inspection compares current report and sidecar fingerprints
   against the frozen pack and reports missing or mutated artifacts without
   returning report bodies. When the pack is ready, the artifact also publishes a
-  report-only `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` recommendation from the
-  per-report Confirmed traceability floor; operators still have to review the
-  representative pack, disagreement cases, and false-positive risk before
-  arming a hard gate. The floor is complete only when every selected report has
-  decidable `(Confirmed)` claims. If some reports lack a decidable Confirmed
-  floor, the artifact stays report-only with
-  `incomplete_confirmed_traceability_floor`, the affected counts, and an
-  operator-review item documenting why the hard gate remains unset. The artifact
+  report-only `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` recommendation from a
+  report-clustered Wilson lower bound at 95 percent confidence on decidable
+  `(Confirmed)` claims. The gate payload records `bound_method`, `confidence`,
+  and `bound`. Operators still have to review the representative pack,
+  disagreement cases, and false-positive risk before arming a hard gate. The
+  floor is complete when every selected report has decidable `(Confirmed)`
+  claims, except a report marked `honestly_empty_confirmed` by a human, which
+  stays out of the missing-floor count. Set that boolean to true on the report
+  object in the pack selection file. Primr does not infer it from a zero count.
+  A sidecar that already carries the same boolean is copied onto the pack entry.
+  If some reports lack a decidable
+  Confirmed floor and are not honestly empty, the artifact stays report-only
+  with `incomplete_confirmed_traceability_floor`, the affected counts, and an
+  operator-review item documenting why the hard gate remains unset. Calibration
+  can judge the frozen `scraped_content.txt` capture from a prep bundle instead
+  of refetching cited URLs, and the claim text sent to the judge has its
+  confidence label removed. The artifact
   includes structured `next_actions` with missing counts, remediation,
   suggested commands, and the policy to keep the hard calibration gate unset
   until the pack is ready. For ready-but-report-only packs, `next_actions` also

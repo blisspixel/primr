@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -30,10 +30,15 @@ class CalibrationPackSelection:
     report_paths: tuple[Path, ...]
     required_tags: tuple[str, ...]
     tags_by_report: Mapping[str, tuple[str, ...]]
+    honestly_empty_by_report: Mapping[str, bool] = field(default_factory=dict)
 
     def tags_for(self, report_path: Path) -> tuple[str, ...]:
         """Return coverage tags for a selected report path."""
         return self.tags_by_report.get(_path_key(report_path), ())
+
+    def honestly_empty_for(self, report_path: Path) -> bool:
+        """Return whether a person confirmed this report has no Confirmed claims."""
+        return self.honestly_empty_by_report.get(_path_key(report_path)) is True
 
     @property
     def present_tags(self) -> tuple[str, ...]:
@@ -62,7 +67,9 @@ def load_calibration_pack_selection(selection_path: Path) -> CalibrationPackSele
 
     The selection file deliberately records coverage tags supplied by the
     operator. Primr does not infer representativeness from prose, filenames, or
-    ad-hoc content checks.
+    ad-hoc content checks. ``honestly_empty_confirmed`` is also operator-set:
+    true only after a person confirms the report has no warranted Confirmed
+    claims. A missing key means false.
     """
     payload = _read_selection_payload(selection_path)
     if payload.get("selection_format") != SELECTION_FORMAT:
@@ -76,10 +83,13 @@ def load_calibration_pack_selection(selection_path: Path) -> CalibrationPackSele
     required_tags = _parse_tags(payload.get("required_tags", []), field="required_tags")
     report_paths: list[Path] = []
     tags_by_report: dict[str, tuple[str, ...]] = {}
+    honestly_empty_by_report: dict[str, bool] = {}
     seen: set[str] = set()
 
     for index, entry in enumerate(reports):
-        report_path, tags = _parse_report_entry(entry, index=index, base_dir=base_dir)
+        report_path, tags, honestly_empty = _parse_report_entry(
+            entry, index=index, base_dir=base_dir
+        )
         key = _path_key(report_path)
         if key in seen:
             raise ValueError(f"Duplicate calibration report in selection: {report_path}")
@@ -88,12 +98,15 @@ def load_calibration_pack_selection(selection_path: Path) -> CalibrationPackSele
         seen.add(key)
         report_paths.append(report_path)
         tags_by_report[key] = tags
+        if honestly_empty:
+            honestly_empty_by_report[key] = True
 
     return CalibrationPackSelection(
         source_path=selection_path,
         report_paths=tuple(report_paths),
         required_tags=required_tags,
         tags_by_report=tags_by_report,
+        honestly_empty_by_report=honestly_empty_by_report,
     )
 
 
@@ -114,11 +127,7 @@ def inspect_calibration_pack_selection(selection: CalibrationPackSelection) -> d
         "present_tags": list(selection.present_tags),
         "missing_tags": list(selection.missing_tags),
         "reports": [
-            {
-                "path": report_path.as_posix(),
-                "tags": list(selection.tags_for(report_path)),
-            }
-            for report_path in selection.report_paths
+            _inspection_report(selection, report_path) for report_path in selection.report_paths
         ],
         "next_actions": _selection_next_actions(selection),
     }
@@ -175,13 +184,29 @@ def _selection_base_dir(raw_base_dir: Any, selection_path: Path) -> Path:
     return base_dir
 
 
-def _parse_report_entry(entry: Any, *, index: int, base_dir: Path) -> tuple[Path, tuple[str, ...]]:
+def _inspection_report(selection: CalibrationPackSelection, report_path: Path) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "path": report_path.as_posix(),
+        "tags": list(selection.tags_for(report_path)),
+    }
+    if selection.honestly_empty_for(report_path):
+        row["honestly_empty_confirmed"] = True
+    return row
+
+
+def _parse_report_entry(
+    entry: Any, *, index: int, base_dir: Path
+) -> tuple[Path, tuple[str, ...], bool]:
     if isinstance(entry, str):
         raw_path = entry
         tags: tuple[str, ...] = ()
+        honestly_empty = False
     elif isinstance(entry, dict):
         raw_path = entry.get("path")
         tags = _parse_tags(entry.get("tags", []), field=f"reports[{index}].tags")
+        honestly_empty = _parse_honestly_empty(
+            entry.get("honestly_empty_confirmed", False), index=index
+        )
     else:
         raise ValueError(f"reports[{index}] must be a path string or object")
 
@@ -191,7 +216,13 @@ def _parse_report_entry(entry: Any, *, index: int, base_dir: Path) -> tuple[Path
     report_path = Path(raw_path)
     if not report_path.is_absolute():
         report_path = base_dir / report_path
-    return report_path.resolve(strict=False), tags
+    return report_path.resolve(strict=False), tags, honestly_empty
+
+
+def _parse_honestly_empty(value: Any, *, index: int) -> bool:
+    if isinstance(value, bool):
+        return value
+    raise ValueError(f"reports[{index}].honestly_empty_confirmed must be true or false")
 
 
 def _parse_tags(raw_tags: Any, *, field: str) -> tuple[str, ...]:
