@@ -223,6 +223,9 @@ def operator_decision_template(
                 gate_recommendation.get("confirmed_traceability_floor_complete")
             ),
             "judge_agreement_rate": _optional_rate(gate_recommendation.get("judge_agreement_rate")),
+            "bound_method": gate_recommendation.get("bound_method"),
+            "confidence": gate_recommendation.get("confidence"),
+            "bound": _optional_rate(gate_recommendation.get("bound")),
         },
         "operator_supplied_fields": [
             "decision",
@@ -355,10 +358,11 @@ def _candidate_floor_complete(gate_recommendation: dict[str, Any]) -> bool:
     reports_without_floor = _safe_int(
         gate_recommendation.get("reports_without_decidable_confirmed")
     )
+    honestly_empty = _safe_int(gate_recommendation.get("honestly_empty_reports"))
     return (
         gate_recommendation.get("confirmed_traceability_floor_complete") is True
         and reports_total > 0
-        and reports_considered == reports_total
+        and reports_considered + honestly_empty == reports_total
         and reports_without_floor == 0
         and _optional_rate(gate_recommendation.get("measured_floor")) is not None
         and _optional_rate(gate_recommendation.get("recommended_threshold")) is not None

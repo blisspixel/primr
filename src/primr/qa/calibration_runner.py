@@ -2,8 +2,9 @@
 
 The runner turns the label-calibration harness (``qa.label_calibration``)
 into a one-command audit over reports already on disk. No research run is
-required. Per report it samples labeled claims (free, deterministic),
-fetches cited sources, and judges support plus optional evidence dimensions,
+required. Per report it draws a seeded sample of labeled claims (free),
+reads frozen captures when they are supplied and otherwise fetches cited
+sources, and judges support plus optional evidence dimensions,
 persisting the result as a ``<report>.calibration.json`` sidecar that the
 model_eval scorecard reads.
 
@@ -32,6 +33,11 @@ if TYPE_CHECKING:
 
 from primr.qa.artifact_fingerprints import artifact_bytes_fingerprint, artifact_fingerprint
 from primr.qa.calibration_judge_agreement import JudgeAgreement, JudgeDisagreement
+from primr.qa.calibration_measurement import (
+    DEFAULT_CALIBRATION_SAMPLE_SEED,
+    parse_judge_verdict,
+    sample_labeled_claims,
+)
 from primr.qa.calibration_selection import CalibrationPackSelection
 from primr.qa.calibration_sidecars import (
     SIDECAR_SUFFIX as SIDECAR_SUFFIX,
@@ -46,7 +52,6 @@ from primr.qa.label_calibration import (
     build_judge_prompt,
     calibrate_claims,
     extract_labeled_claims,
-    parse_judge_answer,
 )
 from primr.utils.logging_config import get_logger
 
@@ -84,7 +89,7 @@ class JudgeSelection:
 
     kind: str  # "cloud" | "local"
     model: str  # model identity (or "fast-tier" for the cloud default)
-    judge_fn: Callable[[str, str], bool] | None = None  # None = harness default
+    judge_fn: Callable[[str, str], bool | str] | None = None  # None = harness default
     cloud_fallbacks: int = 0
 
     def to_metadata(self) -> dict[str, Any]:
@@ -99,9 +104,9 @@ def make_local_judge(
     *,
     base_url: str | None = None,
     complete_fn: Callable[..., Any] | None = None,
-    on_fallback: Callable[[str, str], bool] | None = None,
+    on_fallback: Callable[[str, str], bool | str] | None = None,
     fallback_counter: list[int] | None = None,
-) -> Callable[[str, str], bool]:
+) -> Callable[[str, str], bool | str]:
     """A traceability judge backed by a local OpenAI-compatible model.
 
     Uses the exact same prompt as the cloud judge so verdicts never depend
@@ -110,7 +115,7 @@ def make_local_judge(
     silently spend through the cloud judge or masquerade as untraceable claims.
     """
 
-    def _judge(claim_sentence: str, source_text: str) -> bool:
+    def _judge(claim_sentence: str, source_text: str) -> bool | str:
         from primr.ai.openai_compatible_client import chat_completion
 
         complete = complete_fn or chat_completion
@@ -124,7 +129,12 @@ def make_local_judge(
                 max_tokens=512,
                 retries=1,
             )
-            return parse_judge_answer(result.text)
+            verdict = parse_judge_verdict(result.text)
+            if verdict == "yes":
+                return True
+            if verdict == "no":
+                return False
+            return verdict
         except Exception as e:
             if on_fallback is not None:
                 logger.warning(
@@ -147,7 +157,7 @@ def resolve_judge(
     model: str | None = None,
     base_url: str | None = None,
     list_models_fn: Callable[..., list[str]] | None = None,
-    make_local_judge_fn: Callable[..., Callable[[str, str], bool]] | None = None,
+    make_local_judge_fn: Callable[..., Callable[[str, str], bool | str]] | None = None,
 ) -> JudgeSelection:
     """Resolve the judge for a calibration run.
 
@@ -192,7 +202,7 @@ def resolve_judge(
     build = make_local_judge_fn or make_local_judge
     judge_fn = build(picked, base_url=base_url, fallback_counter=fallback_counter)
 
-    def _counting_judge(claim_sentence: str, source_text: str) -> bool:
+    def _counting_judge(claim_sentence: str, source_text: str) -> bool | str:
         verdict = judge_fn(claim_sentence, source_text)
         selection.cloud_fallbacks = fallback_counter[0]
         return verdict
@@ -317,9 +327,11 @@ def run_calibration(
     dry_run: bool = False,
     write_sidecar: bool = True,
     fetch_fn: Callable[[str], str] | None = None,
-    judge_fn: Callable[[str, str], bool] | None = None,
+    judge_fn: Callable[[str, str], bool | str] | None = None,
     review_fn: Callable[[str, str], EvidenceReview] | None = None,
     judge_selection: JudgeSelection | None = None,
+    captured_sources: dict[str, str] | None = None,
+    sample_seed: int = DEFAULT_CALIBRATION_SAMPLE_SEED,
 ) -> list[ReportCalibrationOutcome]:
     """Calibrate each report, persisting a sidecar JSON per report.
 
@@ -353,7 +365,7 @@ def run_calibration(
             continue
         report_artifact = artifact_bytes_fingerprint(report_bytes)
 
-        claims = extract_labeled_claims(content, max_per_label=max_per_label)
+        claims = _sampled_claims(content, max_per_label=max_per_label, sample_seed=sample_seed)
         judgeable = [c for c in claims if c.label in TRACEABLE_LABELS and c.source_urls]
         judge_calls = _estimate_judge_calls(claims)
 
@@ -370,7 +382,11 @@ def run_calibration(
 
         try:
             report = calibrate_claims(
-                claims, fetch_fn=fetch_fn, judge_fn=effective_judge, review_fn=review_fn
+                claims,
+                fetch_fn=fetch_fn,
+                judge_fn=effective_judge,
+                review_fn=review_fn,
+                captured_sources=captured_sources,
             )
         except Exception as e:
             outcomes.append(
@@ -387,6 +403,8 @@ def run_calibration(
         payload["report_file"] = path.name
         payload["report_artifact"] = report_artifact
         payload["max_per_label"] = max_per_label
+        payload["sample_seed"] = sample_seed
+        payload["source_capture"] = "frozen" if captured_sources is not None else "live"
         payload["judge"] = selection.to_metadata()
 
         sidecar: Path | None = None
@@ -422,13 +440,24 @@ def run_calibration(
 _DECIDED = ("traceable", "untraceable")
 
 
+def _sampled_claims(content: str, *, max_per_label: int | None, sample_seed: int) -> list[Any]:
+    """Seeded calibration sample. Extraction itself stays in document order."""
+    return sample_labeled_claims(
+        extract_labeled_claims(content, max_per_label=None),
+        max_per_label=max_per_label,
+        seed=sample_seed,
+    )
+
+
 def compare_judges(
     report_paths: list[Path],
     *,
     local_selection: JudgeSelection,
     max_per_label: int = DEFAULT_MAX_PER_LABEL,
     fetch_fn: Callable[[str], str] | None = None,
-    cloud_judge_fn: Callable[[str, str], bool] | None = None,
+    cloud_judge_fn: Callable[[str, str], bool | str] | None = None,
+    captured_sources: dict[str, str] | None = None,
+    sample_seed: int = DEFAULT_CALIBRATION_SAMPLE_SEED,
 ) -> tuple[list[ReportCalibrationOutcome], JudgeAgreement]:
     """Run cloud-judged calibration (the record), plus local on the same claims.
 
@@ -458,9 +487,9 @@ def compare_judges(
         from primr.qa.label_calibration import _default_judge
 
         base_cloud_judge = _default_judge
-    judge_cache: dict[tuple[str, str], bool] = {}
+    judge_cache: dict[tuple[str, str], bool | str] = {}
 
-    def cached_cloud_judge(claim_sentence: str, source_text: str) -> bool:
+    def cached_cloud_judge(claim_sentence: str, source_text: str) -> bool | str:
         key = (claim_sentence, source_text)
         if key not in judge_cache:
             judge_cache[key] = base_cloud_judge(claim_sentence, source_text)
@@ -472,6 +501,8 @@ def compare_judges(
         fetch_fn=cached_fetch,
         judge_fn=cached_cloud_judge,
         judge_selection=JudgeSelection(kind="cloud", model="fast-tier"),
+        captured_sources=captured_sources,
+        sample_seed=sample_seed,
     )
 
     compared = 0
@@ -482,10 +513,18 @@ def compare_judges(
             content = path.read_text(encoding="utf-8")
         except OSError:
             continue
-        claims = extract_labeled_claims(content, max_per_label=max_per_label)
-        cloud_report = calibrate_claims(claims, fetch_fn=cached_fetch, judge_fn=cached_cloud_judge)
+        claims = _sampled_claims(content, max_per_label=max_per_label, sample_seed=sample_seed)
+        cloud_report = calibrate_claims(
+            claims,
+            fetch_fn=cached_fetch,
+            judge_fn=cached_cloud_judge,
+            captured_sources=captured_sources,
+        )
         local_report = calibrate_claims(
-            claims, fetch_fn=cached_fetch, judge_fn=local_selection.judge_fn
+            claims,
+            fetch_fn=cached_fetch,
+            judge_fn=local_selection.judge_fn,
+            captured_sources=captured_sources,
         )
         report_compared = 0
         report_agreed = 0
@@ -690,6 +729,10 @@ def write_calibration_pack_manifest(
             "error": outcome.error if outcome else None,
             "coverage_tags": list(selection.tags_for(report_path)) if selection else [],
         }
+        if (selection is not None and selection.honestly_empty_for(report_path)) or (
+            sidecar_payload is not None and sidecar_payload.get("honestly_empty_confirmed") is True
+        ):
+            entry["honestly_empty_confirmed"] = True
         if sidecar_payload is not None:
             entry["sidecar"] = {
                 "judge": sidecar_payload.get("judge"),
@@ -718,6 +761,7 @@ def _aggregate_existing_sidecar_per_label(
         "unfetchable",
         "exempt",
         "source_copied",
+        "abstain",
     )
     for report_path in report_paths:
         payload = (
@@ -752,6 +796,7 @@ def aggregate_per_label(outcomes: list[ReportCalibrationOutcome]) -> dict[str, d
                     "unfetchable": 0,
                     "exempt": 0,
                     "source_copied": 0,
+                    "abstain": 0,
                 },
             )
             for key in bucket:

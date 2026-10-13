@@ -54,6 +54,7 @@ _VERDICT_FIELDS = (
     "unfetchable",
     "exempt",
     "source_copied",
+    "abstain",
 )
 _EVIDENCE_DIMENSIONS = (
     "contradiction",

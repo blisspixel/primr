@@ -275,19 +275,23 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
         "status": "candidate",
         "reason": "ready_baseline_measured_floor",
         "environment_variable": "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY",
-        "recommended_threshold": 1.0,
-        "measured_floor": 1.0,
+        "recommended_threshold": 0.566,
+        "measured_floor": 0.566,
+        "bound": 0.566,
+        "bound_method": "report_clustered_wilson_lower",
+        "confidence": 0.95,
         "aggregate_confirmed_traceability": 1.0,
         "reports_total": 5,
         "reports_considered": 5,
         "reports_without_decidable_confirmed": 0,
+        "honestly_empty_reports": 0,
         "confirmed_traceability_floor_complete": True,
         "evidence_source_reviews": 10,
         "judge_agreement_rate": 1.0,
         "required_tags": ["clean", "blocked_origin", "strategy_module"],
         "present_tags": ["clean", "blocked_origin", "strategy_module"],
         "operator_review_required": True,
-        "env_assignment": "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=1.000",
+        "env_assignment": "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=0.566",
         "gate_policy": (
             "Do not arm automatically; review the representative pack, measured "
             "floor, disagreement cases, and false-positive risk before setting "
@@ -313,7 +317,7 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
     )
     assert floor_item["evidence"] == {
         "gate_reason": "ready_baseline_measured_floor",
-        "measured_floor": 1.0,
+        "measured_floor": 0.566,
         "reports_total": 5,
         "reports_considered": 5,
         "reports_without_decidable_confirmed": 0,
@@ -322,7 +326,7 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
     threshold_item = next(item for item in review["items"] if item["id"] == "threshold_decision")
     assert threshold_item["evidence"] == {
         "environment_variable": "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY",
-        "env_assignment": "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=1.000",
+        "env_assignment": "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=0.566",
         "gate_status": "candidate",
         "gate_reason": "ready_baseline_measured_floor",
         "reports_without_decidable_confirmed": 0,
@@ -333,7 +337,7 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
     assert decision_template["recommended_workflow"] == "operator_review_before_arm_gate"
     assert decision_template["allowed_decisions"] == ["arm_gate", "keep_report_only"]
     assert decision_template["automatic_gate_arming_allowed"] is False
-    assert decision_template["env_assignment"] == "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=1.000"
+    assert decision_template["env_assignment"] == "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=0.566"
     assert decision_template["required_review_items"] == [
         "representative_coverage",
         "evidence_review_dimensions",
@@ -452,7 +456,7 @@ def test_ready_baseline_with_partial_confirmed_floor_stays_report_only() -> None
     assert baseline["gate_recommendation"]["reports_without_decidable_confirmed"] == 1
     assert baseline["gate_recommendation"]["confirmed_traceability_floor_complete"] is False
     assert baseline["gate_recommendation"]["recommended_threshold"] is None
-    assert baseline["gate_recommendation"]["measured_floor"] == 1.0
+    assert baseline["gate_recommendation"]["measured_floor"] == 0.51
     assert baseline["gate_recommendation"]["env_assignment"] is None
     review = baseline["operator_review"]
     assert review["decision_status"] == "report_only_recommended"
@@ -553,12 +557,47 @@ def test_ready_baseline_with_partial_confirmed_floor_stays_report_only() -> None
     )
     assert floor_item["evidence"] == {
         "gate_reason": "incomplete_confirmed_traceability_floor",
-        "measured_floor": 1.0,
+        "measured_floor": 0.51,
         "reports_total": 5,
         "reports_considered": 4,
         "reports_without_decidable_confirmed": 1,
         "confirmed_traceability_floor_complete": False,
     }
+
+
+def test_honestly_empty_report_does_not_block_the_confirmed_floor() -> None:
+    manifest = _manifest(
+        5,
+        required_tags=["clean", "blocked_origin"],
+        present_tags=["clean", "blocked_origin"],
+    )
+    reports = manifest["reports"]
+    assert isinstance(reports, list)
+    first_report = reports[0]
+    assert isinstance(first_report, dict)
+    first_report["honestly_empty_confirmed"] = True
+    first_report["sidecar"] = _sidecar(confirmed_traceable=0, confirmed_untraceable=0)
+
+    baseline = build_calibration_baseline(manifest, minimum_reports=5)
+
+    gate = baseline["gate_recommendation"]
+    assert gate["status"] == "candidate"
+    assert gate["reason"] == "ready_baseline_measured_floor"
+    assert gate["reports_total"] == 5
+    assert gate["reports_considered"] == 4
+    assert gate["reports_without_decidable_confirmed"] == 0
+    assert gate["honestly_empty_reports"] == 1
+    assert gate["confirmed_traceability_floor_complete"] is True
+    assert gate["recommended_threshold"] == 0.51
+    assert gate["bound"] == 0.51
+    assert gate["bound_method"] == "report_clustered_wilson_lower"
+    assert baseline["operator_decision_template"]["allowed_decisions"] == [
+        "arm_gate",
+        "keep_report_only",
+    ]
+    inspection = inspect_calibration_baseline(baseline)
+    assert inspection["counts"]["missing_decidable_confirmed_floor_reports"] == 0
+    assert inspection["blockers"]["missing_decidable_confirmed_floor"] == []
 
 
 def test_build_baseline_preserves_manifest_artifact_fingerprints() -> None:
@@ -821,8 +860,9 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     assert "## Operator Decision Template" in markdown
     assert "## Next Actions" in markdown
     assert "## Suggested Commands" in markdown
-    assert "| candidate | ready_baseline_measured_floor | 100% |" in markdown
-    assert "`PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=1.000`" in markdown
+    assert "| candidate | ready_baseline_measured_floor | 57% |" in markdown
+    assert "`PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=0.566`" in markdown
+    assert "Bound: report_clustered_wilson_lower at 95% confidence, value 57%." in markdown
     assert "Decision status: pending_operator_review" in markdown
     assert "Automatic gate arming allowed: no" in markdown
     assert "Operator may arm after review: yes" in markdown
@@ -900,7 +940,7 @@ def test_write_operator_decision_record_for_candidate_does_not_apply_gate(
     assert record["manual_action_required"] == (
         "Set PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY outside Primr only after reviewing this record."
     )
-    assert record["env_assignment"] == "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=1.000"
+    assert record["env_assignment"] == "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=0.566"
     assert record["baseline"]["content_hash"].startswith("sha256:")
     assert record["evidence"]["reports_total"] == 5
     assert record["decision_template"]["allowed_decisions"] == ["arm_gate", "keep_report_only"]
@@ -945,7 +985,7 @@ def test_inspect_operator_decision_record_trusts_matching_baseline(
         "keep_report_only",
     ]
     assert inspection["decision_template"]["env_assignment"] == (
-        "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=1.000"
+        "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=0.566"
     )
     assert inspection["record"]["rationale_present"] is True
     assert inspection["record"]["manual_action_present"] is True

@@ -846,6 +846,10 @@ def _report_summary(report: dict[str, Any]) -> dict[str, Any]:
         "has_evidence_reviews": evidence_source_reviews > 0,
         "judge_agreement_compared": judge_agreement_compared,
         "has_judge_agreement": judge_agreement_compared > 0,
+        "confirmed_traceable": _safe_int(counts.get("confirmed_traceable")),
+        "confirmed_decidable": _safe_int(counts.get("confirmed_decidable")),
+        "honestly_empty_confirmed": report.get("honestly_empty_confirmed") is True
+        or sidecar_payload.get("honestly_empty_confirmed") is True,
         "confirmed_traceability": _rate(
             _safe_int(counts.get("confirmed_traceable")),
             _safe_int(counts.get("confirmed_decidable")),

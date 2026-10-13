@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -75,6 +75,7 @@ _VALIDATE_LINE_RE = re.compile(r"^\s*\**\s*what to validate:", re.IGNORECASE)
 TRACEABLE_LABELS = frozenset({"Confirmed", "Reported"})
 # Labels that assert inference, exempt from traceability by design.
 INFERENCE_LABELS = frozenset({"Estimated", "Hypothesis"})
+_JUDGE_VERDICTS = frozenset({"yes", "no", "abstain", "unparseable"})
 
 DEFAULT_MAX_PER_LABEL = 10
 _SOURCE_COPY_MIN_CHARS = 40
@@ -116,9 +117,11 @@ class EvidenceReview:
     uncertainty_honesty: str = "unknown"
     business_relevance: str = "unknown"
     rationale: str = ""
+    # yes | no | abstain | unparseable. Empty when a caller supplied only ``supported``.
+    judge_verdict: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "supported": self.supported,
             "contradiction": self.contradiction,
             "source_independence": self.source_independence,
@@ -128,6 +131,9 @@ class EvidenceReview:
             "business_relevance": self.business_relevance,
             "rationale": self.rationale[:500],
         }
+        if self.judge_verdict:
+            payload["judge_verdict"] = self.judge_verdict
+        return payload
 
 
 @dataclass(frozen=True)
@@ -137,12 +143,14 @@ class ClaimCalibration:
     claim: LabeledClaim
     # traceable      - a cited source's fetched text supports the claim
     # untraceable    - cited sources fetched but none support the claim
+    # abstain        - every judge abstained; excluded from precision
     # no_source      - a traceable-class label with no resolvable citation
     # unfetchable    - citations exist but no source content could be fetched
     # exempt         - inference-class label, traceability not required
     # source_copied  - inference-class label appears copied from a cited source
     verdict: str
     evidence_reviews: tuple[EvidenceReview, ...] = ()
+    judge_verdicts: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         payload = {
@@ -153,6 +161,8 @@ class ClaimCalibration:
             "source_urls": list(self.claim.source_urls),
             "verdict": self.verdict,
         }
+        if self.judge_verdicts:
+            payload["judge_verdicts"] = list(self.judge_verdicts)
         if self.evidence_reviews:
             payload["evidence_reviews"] = [review.to_dict() for review in self.evidence_reviews]
         return payload
@@ -170,10 +180,10 @@ class CalibrationReport:
     def precision(self, label: str) -> float | None:
         """Traceability precision for a label: traceable / decidable.
 
-        ``unfetchable`` claims are excluded (the harness couldn't decide);
-        ``no_source`` counts AGAINST precision - a (Confirmed) claim with no
-        citation is mislabeled by definition. Returns None when no claim of
-        the label was decidable.
+        ``unfetchable`` and ``abstain`` claims are excluded (the harness could
+        not decide). ``no_source`` counts AGAINST precision: a (Confirmed)
+        claim with no citation is mislabeled by definition. Returns None when
+        no claim of the label was decidable.
         """
         decidable = [
             r for r in self._of(label) if r.verdict in ("traceable", "untraceable", "no_source")
@@ -189,10 +199,7 @@ class CalibrationReport:
         rubric: dict[str, Any] = {
             "claims_with_reviews": sum(1 for result in self.results if result.evidence_reviews),
             "source_reviews": len(reviews),
-            "support": {
-                "supported": sum(1 for review in reviews if review.supported),
-                "unsupported": sum(1 for review in reviews if not review.supported),
-            },
+            "support": _support_counts(reviews),
         }
         for dimension in _REVIEW_DIMENSIONS:
             counts: dict[str, int] = dict.fromkeys(sorted(_REVIEW_ALLOWED_VALUES[dimension]), 0)
@@ -216,6 +223,7 @@ class CalibrationReport:
                 "unfetchable": sum(1 for r in of_label if r.verdict == "unfetchable"),
                 "exempt": sum(1 for r in of_label if r.verdict == "exempt"),
                 "source_copied": sum(1 for r in of_label if r.verdict == "source_copied"),
+                "abstain": sum(1 for r in of_label if r.verdict == "abstain"),
                 "precision": round(precision, 3) if precision is not None else None,
             }
         return {
@@ -437,21 +445,30 @@ def _default_fetch(url: str) -> str:
 def build_judge_prompt(claim_sentence: str, source_text: str) -> str:
     """The traceability-judge prompt, shared by the cloud and local judges
     so a verdict never depends on which backend produced it."""
+    from primr.qa.calibration_measurement import claim_text_for_judge, relevant_passage
+
+    claim = claim_text_for_judge(claim_sentence)[:600]
+    source = relevant_passage(claim, source_text)[:4000]
     return (
         "You are auditing a research report's citation. Does the SOURCE TEXT "
         "substantively support the CLAIM? Supporting means the source contains "
         "the claim's substance (figures, named facts, events) - topical "
         "relatedness is not support.\n\n"
-        f"CLAIM:\n{claim_sentence[:600]}\n\n"
-        f"SOURCE TEXT:\n{source_text[:4000]}\n\n"
-        'Answer with exactly one word: "yes" or "no".'
+        f"CLAIM:\n{claim}\n\n"
+        f"SOURCE TEXT:\n{source}\n\n"
+        'Answer with exactly one word: "yes", "no", or "abstain". '
+        "Abstain when the source text is not enough to decide."
     )
 
 
 def build_evidence_review_prompt(claim_sentence: str, source_text: str) -> str:
     """Prompt for a richer evidence review over one claim/source pair."""
+    from primr.qa.calibration_measurement import claim_text_for_judge, relevant_passage
+
+    claim = claim_text_for_judge(claim_sentence)[:600]
+    source = relevant_passage(claim, source_text)[:4000]
     schema = {
-        "supported": "boolean",
+        "supported": "true | false | abstain",
         "contradiction": "none | partial | direct | unknown",
         "source_independence": "independent | first_party | unknown",
         "source_authority": "high | medium | low | unknown",
@@ -464,9 +481,10 @@ def build_evidence_review_prompt(claim_sentence: str, source_text: str) -> str:
         "You are auditing a research report's citation for evidence quality. "
         "Evaluate only the SOURCE TEXT against the CLAIM. Do not use outside "
         "knowledge. Topical relatedness is not support. Direct contradiction "
-        "means the source says the claim is false or materially different.\n\n"
-        f"CLAIM:\n{claim_sentence[:600]}\n\n"
-        f"SOURCE TEXT:\n{source_text[:4000]}\n\n"
+        "means the source says the claim is false or materially different. "
+        "Set supported to abstain when the source text is not enough to decide.\n\n"
+        f"CLAIM:\n{claim}\n\n"
+        f"SOURCE TEXT:\n{source}\n\n"
         "Return JSON only with this schema and allowed values:\n"
         f"{json.dumps(schema, indent=2)}"
     )
@@ -511,34 +529,87 @@ def _normalize_review_value(dimension: str, value: Any) -> str:
     return raw if raw in allowed else "unknown"
 
 
-def _coerce_supported(value: Any, fallback_text: str) -> bool:
+def _coerce_judge_verdict(value: Any) -> str:
+    """Normalize a judge return value to yes, no, abstain, or unparseable."""
+    from primr.qa.calibration_measurement import parse_judge_verdict
+
     if isinstance(value, bool):
-        return value
+        return "yes" if value else "no"
+    text = str(value or "").strip().lower()
+    if text in _JUDGE_VERDICTS:
+        return text
+    if text in {"true", "supported", "support", "traceable"}:
+        return "yes"
+    if text in {"false", "unsupported", "untraceable"}:
+        return "no"
+    parsed = parse_judge_verdict(text)
+    return parsed if parsed in _JUDGE_VERDICTS else "unparseable"
+
+
+def _support_counts(reviews: list[EvidenceReview]) -> dict[str, int]:
+    """Count support without treating abstain as an unsupported verdict."""
+    supported = 0
+    unsupported = 0
+    abstained = 0
+    unparseable = 0
+    for review in reviews:
+        verdict = review.judge_verdict
+        if verdict == "yes" or (not verdict and review.supported):
+            supported += 1
+        elif verdict == "abstain":
+            abstained += 1
+        elif verdict == "unparseable":
+            unparseable += 1
+        else:
+            unsupported += 1
+    return {
+        "supported": supported,
+        "unsupported": unsupported,
+        "abstained": abstained,
+        "unparseable": unparseable,
+    }
+
+
+def _verdict_from_supported(value: Any, fallback_text: str) -> str:
+    if isinstance(value, bool):
+        return "yes" if value else "no"
     if isinstance(value, int | float):
-        return bool(value)
+        return "yes" if value else "no"
     text = str(value or "").strip().lower()
     if text in {"true", "yes", "supported", "support", "traceable"}:
-        return True
+        return "yes"
     if text in {"false", "no", "unsupported", "untraceable"}:
-        return False
-    return parse_judge_answer(fallback_text)
+        return "no"
+    if text == "abstain":
+        return "abstain"
+    return _coerce_judge_verdict(fallback_text)
 
 
 def parse_evidence_review(raw: str) -> EvidenceReview:
     """Parse structured evidence-review output with conservative fallback."""
     json_text = _extract_json_object(raw)
     if json_text is None:
-        return EvidenceReview(supported=parse_judge_answer(raw), rationale=str(raw)[:500])
+        verdict = _coerce_judge_verdict(raw)
+        return EvidenceReview(
+            supported=verdict == "yes", rationale=str(raw)[:500], judge_verdict=verdict
+        )
 
     try:
         parsed = json.loads(json_text)
     except json.JSONDecodeError:
-        return EvidenceReview(supported=parse_judge_answer(raw), rationale=str(raw)[:500])
+        verdict = _coerce_judge_verdict(raw)
+        return EvidenceReview(
+            supported=verdict == "yes", rationale=str(raw)[:500], judge_verdict=verdict
+        )
 
     if not isinstance(parsed, dict):
-        return EvidenceReview(supported=parse_judge_answer(raw), rationale=str(raw)[:500])
+        verdict = _coerce_judge_verdict(raw)
+        return EvidenceReview(
+            supported=verdict == "yes", rationale=str(raw)[:500], judge_verdict=verdict
+        )
 
-    supported = _coerce_supported(parsed.get("supported"), raw)
+    verdict = _verdict_from_supported(parsed.get("supported"), raw)
+    supported = verdict == "yes"
     values = {
         dimension: _normalize_review_value(dimension, parsed.get(dimension))
         for dimension in _REVIEW_DIMENSIONS
@@ -552,11 +623,16 @@ def parse_evidence_review(raw: str) -> EvidenceReview:
         uncertainty_honesty=values["uncertainty_honesty"],
         business_relevance=values["business_relevance"],
         rationale=str(parsed.get("rationale") or "")[:500],
+        judge_verdict=verdict,
     )
 
 
-def _default_judge(claim_sentence: str, source_text: str) -> bool:
-    """LLM judge: does the source text substantively support the claim?"""
+def _default_judge(claim_sentence: str, source_text: str) -> bool | str:
+    """LLM judge: does the source text substantively support the claim?
+
+    ``True`` and ``False`` preserve the yes/no contract. ``abstain`` and
+    ``unparseable`` stay distinct so abstention is not stored as a rejection.
+    """
     from primr.ai.llm import llm
 
     try:
@@ -566,10 +642,15 @@ def _default_judge(claim_sentence: str, source_text: str) -> bool:
             temperature=0.0,
             max_tokens=64,
         )
-        return parse_judge_answer(str(response))
+        verdict = _coerce_judge_verdict(str(response))
     except Exception as e:
         logger.warning("Calibration judge failed: %s", e)
+        return "unparseable"
+    if verdict == "yes":
+        return True
+    if verdict == "no":
         return False
+    return verdict
 
 
 def _default_review(claim_sentence: str, source_text: str) -> EvidenceReview:
@@ -585,7 +666,7 @@ def _default_review(claim_sentence: str, source_text: str) -> EvidenceReview:
         return parse_evidence_review(str(response))
     except Exception as e:
         logger.warning("Calibration evidence review failed: %s", e)
-        return EvidenceReview(supported=False, rationale="judge_error")
+        return EvidenceReview(supported=False, rationale="judge_error", judge_verdict="unparseable")
 
 
 def _normalized_copy_text(text: str) -> str:
@@ -615,33 +696,49 @@ def calibrate_claims(
     claims: list[LabeledClaim],
     *,
     fetch_fn: Callable[[str], str] | None = None,
-    judge_fn: Callable[[str, str], bool] | None = None,
+    judge_fn: Callable[[str, str], bool | str] | None = None,
     review_fn: Callable[[str, str], EvidenceReview] | None = None,
     max_sources_per_claim: int = 2,
+    captured_sources: dict[str, str] | None = None,
 ) -> CalibrationReport:
     """Run the evidence audit over sampled claims.
 
     Traceable-class labels (Confirmed/Reported) are judged against the
-    fetched text of their cited sources. Inference-class labels
+    text of their cited sources. A URL present in ``captured_sources`` is
+    read from that frozen capture and is not fetched. Inference-class labels
     (Estimated/Hypothesis) are exempt from traceability, but cited inference
     claims are still checked for deterministic source-copy leakage: if the
     claim text appears copied from a cited source, the verdict is
     ``source_copied``. Fetches are deduped across claims.
+
+    The judge sees claim text with the confidence label removed and, for a
+    long source, the passage most relevant to the claim. An explicit abstain
+    does not count as untraceable. An unparseable answer is recorded and
+    still counts as untraceable, because it is not support.
     """
+    from primr.qa.calibration_measurement import lookup_captured_source
+
     fetch = fetch_fn or _default_fetch
+    captures = captured_sources or {}
 
     def review(claim_sentence: str, source_text: str) -> EvidenceReview:
         if review_fn is not None:
-            return review_fn(claim_sentence, source_text)
+            reviewed = review_fn(claim_sentence, source_text)
+            if reviewed.judge_verdict:
+                return reviewed
+            inferred = "yes" if reviewed.supported else "no"
+            return replace(reviewed, judge_verdict=inferred)
         if judge_fn is not None:
-            return EvidenceReview(supported=judge_fn(claim_sentence, source_text))
+            verdict = _coerce_judge_verdict(judge_fn(claim_sentence, source_text))
+            return EvidenceReview(supported=verdict == "yes", judge_verdict=verdict)
         return _default_review(claim_sentence, source_text)
 
     fetched: dict[str, str] = {}
 
     def _get_source_text(url: str) -> str:
         if url not in fetched:
-            fetched[url] = fetch(url)
+            captured = lookup_captured_source(url, captures)
+            fetched[url] = captured if captured is not None else fetch(url)
         return fetched[url]
 
     results: list[ClaimCalibration] = []
@@ -673,17 +770,43 @@ def calibrate_claims(
             results.append(ClaimCalibration(claim=claim, verdict="unfetchable"))
             continue
 
-        evidence_reviews = tuple(review(claim.sentence, text) for text in texts)
-        supported = any(item.supported for item in evidence_reviews)
+        prepared = [_judge_view(claim.sentence, text) for text in texts]
+        evidence_reviews = tuple(review(claim_text, passage) for claim_text, passage in prepared)
+        judge_verdicts = tuple(item.judge_verdict or "unparseable" for item in evidence_reviews)
         results.append(
             ClaimCalibration(
                 claim=claim,
-                verdict="traceable" if supported else "untraceable",
+                verdict=_traceability_verdict(judge_verdicts),
                 evidence_reviews=evidence_reviews,
+                judge_verdicts=judge_verdicts,
             )
         )
 
     return CalibrationReport(results=results)
+
+
+def _judge_view(sentence: str, source_text: str) -> tuple[str, str]:
+    """Claim text and source passage actually sent to the judge."""
+    from primr.qa.calibration_measurement import claim_text_for_judge, relevant_passage
+
+    claim_text = claim_text_for_judge(sentence)
+    return claim_text, relevant_passage(claim_text, source_text)
+
+
+def _traceability_verdict(judge_verdicts: tuple[str, ...]) -> str:
+    """Collapse per-source judge words into one claim verdict.
+
+    Any ``yes`` is traceable. A ``no`` or ``unparseable`` answer with no
+    ``yes`` is untraceable. Abstain is the verdict only when every source
+    abstained, so it does not silently count as untraceable.
+    """
+    if any(verdict == "yes" for verdict in judge_verdicts):
+        return "traceable"
+    if any(verdict in {"no", "unparseable"} for verdict in judge_verdicts):
+        return "untraceable"
+    if judge_verdicts and all(verdict == "abstain" for verdict in judge_verdicts):
+        return "abstain"
+    return "untraceable"
 
 
 def calibrate_report_file(
@@ -691,12 +814,29 @@ def calibrate_report_file(
     *,
     max_per_label: int = DEFAULT_MAX_PER_LABEL,
     fetch_fn: Callable[[str], str] | None = None,
-    judge_fn: Callable[[str, str], bool] | None = None,
+    judge_fn: Callable[[str, str], bool | str] | None = None,
     review_fn: Callable[[str, str], EvidenceReview] | None = None,
+    captured_sources: dict[str, str] | None = None,
+    sample_seed: int | None = None,
 ) -> CalibrationReport:
-    """Convenience entry: extract + calibrate a report file on disk."""
+    """Convenience entry: extract, sample, and calibrate a report file on disk."""
     from pathlib import Path
 
+    from primr.qa.calibration_measurement import (
+        DEFAULT_CALIBRATION_SAMPLE_SEED,
+        sample_labeled_claims,
+    )
+
     content = Path(report_path).read_text(encoding="utf-8")
-    claims = extract_labeled_claims(content, max_per_label=max_per_label)
-    return calibrate_claims(claims, fetch_fn=fetch_fn, judge_fn=judge_fn, review_fn=review_fn)
+    claims = sample_labeled_claims(
+        extract_labeled_claims(content, max_per_label=None),
+        max_per_label=max_per_label,
+        seed=DEFAULT_CALIBRATION_SAMPLE_SEED if sample_seed is None else sample_seed,
+    )
+    return calibrate_claims(
+        claims,
+        fetch_fn=fetch_fn,
+        judge_fn=judge_fn,
+        review_fn=review_fn,
+        captured_sources=captured_sources,
+    )
