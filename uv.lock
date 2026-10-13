@@ -2631,7 +2631,7 @@ wheels = [
 
 [[package]]
 name = "primr"
-version = "1.39.18"
+version = "1.39.19"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
