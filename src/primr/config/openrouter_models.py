@@ -1,9 +1,23 @@
 """Curated OpenRouter model rows kept outside the central registry ratchet."""
 
 from collections.abc import Callable
+from datetime import date
 from typing import TypeVar
 
 _ModelConfig = TypeVar("_ModelConfig")
+
+# Provider-specific dates from https://openrouter.ai/api/v1/models, 2026-10-13.
+# Do not infer dates for other slugs, batch variants, or the direct Google API.
+OPENROUTER_EXPIRATIONS = dict.fromkeys(
+    (
+        "google/gemini-2.5-flash-lite",
+        "google/gemini-2.5-flash",
+        "google/gemini-2.5-flash:batch",
+        "google/gemini-2.5-pro",
+        "google/gemini-2.5-pro:batch",
+    ),
+    date(2026, 10, 20),
+)
 
 
 def build_openrouter_models(
@@ -17,6 +31,8 @@ def build_openrouter_models(
         # no longer the default OpenRouter utility model.
         model_config_type(
             name="google/gemini-2.5-flash-lite",
+            expiration_date=OPENROUTER_EXPIRATIONS["google/gemini-2.5-flash-lite"],
+            replacement_model="google/gemini-3.1-flash-lite",
             display_name="OpenRouter: Gemini 2.5 Flash Lite",
             provider="openrouter",
             cost_per_1m_input_tokens=0.10,

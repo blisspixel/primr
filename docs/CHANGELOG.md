@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject published OpenRouter Gemini 2.5 expirations from October 20, 2026 UTC
+  in role selection and before model requests, preserving catalog indices and
+  historical cost accounting. Replacements require explicit selection and a
+  new estimate. Direct Gemini Developer API records retain their distinct
+  prior-user access restriction and have no announced shutdown date.
+- The developer pilot judge uses the configured reasoning model, including
+  `AI_REASONING_MODEL`, instead of a hardcoded Gemini 2.5 Pro.
+- Direct Gemini utility and reasoning routes honor `AI_FAST_MODEL` and
+  `AI_REASONING_MODEL` beneath their existing role-specific overrides.
+  OpenRouter extension bodies cannot substitute a different model or a model
+  fallback list after retirement and pricing checks.
+
 ## [1.39.18] - 2026-10-12
 
 ### Security

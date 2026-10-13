@@ -6,7 +6,7 @@ reasoning chain, one with --continuous-reasoning — and produces a structured
 verdict on whether the continuous-session topology meaningfully improved the
 output.
 
-Uses Gemini 2.5 Pro as the judge (different model family from Grok, the
+Uses the configured Gemini reasoning model as the judge (different family from Grok, the
 generator) to reduce same-family bias. Reports are shuffled and labeled X/Y
 before being shown to the judge.
 
@@ -32,9 +32,11 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types as genai_types
 
+from primr.config.settings import get_settings
+
 load_dotenv()
 
-JUDGE_MODEL = "gemini-2.5-pro"
+JUDGE_MODEL = get_settings().ai.pro_model
 JUDGE_TEMPERATURE = 0.2
 
 

@@ -41,7 +41,7 @@ def test_explicit_disable_flag_blocks_paid_routing(monkeypatch) -> None:
     with pytest.raises(ProviderUnavailableError, match="paid routing is disabled"):
         provider.chat(
             [{"role": "user", "content": "test"}],
-            model=ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name,
+            model=ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name,
         )
 
 
@@ -55,7 +55,7 @@ def test_key_presence_alone_enables_routing_by_default(monkeypatch) -> None:
 
     response = provider.chat(
         [{"role": "user", "content": "test"}],
-        model=ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name,
+        model=ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name,
     )
     assert response.actual_cost_usd == pytest.approx(0.000123)
 
@@ -65,7 +65,7 @@ def test_request_enforces_privacy_and_registered_price_ceiling(monkeypatch) -> N
 
     response = provider.chat(
         [{"role": "user", "content": "test"}],
-        model=ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name,
+        model=ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name,
         max_tokens=64,
         extra_body={
             "plugins": [{"id": "allowed-caller-extension"}],
@@ -79,7 +79,7 @@ def test_request_enforces_privacy_and_registered_price_ceiling(monkeypatch) -> N
         "allow_fallbacks": True,
         "require_parameters": True,
         "data_collection": "deny",
-        "max_price": {"prompt": 0.10, "completion": 0.40},
+        "max_price": {"prompt": 0.25, "completion": 1.50},
         "zdr": True,
     }
     assert response.actual_cost_usd == pytest.approx(0.000123)
