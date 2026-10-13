@@ -269,7 +269,10 @@ New user-facing capabilities are **noun/verb subcommands**
 Branch off `main`; keep PRs focused; update `docs/CHANGELOG.md` under
 `[Unreleased]` for user-facing changes; keep the single version source of truth
 consistent (`pyproject` ↔ `__init__.__version__` ↔ ROADMAP "Current State" ↔
-`CITATION.cff`, pinned by `tests/test_release_integrity.py`).
+`CITATION.cff`, pinned by `tests/test_release_integrity.py`). Also update
+`claude-code/.claude-plugin/plugin.json` and regenerate `agent-plugin/plugin.json`
+with `python scripts/sync_agent_plugin.py`; run `tests/test_agent_plugin.py`
+alongside the release integrity tests so plugin/package versions stay aligned.
 
 `main` is the only long-lived branch. Feature branches are short-lived and
 deleted on merge (the repo auto-deletes merged PR branches); don't leave stale
