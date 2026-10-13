@@ -24,7 +24,7 @@ selected strategy modules.
 | Profile | Command shape | Outcome and writing topology | Assurance | Typical time | Typical cost |
 |---------|---------------|------------------------------|-----------|--------------|--------------|
 | Primr Zero in an agent host | Ask the host: `primr "Company" url` | Keyless Primr evidence bundle; the host writes the dossier | Host-dependent synthesis; Primr collection remains model-free | 5-15 min collection, then host-dependent | $0.00 incremental model API spend when the host is plan-backed |
-| OpenRouter Standard | `primr "Company" url` with OpenRouter configured | Strategic Overview plus integrated AI Strategy via OpenRouter gateway (Gemini 2.5 Flash Lite, GPT-4.1 Mini, DeepSeek V3.2) | Primr owns synthesis, artifact validation, usage, and recovery | 25-45 min | ~$0.15-$0.25 |
+| OpenRouter Standard | `primr "Company" url` with OpenRouter configured | Strategic Overview plus integrated AI Strategy via OpenRouter gateway (Gemini 3.1 Flash Lite, GPT-4.1 Mini, DeepSeek V3.2) | Primr owns synthesis, artifact validation, usage, and recovery | 25-45 min | ~$1.07 |
 | Provider-backed Standard | `primr "Company" url` in a terminal | Strategic Overview plus one integrated AI Strategy; planned section batches followed by cross-validation and a guarded whole-document coherence pass | Primr owns synthesis, artifact validation, usage, and recovery | 34-53 min | ~$0.89 |
 | Standard base report | `primr "Company" url --no-ai-strategy` | Strategic Overview through the same Standard report pipeline | Same report assurance, without strategy generation | 31-47 min | ~$0.76-$0.79 |
 | XAI-only Standard fallback | `primr "Company" url` with only XAI configured | Standard topology using the xAI writing and utility path | Primr-owned, but materially more expensive than the measured two-provider recipe | 34-53 min | ~$5.84 |
@@ -43,9 +43,12 @@ There is no separate `--long` profile. Long-form sequential expansion is the
 current Deep/Premium behavior. Do not infer that `--mode scrape` is free: only
 `primr prep` and `primr recon` are the keyless collection paths in this table.
 Deep and Premium both include one AI Strategy by default, just like Standard.
-Add `--no-ai-strategy` when comparing base-report prices. The live dry-run can
-be higher than the static plan when sufficient historical usage establishes a
-higher authorization floor.
+Add `--no-ai-strategy` when comparing base-report prices. The OpenRouter
+Standard cost is the 2026-10-12 dry-run display of the estimator total
+$1.0655. It does not assume prompt-cache savings and does not include
+OpenRouter credit-purchase fees. The live dry-run can be higher than the
+static plan when sufficient historical usage establishes a higher
+authorization floor.
 
 ## First useful output (while a long run is still going)
 
@@ -186,13 +189,14 @@ the exact approved launch. The human preview shows both values. JSON adds:
   "execution_ready": true,
   "budget_enforcement": {
     "ceiling_usd": 10.0,
-    "estimated_cost_usd": 1.05,
+    "estimated_cost_usd": 1.07,
     "within_budget": true
   }
 }
 ```
 
-The example cost is illustrative. `provider_ready` means the selected recipe
+The example cost is the 2026-10-12 OpenRouter dry-run display. A live JSON
+preview reports the unrounded estimator total. `provider_ready` means the selected recipe
 has a usable provider. `execution_ready` additionally requires the estimate to
 fit the supplied ceiling. An over-ceiling preview sets `within_budget` and
 `execution_ready` to false, and launch refuses before model calls. Invalid,

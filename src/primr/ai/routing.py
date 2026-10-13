@@ -282,13 +282,13 @@ def pick_model_for_role(role: Role | str) -> str:
 def _pick_utility_model(has_openrouter: bool, prefer_openrouter: bool) -> str:
     if prefer_openrouter:
         return _openrouter_model(
-            ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name, role=Role.UTILITY
+            ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name, role=Role.UTILITY
         )
     if os.getenv("GEMINI_API_KEY"):
         return os.getenv("PRIMR_GEMINI_UTILITY_MODEL", PrimrModels.FLASH_MODEL)
     if has_openrouter:
         return _openrouter_model(
-            ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name, role=Role.UTILITY
+            ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name, role=Role.UTILITY
         )
     if os.getenv("OPENAI_API_KEY"):
         return ModelRegistry.OPENAI_GPT_5_4_NANO.name

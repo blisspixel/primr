@@ -115,6 +115,11 @@ will route over.
 - The September 1, 2026 curated recipe uses Gemini 2.5 Flash Lite for utility,
   GPT-4.1 Mini for writing, and DeepSeek V3.2 for reasoning. The catalog rates
   and context limits are recorded in the central model registry.
+- As of 2026-10-12 the default utility model is `google/gemini-3.1-flash-lite`.
+  `google/gemini-2.5-flash-lite` remains available as an explicit override and
+  expires 2026-10-20. The full-run dry run on that date displays about $1.07
+  (estimator total $1.0655). It does not assume prompt-cache savings and does
+  not include OpenRouter credit-purchase fees.
 - Provider routing sends registered prompt/completion `max_price` ceilings,
   `require_parameters=true`, `data_collection=deny`, and ZDR by default.
   See OpenRouter's [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection),

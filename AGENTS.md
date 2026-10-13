@@ -221,8 +221,8 @@ For the full decision matrix - when to pick each, cost and time per combination,
 When provider-backed execution is approved, primr supports direct providers (xAI, Gemini, OpenAI, Anthropic, Bedrock) or a unified OpenRouter gateway.
 
 If `OPENROUTER_API_KEY` is present and active, prefer OpenRouter by default (`PRIMR_OPENROUTER_PREFERRED=1` or `PRIMR_PROVIDER=openrouter`):
-- **Single-key coverage**: satisfies utility (Gemini 2.5 Flash Lite), writing (GPT-4.1 mini), and reasoning (DeepSeek V3.2) without requiring separate provider credentials.
-- **Cost advantage**: full runs run at ~$0.15 to $0.25 actual cost (over 80% cheaper than direct Gemini or multi-key recipes).
+- **Single-key coverage**: satisfies utility (Gemini 3.1 Flash Lite), writing (GPT-4.1 mini), and reasoning (DeepSeek V3.2) without requiring separate provider credentials.
+- **Cost**: on 2026-10-12 the default full-run dry run displays about $1.07 (estimator total $1.0655). Prompt-cache savings are not assumed, and OpenRouter credit-purchase fees are not included. Quote the live `primr --dry-run` figure.
 - **Privacy and safety**: enforces Zero Data Retention (ZDR) endpoints and strict per-token price caps.
 - **Artifact gate compliance**: passes all publication quality gates, generating clean Markdown and Word (.docx) deliverables.
 

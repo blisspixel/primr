@@ -62,7 +62,7 @@ def test_openrouter_cloud_route_is_available_by_default(monkeypatch) -> None:
     )
 
     assert route.routed is True
-    assert route.model_name == ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name
+    assert route.model_name == ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name
     assert route.availability is not None
     assert route.availability["provider"] == "openrouter"
 

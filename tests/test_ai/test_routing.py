@@ -231,7 +231,7 @@ class TestProviderAwareFallbackChain:
         with patch.dict("os.environ", env, clear=True):
             assert (
                 pick_model_for_role(Role.UTILITY)
-                == ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name
+                == ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name
             )
             assert pick_model_for_role(Role.WRITING) == ModelRegistry.OPENROUTER_GPT_4_1_MINI.name
             assert (
@@ -272,7 +272,7 @@ class TestProviderAwareFallbackChain:
         with patch.dict("os.environ", env, clear=True):
             assert (
                 pick_model_for_role(Role.UTILITY)
-                == ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name
+                == ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name
             )
             assert pick_model_for_role(Role.WRITING) == ModelRegistry.OPENROUTER_GPT_4_1_MINI.name
             assert (
@@ -289,7 +289,7 @@ class TestProviderAwareFallbackChain:
         with patch.dict("os.environ", env, clear=True):
             assert (
                 pick_model_for_role(Role.UTILITY)
-                == ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name
+                == ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name
             )
             assert pick_model_for_role(Role.WRITING) == ModelRegistry.OPENROUTER_GPT_4_1_MINI.name
             assert (
@@ -308,7 +308,7 @@ class TestProviderAwareFallbackChain:
         with patch.dict("os.environ", env, clear=True):
             assert (
                 pick_model_for_role(Role.UTILITY)
-                == ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE.name
+                == ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name
             )
             assert pick_model_for_role(Role.WRITING) == (ModelRegistry.OPENROUTER_GPT_4_1_MINI.name)
             assert pick_model_for_role(Role.REASONING) == (

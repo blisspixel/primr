@@ -690,6 +690,9 @@ class ModelRegistry:
     OPENROUTER_GEMINI_2_5_FLASH_LITE = _OPENROUTER_MODELS[0]
     OPENROUTER_GPT_4_1_MINI = _OPENROUTER_MODELS[1]
     OPENROUTER_DEEPSEEK_V3_2 = _OPENROUTER_MODELS[2]
+    OPENROUTER_GEMINI_3_1_FLASH_LITE = next(
+        model for model in _OPENROUTER_MODELS if model.name == "google/gemini-3.1-flash-lite"
+    )
 
     # ANTHROPIC CLAUDE OPUS 4.8 - Most capable (GA May 28, 2026)
     # $5.00 input / $25.00 output per 1M tokens, cached input $0.50. Context: 1M, Output: 128k.

@@ -12,7 +12,9 @@ def build_openrouter_models(
     """Build gateway-qualified rows without importing the registry module."""
 
     return (
-        # Preserved at indices 0, 1, 2 for backwards compatibility
+        # Indices 0, 1, and 2 stay stable for backwards compatibility.
+        # Index 0 remains an explicit override. It expires 2026-10-20 and is
+        # no longer the default OpenRouter utility model.
         model_config_type(
             name="google/gemini-2.5-flash-lite",
             display_name="OpenRouter: Gemini 2.5 Flash Lite",
