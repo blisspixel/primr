@@ -194,7 +194,7 @@ class HTTPClient:
             if redirect_count == 0:
                 request_url = self._validate_outbound_url(current_url)
             else:
-                from primr.utils.validators import request_url_for_validated_target
+                from primr.utils.redirect_target import request_url_for_validated_target
 
                 is_valid, request_url, error = request_url_for_validated_target(current_url)
                 if not is_valid:

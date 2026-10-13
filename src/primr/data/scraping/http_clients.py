@@ -32,7 +32,7 @@ def _follow_redirect_target(redirect_url: str) -> tuple[bool, str, str | None]:
     Normalization stays an SSRF and identity check. The requested URL keeps
     the path the server sent, including a trailing slash.
     """
-    from primr.utils.validators import request_url_for_validated_target
+    from primr.utils.redirect_target import request_url_for_validated_target
 
     return request_url_for_validated_target(redirect_url)
 

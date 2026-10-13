@@ -90,7 +90,7 @@ def make_request(
             redirect hop.
     """
     from primr.data.pinned_requests import create_pinned_session
-    from primr.utils.validators import validate_url_for_request
+    from primr.utils.redirect_target import request_url_for_hop
 
     default_headers = get_default_headers(profile)
 
@@ -103,12 +103,10 @@ def make_request(
             # The first hop keeps historical normalization. Later hops request
             # the Location target from urljoin exactly; normalization is only
             # the SSRF and identity check.
-            if redirect_count == 0:
-                is_valid, request_url, error = validate_url_for_request(current_url)
-            else:
-                from primr.utils.validators import request_url_for_validated_target
-
-                is_valid, request_url, error = request_url_for_validated_target(current_url)
+            is_valid, request_url, error = request_url_for_hop(
+                current_url,
+                redirect_hop=redirect_count > 0,
+            )
             if not is_valid:
                 raise ValueError(f"Invalid URL: {error}")
 

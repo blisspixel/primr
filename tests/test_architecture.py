@@ -62,7 +62,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     "data/scraping/browsers.py": 1833,
     "data/hiring_signals.py": 1571,
     "core/model_eval.py": 1828,
-    "data/scrape.py": 1828,
+    "data/scrape.py": 1778,
     "data/fallback_sources.py": 1065,
     # cli_batch_runtime.py received extracted batch-runtime code during the
     # cli.py decomposition; pinned here now that it exceeds the new-file cap.
