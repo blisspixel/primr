@@ -115,6 +115,41 @@ class TestScrapeWithRequests:
         assert mock_get.call_args_list[1].args[0] == "https://example.com/final"
         assert all(call.kwargs["allow_redirects"] is False for call in mock_get.call_args_list)
 
+    def test_preserves_trailing_slash_on_redirect_hop(self):
+        """A canonical slash redirect is requested once, not normalized away."""
+        redirect = _mock_response(
+            url="https://example.com/a",
+            status_code=301,
+            headers={"Location": "/a/"},
+        )
+        final = _mock_response(
+            url="https://example.com/a/",
+            status_code=200,
+            headers={"Content-Type": "text/html"},
+            content=b"<html>final</html>",
+        )
+
+        with patch("requests.Session.get", side_effect=[redirect, final]) as mock_get:
+            result = scrape_with_requests("https://example.com/a")
+
+        assert result.success is True
+        assert mock_get.call_count == 2
+        assert mock_get.call_args_list[1].args[0] == "https://example.com/a/"
+
+    def test_blocks_credential_redirect_before_second_request(self):
+        redirect = _mock_response(
+            url="https://example.com/a",
+            status_code=302,
+            headers={"Location": "https://user:pass@example.com/a/"},
+        )
+
+        with patch("requests.Session.get", return_value=redirect) as mock_get:
+            result = scrape_with_requests("https://example.com/a")
+
+        assert result.success is False
+        assert "credential" in (result.error or "").casefold()
+        assert mock_get.call_count == 1
+
     def test_timeout_error(self):
         """Should handle timeout errors."""
         import requests
@@ -255,6 +290,34 @@ class TestScrapeWithHttpx:
         assert mock_client.get.call_args_list[1].args[0] == "https://example.com/final"
         assert mock_client_cls.call_args.kwargs["follow_redirects"] is False
 
+    def test_preserves_trailing_slash_on_redirect_hop(self):
+        """A canonical slash redirect is requested once, not normalized away."""
+        redirect = _mock_response(
+            url="https://example.com/a",
+            status_code=301,
+            headers={"Location": "/a/"},
+        )
+        final = _mock_response(
+            url="https://example.com/a/",
+            status_code=200,
+            headers={"Content-Type": "text/html"},
+            content=b"<html>final</html>",
+        )
+        mock_client = MagicMock()
+        mock_client.__enter__ = Mock(return_value=mock_client)
+        mock_client.__exit__ = Mock(return_value=False)
+        mock_client.get.side_effect = [redirect, final]
+
+        with (
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
+            patch("httpx.Client", return_value=mock_client),
+        ):
+            result = scrape_with_httpx("https://example.com/a")
+
+        assert result.success is True
+        assert mock_client.get.call_count == 2
+        assert mock_client.get.call_args_list[1].args[0] == "https://example.com/a/"
+
     def test_connects_to_pinned_ip_with_original_host_and_sni(self):
         mock_response = _mock_response(
             url="https://93.184.216.34/page",
@@ -375,6 +438,33 @@ class TestScrapeWithCurlCffi:
         assert session.get.call_count == 2
         assert session.get.call_args_list[1].args[0] == "https://example.com/final"
         assert all(call.kwargs["allow_redirects"] is False for call in session.get.call_args_list)
+
+    def test_preserves_trailing_slash_on_redirect_hop(self):
+        """A canonical slash redirect is requested once, not normalized away."""
+        redirect = _mock_response(
+            url="https://example.com/a",
+            status_code=301,
+            headers={"Location": "/a/"},
+        )
+        final = _mock_response(
+            url="https://example.com/a/",
+            status_code=200,
+            headers={"Content-Type": "text/html"},
+            content=b"<html>final</html>",
+        )
+        fake_curl, session = _fake_curl_module(side_effect=[redirect, final])
+
+        with (
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
+            patch.dict("sys.modules", {"curl_cffi": fake_curl}),
+        ):
+            from primr.data.scraping import http_clients
+
+            result = http_clients.scrape_with_curl_cffi("https://example.com/a")
+
+        assert result.success is True
+        assert session.get.call_count == 2
+        assert session.get.call_args_list[1].args[0] == "https://example.com/a/"
 
     def test_connects_to_pinned_ip_with_libcurl_resolve(self):
         mock_response = Mock()

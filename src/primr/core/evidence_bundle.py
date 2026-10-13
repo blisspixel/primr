@@ -15,6 +15,11 @@ from pathlib import Path
 from typing import Any, Literal
 
 from primr.config.config import OUTPUT_DIR
+from primr.core.evidence_bundle_completeness import (
+    _assess_collected_pages,
+    _partial_collection_guidance,
+    _source_class_report,
+)
 from primr.utils.atomic_io import atomic_write_bytes, atomic_write_text
 from primr.utils.content_sanitizer import fence_untrusted, sanitize_for_llm
 from primr.utils.files import sanitize_filename
@@ -48,6 +53,8 @@ class EvidenceBundleResult:
     hiring_postings: int
     recon_collected: bool
     coverage_warnings: tuple[str, ...]
+    partial_reason: str = ""
+    next_step: str = ""
 
 
 def collect_evidence_bundle(
@@ -119,6 +126,7 @@ def _assemble_evidence_bundle(
             use_vision=False,
             working_folder=str(bundle_dir),
             allow_model_fallbacks=False,
+            suggest_skip_validation=False,
         )
         evidence_paths = collect_evidence(
             company_name=company_name,
@@ -169,12 +177,25 @@ def _assemble_evidence_bundle(
 
     completed_at = datetime.now(timezone.utc)
     hiring_postings = sum(1 for row in source_rows if row["source_type"] == "hiring")
-    status: Literal["completed", "partial"] = "completed" if corpus else "partial"
+    page_assessment = _assess_collected_pages(
+        bundle_dir,
+        corpus,
+        normalized_url,
+        fallback_source_map=_fallback_source_map,
+        clean_external_metadata=_clean_external_metadata,
+        source_type_for_url=_source_type_for_url,
+    )
+    partial_reason, next_step = _partial_collection_guidance(
+        bundle_dir,
+        page_assessment,
+        corpus_empty=not corpus,
+    )
+    status: Literal["completed", "partial"] = (
+        "completed" if page_assessment["qualifying"] else "partial"
+    )
     coverage_warnings: list[str] = []
-    if not corpus:
-        coverage_warnings.append(
-            "No first-party page content was collected; add public sources before synthesis."
-        )
+    if status != "completed" and partial_reason:
+        coverage_warnings.append(partial_reason)
     if include_recon and not evidence_paths.get("recon"):
         coverage_warnings.append("Requested DNS reconnaissance produced no artifact.")
     if include_hiring and not evidence_paths.get("hiring"):
@@ -207,6 +228,18 @@ def _assemble_evidence_bundle(
             "recon_collected": bool(evidence_paths.get("recon")),
             "hiring_collected": bool(evidence_paths.get("hiring")),
             "host_packet": host_packet_metadata,
+            "partial_reason": partial_reason if status != "completed" else "",
+            "next_step": next_step if status != "completed" else "",
+            "source_classes": _source_class_report(
+                bundle_dir,
+                page_assessment,
+                include_recon=include_recon,
+                include_hiring=include_hiring,
+                recon_collected=bool(evidence_paths.get("recon")),
+                hiring_collected=bool(evidence_paths.get("hiring")),
+                hiring_postings=hiring_postings,
+                partial_reason=partial_reason if status != "completed" else "",
+            ),
         },
         "quality": {
             "class": "host-assisted-evidence",
@@ -234,6 +267,8 @@ def _assemble_evidence_bundle(
         hiring_postings=hiring_postings,
         recon_collected=bool(evidence_paths.get("recon")),
         coverage_warnings=tuple(coverage_warnings),
+        partial_reason=partial_reason if status != "completed" else "",
+        next_step=next_step if status != "completed" else "",
     )
 
 
@@ -257,6 +292,8 @@ def _rebase_evidence_bundle_result(
         hiring_postings=result.hiring_postings,
         recon_collected=result.recon_collected,
         coverage_warnings=result.coverage_warnings,
+        partial_reason=result.partial_reason,
+        next_step=result.next_step,
     )
 
 

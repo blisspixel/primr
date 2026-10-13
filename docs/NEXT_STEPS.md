@@ -1,8 +1,8 @@
 # Next Steps
 
-Released baseline: **v1.39.17**
+Released baseline: **v1.39.18**
 
-Next implementation candidate: **v1.39.18**
+Next implementation candidate: **v1.40.0**
 
 This is Primr's canonical executable queue. It states the next bounded change,
 the order in which later release gates unlock, and the evidence required to
@@ -37,47 +37,30 @@ product.
 
 ## Current executable card
 
-v1.39.17 adds default OpenRouter single-key routing, global strict type checking,
-and preflight resilience. The architecture objective below is the next candidate card.
+v1.39.18 is the released baseline. It ships the OpenRouter utility default
+`google/gemini-3.1-flash-lite`, redirect requests that follow each `urljoin`
+Location after the existing scheme, credential, and private-network checks,
+prep completeness that stays partial until current first-party pages are
+captured, and the section-writer ownership move.
 
-### v1.39.18 candidate: remove one orchestration back edge
+### v1.40.0 candidate: epistemic and analyst-quality readiness
 
-**Objective:** reduce the remaining 11-module core import-cycle component by
-moving one behavior-owned dependency in `fast_run_sections` to its proper
-owner. Preserve every public CLI, MCP, A2A, report, estimate, and approval
-contract.
+**Objective:** make the bare company-and-website run fully decidable, with
+independently validated evaluators, before any hard report-quality gate or
+hybrid-routing promotion.
 
-**Why this is next:** the quality and backend milestones depend on stable,
-directly testable stage boundaries. This is the lowest-risk remaining
-architecture slice and requires no provider call or paid evaluation.
-
-**Order of work:**
-
-1. Recompute the package-inclusive import graph and record the exact back edge.
-2. Audit public imports and compatibility consumers before moving behavior.
-3. Pass immutable values or an existing protocol from the composition root.
-4. Remove the back edge without adding a forwarding-only module.
-5. Add direct owner tests and preserve compatibility tests at the public seam.
-6. Run focused architecture tests, then the complete release gate.
-7. Ship as v1.39.18 only if every exit criterion below passes. Otherwise keep
-   v1.39.17 current and update this card with the observed blocker.
+**Why this is next:** the version ladder already places quality claims after
+that corpus. Operator polish through v1.39.18 is the released baseline.
 
 **Exit criteria:**
 
-- The largest strongly connected component falls below 11 modules and cannot
-  grow in CI.
-- Production module count does not rise unless a new module passes the boundary
-  test in the [architecture cohesion plan](design/24-architecture-cohesion-plan.md).
-- Golden artifacts, estimates, provider selection, approval, and budget behavior
-  are unchanged.
-- New behavior is exercised through its owning module, not only through a large
-  coordinator.
-- Ruff, formatting, mypy, strict docs, security checks, package checks, the full
-  test suite, and the branch-coverage floor pass.
+- The production corpus for the bare company-and-website run is fully decidable.
+- Evaluators are independently validated.
+- A recorded gate decision follows that evidence.
 
 **Explicitly outside this card:** report prompt changes, provider promotion,
-paid evaluation, broad `deep_research.py` decomposition, memory, and new public
-commands.
+paid evaluation, a deterministic prose-quality gate, a lone LLM judge, memory,
+and a new public command.
 
 **Implementation status (2026-10-11):** the section stage receives typed writer
 and coherence callbacks from the existing coordinator. Its back edge is removed
@@ -170,7 +153,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.17
+## Version gates after v1.39.18
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.

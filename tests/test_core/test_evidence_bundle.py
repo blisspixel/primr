@@ -22,6 +22,7 @@ from primr.core.evidence_bundle import (
     collect_evidence_bundle,
     install_bundled_skill,
 )
+from primr.data.scrape import pilot_validation_abort_hint
 from primr.utils.model_policy import model_calls_disabled
 
 
@@ -35,6 +36,7 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
         assert model_calls_disabled() is True
         assert kwargs["use_vision"] is False
         assert kwargs["allow_model_fallbacks"] is False
+        assert kwargs["suggest_skip_validation"] is False
         assert kwargs["max_pages"] == 12
         assert Path(kwargs["working_folder"]).name.startswith(".primr-prep-")
         return corpus
@@ -97,6 +99,8 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
     assert result.hiring_postings == 1
     assert result.recon_collected is True
     assert result.status == "completed"
+    assert result.partial_reason == ""
+    assert manifest["coverage"]["source_classes"]["first_party_pages"]["state"] == "captured"
     assert not result.bundle_dir.name.startswith(".primr-prep-")
     assert list(tmp_path.iterdir()) == [result.bundle_dir]
     assert [path for path in tmp_path.iterdir() if path.name.startswith(".primr-prep-")] == []
@@ -307,8 +311,17 @@ def test_blocked_origin_never_enables_model_fallbacks(tmp_path, monkeypatch) -> 
     assert result.pages_collected == 0
     assert result.status == "partial"
     assert result.coverage_warnings == (
-        "No first-party page content was collected; add public sources before synthesis.",
+        "First-party collection was skipped because the host is rate-limited.",
     )
+    assert result.partial_reason == result.coverage_warnings[0]
+    assert "not usable" not in result.partial_reason
+    assert "--skip-scrape-validation" not in result.next_step
+    assert "primr prep" in result.next_step
+    classes = manifest["coverage"]["source_classes"]
+    assert classes["first_party_pages"]["state"] == "queried and failed"
+    assert classes["public_fallbacks"]["state"] == "queried and empty"
+    assert classes["dns_recon"]["state"] == "not queried"
+    assert classes["hiring_signals"]["state"] == "not queried"
     assert manifest["status"] == "partial"
     assert result.coverage_warnings[0] in manifest["quality"]["limitations"]
     assert manifest["execution"]["model_calls_made"] == 0
@@ -436,3 +449,138 @@ def test_hiring_source_rows_require_identity_and_preserve_receipt(tmp_path):
     assert rows[0]["url"] == "https://jobs.example/verified"
     assert rows[0]["identity"] == "verified"
     assert rows[0]["identity_evidence"] == "first_party_careers:https://acme.example/careers"
+
+
+def _collect_stubbed_pages(
+    monkeypatch,
+    tmp_path,
+    corpus: dict[str, str],
+    *,
+    trace: str = "",
+    company_url: str = "https://acme.example",
+):
+    monkeypatch.setattr(
+        "primr.utils.validators.validate_url_for_request",
+        lambda url: (True, company_url, None),
+    )
+
+    def fetch_web_content(**kwargs):
+        assert kwargs["suggest_skip_validation"] is False
+        if trace:
+            raw = Path(kwargs["working_folder"]) / "_raw_scrapes"
+            raw.mkdir(parents=True, exist_ok=True)
+            (raw / "_scrape_trace.log").write_text(trace, encoding="utf-8")
+        return corpus
+
+    monkeypatch.setattr("primr.data.scrape.fetch_web_content", fetch_web_content)
+    monkeypatch.setattr(
+        "primr.skill_pack.evidence.collect_evidence",
+        lambda **kwargs: {"recon": None, "hiring": None},
+    )
+    return collect_evidence_bundle(
+        "Acme",
+        company_url,
+        output_root=tmp_path,
+        include_recon=False,
+        include_hiring=False,
+    )
+
+
+def test_prep_hint_for_prep_does_not_name_the_main_cli_flag() -> None:
+    hint = pilot_validation_abort_hint(suggest_skip_validation=False)
+    assert "primr prep" in hint
+    assert "--max-pages" in hint
+    assert "--skip-scrape-validation" not in hint
+    assert "--skip-scrape-validation" in pilot_validation_abort_hint(suggest_skip_validation=True)
+
+
+def test_current_first_party_page_completes_and_machine_page_stays_partial(tmp_path, monkeypatch):
+    prose = {
+        "https://acme.example/en-us/about": "Acme builds industrial controls for factories.",
+    }
+    completed = _collect_stubbed_pages(monkeypatch, tmp_path / "done", prose)
+    assert completed.status == "completed"
+    assert completed.partial_reason == ""
+    assert completed.coverage_warnings == ()
+
+    machine = _collect_stubbed_pages(
+        monkeypatch,
+        tmp_path / "machine",
+        {"https://acme.example/robots.txt": "User-agent: *\nDisallow: /private"},
+    )
+    assert machine.status == "partial"
+    assert machine.pages_collected == 1
+    assert "machine endpoints" in machine.partial_reason
+    assert "not usable" not in machine.partial_reason.casefold()
+    assert "--skip-scrape-validation" not in machine.next_step
+    assert "primr prep" in machine.next_step
+    manifest = json.loads(machine.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["status"] == "partial"
+    assert (
+        manifest["coverage"]["source_classes"]["first_party_pages"]["state"] == "queried and failed"
+    )
+
+
+def test_other_locale_old_and_placeholder_pages_are_partial(tmp_path, monkeypatch):
+    other_locale = _collect_stubbed_pages(
+        monkeypatch,
+        tmp_path / "locale",
+        {"https://acme.example/fr/about": "Acme construit des controles industriels pour usines."},
+    )
+    assert other_locale.status == "partial"
+    assert "different locale" in other_locale.partial_reason
+
+    old = _collect_stubbed_pages(
+        monkeypatch,
+        tmp_path / "old",
+        {"https://acme.example/news/2020/launch": "Acme launched industrial controls worldwide."},
+    )
+    assert old.status == "partial"
+    assert "old, not current" in old.partial_reason
+
+    placeholder = _collect_stubbed_pages(
+        monkeypatch,
+        tmp_path / "placeholder",
+        {
+            "https://example.com/": (
+                "This domain is for use in illustrative examples in documents. "
+                "You may use this domain in literature without prior coordination."
+            )
+        },
+        company_url="https://example.com",
+    )
+    assert placeholder.status == "partial"
+    assert placeholder.pages_collected == 1
+    assert "placeholder" in placeholder.partial_reason
+    assert "--skip-scrape-validation" not in placeholder.next_step
+
+
+def test_empty_prep_reports_redirect_loop_and_generic_empty(tmp_path, monkeypatch):
+    loop = _collect_stubbed_pages(
+        monkeypatch,
+        tmp_path / "loop",
+        {},
+        trace="FAIL | https://acme.example/en-us | Exceeded 10 redirects\n",
+    )
+    assert loop.status == "partial"
+    assert loop.pages_collected == 0
+    assert "redirect loop" in loop.partial_reason
+    assert "primr prep" in loop.next_step
+    assert "--skip-scrape-validation" not in loop.next_step
+    loop_manifest = json.loads(loop.manifest_path.read_text(encoding="utf-8"))
+    assert loop_manifest["coverage"]["source_classes"]["first_party_pages"]["state"] == (
+        "queried and failed"
+    )
+    assert loop_manifest["coverage"]["source_classes"]["public_fallbacks"]["state"] == "not queried"
+
+    empty = _collect_stubbed_pages(monkeypatch, tmp_path / "empty", {})
+    assert empty.status == "partial"
+    assert empty.pages_collected == 0
+    assert empty.coverage_warnings == (
+        "No first-party page content was collected; add public sources before synthesis.",
+    )
+    assert "--max-pages" in empty.next_step
+    empty_manifest = json.loads(empty.manifest_path.read_text(encoding="utf-8"))
+    assert empty_manifest["coverage"]["source_classes"]["first_party_pages"]["state"] == (
+        "queried and empty"
+    )

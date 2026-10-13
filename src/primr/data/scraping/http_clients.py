@@ -26,6 +26,17 @@ _REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 _MAX_REDIRECTS = 10
 
 
+def _follow_redirect_target(redirect_url: str) -> tuple[bool, str, str | None]:
+    """Validate a redirect and return the exact urljoin target to request.
+
+    Normalization stays an SSRF and identity check. The requested URL keeps
+    the path the server sent, including a trailing slash.
+    """
+    from primr.utils.redirect_target import request_url_for_validated_target
+
+    return request_url_for_validated_target(redirect_url)
+
+
 def _redirect_location(response: object) -> str | None:
     headers_obj = getattr(response, "headers", {}) or {}
     location = _header_value(headers_obj, "Location") or _header_value(headers_obj, "location")
@@ -232,9 +243,7 @@ def scrape_with_requests(
                     )
 
                 redirect_url = urljoin(str(getattr(response, "url", current_url)), location)
-                is_valid, normalized_redirect_url, redirect_error = validate_url_for_request(
-                    redirect_url
-                )
+                is_valid, request_url, redirect_error = _follow_redirect_target(redirect_url)
                 if not is_valid:
                     return _blocked_redirect_result(
                         url=url,
@@ -249,7 +258,7 @@ def scrape_with_requests(
                         tier_name=tier_name,
                         start_time=start_time,
                     )
-                current_url = normalized_redirect_url
+                current_url = request_url
 
         return _too_many_redirects_result(
             url=url,
@@ -434,9 +443,7 @@ def scrape_with_httpx(
                     )
 
                 redirect_url = urljoin(current_url, location)
-                is_valid, normalized_redirect_url, redirect_error = validate_url_for_request(
-                    redirect_url
-                )
+                is_valid, request_url, redirect_error = _follow_redirect_target(redirect_url)
                 if not is_valid:
                     return _blocked_redirect_result(
                         url=url,
@@ -451,7 +458,7 @@ def scrape_with_httpx(
                         tier_name=tier_name,
                         start_time=start_time,
                     )
-                current_url = normalized_redirect_url
+                current_url = request_url
 
         return _too_many_redirects_result(
             url=url,
@@ -630,9 +637,7 @@ def scrape_with_curl_cffi(
                 )
 
             redirect_url = urljoin(current_url, location)
-            is_valid, normalized_redirect_url, redirect_error = validate_url_for_request(
-                redirect_url
-            )
+            is_valid, request_url, redirect_error = _follow_redirect_target(redirect_url)
             if not is_valid:
                 return _blocked_redirect_result(
                     url=url,
@@ -647,7 +652,7 @@ def scrape_with_curl_cffi(
                     tier_name=tier_name,
                     start_time=start_time,
                 )
-            current_url = normalized_redirect_url
+            current_url = request_url
 
         return _too_many_redirects_result(
             url=url,

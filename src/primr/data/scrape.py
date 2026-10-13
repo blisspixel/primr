@@ -7,13 +7,8 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
-from primr.config.config import (
-    MIN_SCRAPED_CHARS,
-    PROJECT_ROOT,
-    SCRAPE_PILOT_COUNT,
-    SCRAPE_PILOT_MIN_CHARS,
-    SCRAPE_PILOT_MIN_SUCCESS_RATE,
-)
+from primr.config.config import PROJECT_ROOT, SCRAPE_PILOT_COUNT
+from primr.data.scrape_pilot import evaluate_scrape_pilot, pilot_validation_abort_hint
 
 # Import from new modular scraping system
 from primr.data.scraping import (
@@ -107,60 +102,6 @@ def _filter_selected_urls(urls: list[str], website: str) -> list[str]:
             continue
         filtered.append(url)
     return filtered
-
-
-def evaluate_scrape_pilot(
-    pilot_success: int,
-    pilot_attempts: int,
-    pilot_chars_total: int,
-) -> dict[str, float | int | bool]:
-    """
-    Evaluate whether the pilot sample is too weak to trust a full crawl.
-
-    Relief is intentionally granted when a sparse pilot still yields a few
-    content-rich pages. That pattern is common on bot-protected or uneven sites
-    where the crawl is still worth continuing with heavier external research.
-    """
-    success_rate = pilot_success / max(pilot_attempts, 1)
-    avg_chars = int(pilot_chars_total / max(pilot_success, 1)) if pilot_success else 0
-    high_success_relief_rate = max(SCRAPE_PILOT_MIN_SUCCESS_RATE, 0.90)
-    low_content_with_low_success = (
-        avg_chars < SCRAPE_PILOT_MIN_CHARS and success_rate < high_success_relief_rate
-    )
-
-    # Permit a sparse pilot when the pages that did land are substantively
-    # rich AND the success rate is at least half the configured floor.
-    # Without the success-rate floor, an attacker-controlled site could
-    # serve 3 rich pages and 7+ failures and still drive primr into the
-    # full concurrent crawl phase, multiplying outbound work past the
-    # documented pilot abort. Half the configured floor (0.35 at default)
-    # preserves the legitimate "patchy site with a few good pages" case
-    # while rejecting 3/50-style adversarial samples.
-    rich_content_relief_floor = max(SCRAPE_PILOT_MIN_SUCCESS_RATE / 2, 0.30)
-    rich_content_relief = (
-        success_rate >= rich_content_relief_floor
-        and avg_chars >= max(SCRAPE_PILOT_MIN_CHARS * 3, 2000)
-        and (
-            pilot_success >= 3
-            or (pilot_success >= 2 and pilot_chars_total >= max(SCRAPE_PILOT_MIN_CHARS * 6, 4000))
-        )
-    )
-    useful_corpus_relief = pilot_success >= 4 and pilot_chars_total >= max(MIN_SCRAPED_CHARS, 4000)
-
-    should_abort = False
-    if not (rich_content_relief or useful_corpus_relief) and (
-        success_rate < SCRAPE_PILOT_MIN_SUCCESS_RATE or low_content_with_low_success
-    ):
-        should_abort = True
-
-    return {
-        "success_rate": success_rate,
-        "avg_chars": avg_chars,
-        "low_content_with_low_success": low_content_with_low_success,
-        "rich_content_relief": rich_content_relief,
-        "useful_corpus_relief": useful_corpus_relief,
-        "should_abort": should_abort,
-    }
 
 
 def out_step(msg):
@@ -469,6 +410,8 @@ def fetch_web_content(
     use_vision: bool = False,
     working_folder: str | None = None,
     allow_model_fallbacks: bool = True,
+    *,
+    suggest_skip_validation: bool = True,
 ) -> dict[str, str]:
     """
     build_site_corpus: Discover and scrape pages from a company website.
@@ -492,6 +435,8 @@ def fetch_web_content(
         use_vision: Enable vision tier for hard-to-scrape pages
         working_folder: If provided, save raw scrapes incrementally to this folder
         allow_model_fallbacks: Allow billable model-backed recovery sources
+        suggest_skip_validation: Mention ``--skip-scrape-validation`` when the
+            pilot aborts. Prep passes False because that flag is not on its parser.
 
     Returns:
         Dict mapping URL -> extracted text (cleaned, boilerplate removed)
@@ -1160,7 +1105,12 @@ def fetch_web_content(
                     console.muted(
                         "  Defensive stop: initial sample quality too low to trust full crawl"
                     )
-                    console.muted("  Re-run with --skip-scrape-validation to continue anyway")
+                    console.muted(
+                        "  "
+                        + pilot_validation_abort_hint(
+                            suggest_skip_validation=suggest_skip_validation
+                        )
+                    )
                     console.muted(
                         "  Or tune SCRAPE_PILOT_* env vars (ex: SCRAPE_PILOT_MIN_CHARS=700)"
                     )

@@ -1070,10 +1070,10 @@ class TestGrokTier:
 
         notes = " ".join(est.notes)
         assert est.mode == "full (OpenRouter routed preview)"
-        assert est.total_cost == pytest.approx(1.0485)
+        assert est.total_cost == pytest.approx(1.0655)
         assert "deepseek/deepseek-v3.2 reasoning" in notes
         assert "openai/gpt-4.1-mini writing" in notes
-        assert "google/gemini-2.5-flash-lite utility" in notes
+        assert "google/gemini-3.1-flash-lite utility" in notes
         assert "price ceiling" in notes
         assert "defaults to ZDR" in notes
 

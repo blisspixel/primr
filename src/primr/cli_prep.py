@@ -189,7 +189,17 @@ def run_prep_cli(args: list[str] | None) -> int:
         print(f"Primr prep complete for {parsed.company_name}")
     else:
         print(f"Primr prep partial for {parsed.company_name}")
-        print("  The bundle is usable, but coverage is incomplete.")
+        if result.pages_collected == 0:
+            print("  This bundle is not usable: no pages were captured.")
+        else:
+            print(
+                "  This bundle is not usable: captured pages are not current "
+                "human-readable first-party coverage."
+            )
+        if result.partial_reason:
+            print(f"  Reason: {result.partial_reason}")
+        if result.next_step:
+            print(f"  Next step: {result.next_step}")
     print("  Incremental API spend: $0.00")
     print(f"  Pages: {result.pages_collected}")
     hiring_status = (

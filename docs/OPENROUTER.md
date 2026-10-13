@@ -1,9 +1,11 @@
 # OpenRouter Gateway
 
 OpenRouter is the preferred single-key gateway for Primr research. When configured,
-it serves as the default provider route across utility, writing, and reasoning roles,
-delivering full strategic dossiers and AI strategy deliverables at approximately
-$0.15-$0.25 actual spend (over 80% cheaper than direct multi-provider recipes).
+it serves as the default provider route across utility, writing, and reasoning roles.
+On 2026-10-12 the default full report plus AI Strategy dry run displays about
+$1.07. That is the estimator total of $1.0655 shown to two decimals. The estimate
+does not assume prompt-cache savings, and it does not include OpenRouter
+credit-purchase fees. The live `primr --dry-run` output is authoritative.
 
 Configuring `OPENROUTER_API_KEY` activates OpenRouter routing by default, while
 preserving Primr's mandatory dry-run estimate and explicit spend approval gates.
@@ -88,13 +90,14 @@ within the ceiling. The JSON preview exposes the same decision:
   "execution_ready": true,
   "budget_enforcement": {
     "ceiling_usd": 10.0,
-    "estimated_cost_usd": 1.05,
+    "estimated_cost_usd": 1.07,
     "within_budget": true
   }
 }
 ```
 
-The shown cost is illustrative. The live dry run is authoritative. If the
+The shown cost is the 2026-10-12 two-decimal dry-run display. A live JSON
+preview reports the unrounded estimator total. The live dry run is authoritative. If the
 estimate exceeds the ceiling, `execution_ready` and `within_budget` are false,
 and launch refuses before model calls. A valid ceiling is a finite positive
 number.
@@ -118,14 +121,15 @@ The default OpenRouter route uses a balanced role recipe:
 
 | Role | Default model | Input / output per 1M tokens |
 |------|---------------|-------------------------------|
-| Utility | `google/gemini-2.5-flash-lite` | `$0.10 / $0.40` |
+| Utility | `google/gemini-3.1-flash-lite` | `$0.25 / $1.50` |
 | Writing | `openai/gpt-4.1-mini` | `$0.40 / $1.60` |
 | Reasoning | `deepseek/deepseek-v3.2` | `$0.269 / $0.40` |
 
-The default full report plus AI Strategy is currently estimated at about
-`$1.05` on Primr's conservative static token plan. The command's live dry-run
-is authoritative because selected features, token plans, pricing, and
-historical floors can change.
+The default full report plus AI Strategy dry run displayed about `$1.07` on
+2026-10-12 (`$1.0655` before two-decimal display). Prompt-cache savings are not
+assumed, and OpenRouter credit-purchase fees are not included. The command's
+live dry-run is authoritative because selected features, token plans, pricing,
+and historical floors can change.
 
 ### Expanded curated catalog
 
@@ -135,8 +139,8 @@ Primr supports an expanded set of pre-priced, verified models through OpenRouter
 |---|---|---|---|
 | Google | `google/gemini-3.8-flash` | `$0.75 / $3.75` | Writing, Reasoning |
 | Google | `google/gemini-3.7-flash` | `$0.75 / $3.75` | Writing, Reasoning |
-| Google | `google/gemini-3.1-flash-lite` | `$0.25 / $1.50` | Utility, Writing |
-| Google | `google/gemini-2.5-flash-lite` | `$0.10 / $0.40` | Utility |
+| Google | `google/gemini-3.1-flash-lite` | `$0.25 / $1.50` | Default utility |
+| Google | `google/gemini-2.5-flash-lite` | `$0.10 / $0.40` | Explicit override; expires 2026-10-20 |
 | OpenAI | `openai/gpt-5.4-mini` | `$0.75 / $4.50` | Writing, Utility |
 | OpenAI | `openai/gpt-5.4-nano` | `$0.20 / $1.25` | Utility |
 | OpenAI | `openai/gpt-4.1-mini` | `$0.40 / $1.60` | Writing |

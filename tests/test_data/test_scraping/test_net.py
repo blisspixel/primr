@@ -180,6 +180,33 @@ class TestMakeRequest:
 
         mock_req.assert_called_once()
 
+    def test_preserves_trailing_slash_on_redirect_hop(self):
+        """A canonical slash redirect is requested once, not normalized away."""
+        redirect = _response(301, "https://example.com/a", "/a/")
+        final = _response(200, "https://example.com/a/")
+
+        with patch("requests.Session.request", side_effect=[redirect, final]) as mock_req:
+            assert make_request("https://example.com/a") is final
+
+        assert mock_req.call_count == 2
+        assert mock_req.call_args_list[0].kwargs["url"] == "https://example.com/a"
+        assert mock_req.call_args_list[1].kwargs["url"] == "https://example.com/a/"
+
+    def test_blocks_credential_redirect_before_second_request(self):
+        redirect = _response(
+            302,
+            "https://example.com/a",
+            "https://user:pass@example.com/a/",
+        )
+
+        with (
+            patch("requests.Session.request", return_value=redirect) as mock_req,
+            pytest.raises(ValueError, match="credentials"),
+        ):
+            make_request("https://example.com/a")
+
+        mock_req.assert_called_once()
+
 
 class TestHeadExists:
     """Tests for head_exists function."""
