@@ -273,6 +273,9 @@ consistent (`pyproject` ↔ `__init__.__version__` ↔ ROADMAP "Current State" �
 `claude-code/.claude-plugin/plugin.json` and regenerate `agent-plugin/plugin.json`
 with `python scripts/sync_agent_plugin.py`; run `tests/test_agent_plugin.py`
 alongside the release integrity tests so plugin/package versions stay aligned.
+Update the released baseline in `docs/NEXT_STEPS.md` and the OpenClaw image
+version label; include `tests/test_docs_index.py` and
+`tests/openclaw/test_dockerfile.py` in release metadata validation.
 
 `main` is the only long-lived branch. Feature branches are short-lived and
 deleted on merge (the repo auto-deletes merged PR branches); don't leave stale
