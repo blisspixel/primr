@@ -160,22 +160,14 @@ def load_captured_sources(path: Path) -> dict[str, str]:
 
 
 def lookup_captured_source(url: str, captures: Mapping[str, str]) -> str | None:
-    """Return a frozen capture for ``url``, ignoring a trailing slash and case.
+    """Return only the capture recorded for this exact URL.
 
     A present key with empty text is a capture, not a miss. The caller must
-    not live-fetch that URL.
+    not live-fetch that URL. Path/query case and trailing slashes can identify
+    different resources. The capture mapping carries no redirect or canonical
+    alias evidence, so spelling similarity must never bind frozen evidence.
     """
-    if url in captures:
-        return captures[url]
-    trimmed = url.rstrip("/")
-    for key, value in captures.items():
-        if key.rstrip("/") == trimmed:
-            return value
-    folded = trimmed.casefold()
-    for key, value in captures.items():
-        if key.rstrip("/").casefold() == folded:
-            return value
-    return None
+    return captures.get(url)
 
 
 def wilson_lower_bound(

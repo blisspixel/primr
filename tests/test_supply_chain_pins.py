@@ -96,6 +96,8 @@ def test_pillow_security_floor_excludes_known_vulnerable_release() -> None:
 @pytest.mark.parametrize(
     ("extra", "package", "vulnerable", "patched"),
     [
+        (None, "mcp", "2.0.0", "2.2.0"),
+        (None, "mcp", "2.1.1", "2.2.0"),
         (None, "httpx2", "2.9.1", "2.12.0"),
         (None, "httpx2", "2.10.0", "2.12.0"),
         (None, "httpx2", "2.11.0", "2.12.0"),

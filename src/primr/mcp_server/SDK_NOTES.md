@@ -5,7 +5,12 @@ whenever the SDK pin or a load-bearing integration pattern changes.
 
 ## SDK Version
 
-- `mcp>=2.0.0,<3` (pyproject; uv.lock pins the exact version)
+- `mcp>=2.2.0,<3` (pyproject; uv.lock pins the exact version)
+- Legacy HTTP sessions use the SDK's bounded lifecycle: a 1,800-second idle
+  timeout and a 10,000-session capacity limit. DELETE, refused initialization,
+  and idle expiry reclaim sessions. Expired IDs return 404; capacity returns
+  503. Authentication does not replace these limits. Modern requests remain
+  request-scoped. See [the upstream advisory](https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-84m7-p3x7-pcfv).
 - SDK v2 speaks MCP spec revision **2026-07-28** natively and still answers
   the legacy `initialize` handshake, so one server serves both protocol eras.
   `server/discover` is served automatically by the SDK.

@@ -126,8 +126,10 @@ work, release timing, or a second version plan.
    existing path-allowlist boundary. Ready baseline artifacts now publish a
    report-only gate recommendation from the per-report Confirmed traceability
    floor, including an environment-variable assignment only when every selected
-   report contributes a decidable Confirmed floor; otherwise they remain
-   report-only and name the missing floor evidence. Ready curated
+   report contributes a decidable Confirmed floor or is explicitly marked
+   `honestly_empty_confirmed` by a human reviewer with no Confirmed claims.
+   Otherwise they remain report-only and name the missing floor evidence. Ready
+   curated
    multi-report baselines now carry
    `measurement.status=measured_operator_curated_multi_report_baseline` when
    representative coverage, evidence review, and judge agreement are complete.
@@ -639,7 +641,8 @@ per-module coverage ratchet unlocked by the refactor:
   false-positive and false-negative risk, and threshold selection. Gate
   recommendations now also distinguish a zero Confirmed floor from an
   incomplete per-report Confirmed floor; a ready pack with reports lacking
-  decidable `(Confirmed)` claims stays report-only with
+  decidable `(Confirmed)` claims and human-confirmed honestly-empty handling
+  stays report-only with
   `incomplete_confirmed_traceability_floor` until an operator reviews that
   coverage gap, and `next_actions` carries the same hard-gate action state and
   selected-report counts for agent control planes. Baseline artifacts now also

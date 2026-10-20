@@ -224,10 +224,11 @@ def run_prep_cli(args: list[str] | None) -> int:
     print(f"  Portable skill: {result.bundle_dir / 'primr-zero'}")
     print(f"  Manifest: {result.manifest_path}")
     print(f"  Bundle: {result.bundle_dir}")
-    print(
-        "  Next: give the bundle to a research-capable host and have it read the "
-        "manifest, source index, evidence packet, host workflow, and primr-zero skill."
-    )
+    if result.status == "completed":
+        print(
+            "  Next: give the bundle to a research-capable host and have it read the "
+            "manifest, source index, evidence packet, host workflow, and primr-zero skill."
+        )
     return 0
 
 
