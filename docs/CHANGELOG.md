@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Require Pillow 13.0.0 or newer across package and container installs for the
+  October decoder/encoder advisories. Validate remote icon byte and pixel limits
+  before decoding PNG or JPEG; reject malformed and unsupported images
+  through the existing local-icon fallback. Read Gemini inline image bytes using
+  the current SDK API without decoding outside that shared boundary.
+
 - Require certifi 2026.10.19 or newer in published package metadata and the
   locked source/container environments. This removes the affected emSign root
   from certifi's bundle (GHSA-6q48-6c7w-9gw2) without changing custom CA or TLS
