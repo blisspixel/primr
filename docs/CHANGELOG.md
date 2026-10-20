@@ -69,6 +69,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refresh pinned artifact upload/download, CodeQL, Pages deployment, build
+  provenance, and PyPI publishing actions to reviewed compatible releases.
+  Preserve immutable-tag checks, trusted publishing, and existing permissions.
+
 - Cancel superseded PR validation while retaining independent CI and CodeQL
   results for every main commit and scheduled scan.
 
