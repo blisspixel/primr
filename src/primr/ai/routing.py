@@ -51,7 +51,7 @@ from primr.config.models import ModelRegistry, PrimrModels
 
 if TYPE_CHECKING:
     from primr.ai.providers import Provider
-    from primr.core.model_eval import ProfileRecipe
+    from primr.config.eval_profile_types import ProfileRecipe
 
 _FALSE_VALUES = frozenset({"0", "false", "no", "off"})
 
@@ -419,9 +419,9 @@ def get_provider_for_model(model_name: str) -> Provider:
 
         return _get_provider()
     if provider_name == "google":
-        from primr.ai.llm import _get_gemini_provider
+        from primr.ai.providers.registry import get_registered_provider_for_model
 
-        return _get_gemini_provider()
+        return get_registered_provider_for_model(model_name)
     if provider_name == "openai":
         return _get_openai_provider()
     if provider_name == "anthropic":

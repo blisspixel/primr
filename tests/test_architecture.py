@@ -61,7 +61,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     "ai/deep_research.py": 3812,
     "data/scraping/browsers.py": 1833,
     "data/hiring_signals.py": 1571,
-    "core/model_eval.py": 1828,
+    "core/model_eval.py": 1648,
     "data/scrape.py": 1776,
     "data/fallback_sources.py": 1026,
     # cli_batch_runtime.py received extracted batch-runtime code during the
@@ -154,15 +154,6 @@ EXPECTED_IMPORT_CYCLES = {
             "primr.core.fast_run_trust",
             "primr.core.research_agent",
             "primr.core.research_orchestrator",
-        }
-    ),
-    frozenset(
-        {
-            "primr.ai.llm",
-            "primr.ai.routing",
-            "primr.config.eval_profiles",
-            "primr.core.model_eval",
-            "primr.utils.cost_estimator",
         }
     ),
 }

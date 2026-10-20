@@ -1,10 +1,9 @@
 """
 v1.24.0 cross-provider eval matrix.
 
-Each registered profile slot here is one cell in the v1.24.0 cross-provider
-scorecard. Adding a new candidate recipe = adding one register_eval_profile()
-call here. The eval harness picks them up automatically via
-list_eval_profile_names().
+Each declarative profile slot here is one cell in the cross-provider
+scorecard. Add a candidate to EVAL_MATRIX_SLOTS; the configuration registry
+loads the catalog without importing the evaluation runner.
 
 The hard goal: the *winner* of this matrix becomes the new default `primr`
 recipe, replacing the then-current Grok-only 4.3 hybrid. The binding constraint
@@ -25,15 +24,7 @@ run replaces this number once the eval pass is done. Estimates assume:
 
 from __future__ import annotations
 
-from primr.core.model_eval import (
-    EvalProfileSlot,
-    ProfileRecipe,
-    register_eval_profile,
-)
-from primr.utils.logging_config import get_logger
-
-logger = get_logger(__name__)
-
+from primr.config.eval_profile_types import EvalProfileSlot, ProfileRecipe
 
 # =============================================================================
 # Cloud sub-$1 candidates (the headline group)
@@ -508,30 +499,14 @@ _OPENROUTER_EVAL_CANDIDATES = (
 )
 
 
-# =============================================================================
-# Registration
-# =============================================================================
-
-
-def _register_v1_24_0_matrix() -> None:
-    """Register all v1.24.0 cross-provider eval candidate slots.
-
-    Idempotent (uses replace=True) so reloading the module during dev doesn't
-    raise. The legacy built-in slots (full / lite / fast) are registered by
-    primr.core.model_eval._register_builtin_profiles() and are not touched here.
-    """
-    all_slots: tuple[EvalProfileSlot, ...] = (
-        *_V1_24_0_CLOUD_CANDIDATES,
-        _V1_24_0_CEILING_CANDIDATE,
-        *_GEMINI_35_PRO_TIER_EVAL,
-        *_PREMIUM_CANDIDATES,
-        *_V1_24_0_LOCAL_CANDIDATES,
-        *_OPENROUTER_EVAL_CANDIDATES,
-        _V1_24_0_CURRENT_BASELINE,
-    )
-    for slot in all_slots:
-        register_eval_profile(slot, replace=True)
-    logger.debug("Registered %d v1.24.0 cross-provider eval profile slots", len(all_slots))
-
-
-_register_v1_24_0_matrix()
+# Declarative slots are loaded by config.eval_profile_registry. This catalog
+# does not import the runner or mutate a registry during its own import.
+EVAL_MATRIX_SLOTS: tuple[EvalProfileSlot, ...] = (
+    *_V1_24_0_CLOUD_CANDIDATES,
+    _V1_24_0_CEILING_CANDIDATE,
+    *_GEMINI_35_PRO_TIER_EVAL,
+    *_PREMIUM_CANDIDATES,
+    *_V1_24_0_LOCAL_CANDIDATES,
+    *_OPENROUTER_EVAL_CANDIDATES,
+    _V1_24_0_CURRENT_BASELINE,
+)

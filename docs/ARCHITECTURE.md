@@ -383,6 +383,15 @@ never import their composition root. The legacy FallbackPage and HTTP import
 surfaces remain compatible, and the import-cycle baseline removes the retired
 three-module component. Fresh-process tests cover both adapter import orders.
 
+Evaluation recipes and profile slots are immutable configuration contracts.
+The declarative candidate catalog imports only those contracts; the registry
+loads candidates and protects built-in profiles without loading model_eval,
+cost estimation, or model execution. The evaluation runner re-exports the same
+objects and registration functions for compatibility. Routing's recipe type
+references the leaf contract. Google dispatch and the legacy llm provider seam
+share the provider registry cache, so neither imports the other's dispatch
+module. Fresh-process tests verify catalog isolation and shared provider identity.
+
 The fast-mode orchestrator (`perform_fast_research`) is decomposed into
 per-stage modules (roadmap #23; see
 [`design/23-orchestrator-refactor-map.md`](design/23-orchestrator-refactor-map.md)

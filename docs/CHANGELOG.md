@@ -67,6 +67,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Give evaluation profile contracts, declarative candidates, and registration
+  their own configuration boundaries. Routing and the legacy Gemini helper use
+  the shared provider cache without importing the evaluation runner or each
+  other. Preserve the public evaluation imports and per-run recipe overrides.
+
 - Remove the fallback-source import cycle by giving recovery adapters a shared
   typed result and HTTP callback contract. The fan-out injects its SSRF-safe
   transport explicitly; standalone adapters use the same canonical HTTP seam.

@@ -2,12 +2,11 @@
 
 Focus on the May-2026 PRO-tier head-to-head (Gemini 3.1 Pro reference vs
 Gemini 3.5 Flash candidate) added for the eval-gated repoint decision. Importing
-the module registers the slots as a side effect.
+the registry loads the declarative catalog without importing the runner.
 """
 
 from __future__ import annotations
 
-import primr.config.eval_profiles  # noqa: F401 - import registers the slots
 from primr.core.model_eval import get_eval_profile, list_eval_profile_names
 
 
@@ -87,3 +86,21 @@ class TestPremiumAnthropicSlots:
 
         slot = get_eval_profile("premium-sonnet-write")
         assert slot.recipe.writing == ModelRegistry.ANTHROPIC_SONNET.name
+
+
+def test_eval_registry_loads_without_runtime_or_runner():
+    import subprocess
+    import sys
+
+    statement = """
+import sys
+from primr.config.eval_profile_registry import list_eval_profile_names
+names = list_eval_profile_names()
+assert {'full', 'lite', 'fast', 'grok43-flashlite'} <= set(names)
+assert 'primr.core.model_eval' not in sys.modules
+assert 'primr.ai.llm' not in sys.modules
+assert 'primr.utils.cost_estimator' not in sys.modules
+"""
+    subprocess.run(
+        [sys.executable, "-B", "-c", statement], check=True, capture_output=True, text=True
+    )
