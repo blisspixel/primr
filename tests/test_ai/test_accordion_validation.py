@@ -330,12 +330,13 @@ async def test_accordion_write_failure_retains_pending_interaction(tmp_path, mon
 
 
 @pytest.mark.asyncio
-async def test_accordion_parses_current_interaction_steps(monkeypatch):
+@pytest.mark.parametrize("as_mapping", [False, True])
+async def test_accordion_parses_current_interaction_steps(monkeypatch, as_mapping):
     from primr.ai.accordion_test import AccordionTestRunner
 
     runner = object.__new__(AccordionTestRunner)
     runner._api_call_count = 0
-    interaction = SimpleNamespace(id="interaction-123")
+    interaction = {"id": "interaction-123"} if as_mapping else SimpleNamespace(id="interaction-123")
     completed = SimpleNamespace(
         status="completed",
         steps=[
@@ -357,7 +358,33 @@ async def test_accordion_parses_current_interaction_steps(monkeypatch):
 
     assert result["success"] is True
     assert result["content"] == "Current response text"
+    assert runner._client.interactions.create.call_args.kwargs["stream"] is False
     save.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("identifier", [None, "", " ", 123, MagicMock()])
+async def test_accordion_rejects_missing_job_identity_before_persistence(monkeypatch, identifier):
+    from primr.ai.accordion_test import AccordionTestRunner
+
+    runner = object.__new__(AccordionTestRunner)
+    runner._api_call_count = 0
+    runner._client = SimpleNamespace(
+        interactions=SimpleNamespace(
+            create=MagicMock(return_value=SimpleNamespace(id=identifier)),
+            get=MagicMock(),
+        )
+    )
+    monkeypatch.setattr("primr.utils.model_policy.require_model_calls_allowed", lambda _label: None)
+    save = MagicMock()
+    monkeypatch.setattr("primr.ai.job_persistence.save_pending_job", save)
+
+    result = await runner._execute_deep_research("Research Example")
+
+    assert result["success"] is False
+    assert "interaction ID" in result["error"]
+    save.assert_not_called()
+    runner._client.interactions.get.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.39.19"
+version = "1.39.20"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = "Apache-2.0"
@@ -103,13 +103,13 @@ dependencies = [
     #   python-multipart  CVE-2026-53538/53539/53540  quadratic-time DoS
     #   msgpack           GHSA-6v7p-g79w-8964
     #   pydantic-settings GHSA-4xgf-cpjx-pc3j
-    #   pillow            PYSEC-2026-2253 through PYSEC-2026-2257
+    #   pillow            October 2026 decoder/encoder advisories (fixed in 13.0.0)
     "cryptography>=50.0.0",
     "h2>=4.4.1",
     "python-multipart>=0.0.31",
     "msgpack>=1.2.1",
     "pydantic-settings>=2.14.2",
-    "pillow>=12.3.0",
+    "pillow>=13.0.0",
 ]
 
 [project.optional-dependencies]

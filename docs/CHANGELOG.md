@@ -7,25 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.20] - 2026-10-20
+
 ### Security
+
+- Require Pillow 13.0.0 or newer across package and container installs for the
+  October decoder/encoder advisories. Validate remote icon byte and pixel limits
+  before decoding PNG or JPEG; reject malformed and unsupported images
+  through the existing local-icon fallback. Read Gemini inline image bytes using
+  the current SDK API without decoding outside that shared boundary.
 
 - Require certifi 2026.10.19 or newer in published package metadata and the
   locked source/container environments. This removes the affected emSign root
   from certifi's bundle (GHSA-6q48-6c7w-9gw2) without changing custom CA or TLS
   verification behavior. Rebuild container images to consume the refreshed bundle.
-
-### Changed
-
-- End prep and provider-backed research with one factual collection signature,
-  and repeat those recorded counts beneath the Word title. Missing metadata stays
-  unknown, archived and public captures stay separate from current first-party
-  pages, and only identity-linked hiring postings count. The terminal wraps at
-  its actual width; unusable bundles remain visibly incomplete. JSON is unchanged.
-- `primr render --evidence-bundle PATH` verifies the explicit prep bundle before
-  adding its collection counts. Verified older bundles retain support through
-  their bound captured text. Standalone rendering never guesses provenance.
-
-### Security
 
 - Require MCP SDK 2.2.0 or newer and update the locked SDK and container export.
   Legacy HTTP sessions now use upstream capacity limits, idle expiry, and
@@ -33,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   modern request-scoped and legacy initialized clients.
 
 ### Fixed
+
+- Validate background research IDs before saving or polling a job, and keep
+  experimental job creation explicitly non-streaming with current Google SDKs.
 
 - Reject authored Python replacement fields across maintained interpreters,
   including newer f-string syntax that Python 3.11 cannot parse.
@@ -79,6 +77,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer end with a contradictory host-synthesis handoff.
 
 ### Changed
+
+- Refresh the reviewed runtime, build, test, and typing dependencies within the
+  existing package bounds, including Google Gen AI, HTTP/ASGI clients, cloud
+  SDKs, and mypy. Regenerate the hash-locked container exports. Python update
+  proposals now preserve manifest bounds; the intentional Ruff cap remains.
+
+- Refresh pinned artifact upload/download, CodeQL, Pages deployment, build
+  provenance, and PyPI publishing actions to reviewed compatible releases.
+  Preserve immutable-tag checks, trusted publishing, and existing permissions.
+
+- Cancel superseded PR validation while retaining independent CI and CodeQL
+  results for every main commit and scheduled scan.
+
+- End prep and provider-backed research with one factual collection signature,
+  and repeat those recorded counts beneath the Word title. Missing metadata stays
+  unknown, archived and public captures stay separate from current first-party
+  pages, and only identity-linked hiring postings count. The terminal wraps at
+  its actual width; unusable bundles remain visibly incomplete. JSON is unchanged.
+- `primr render --evidence-bundle PATH` verifies the explicit prep bundle before
+  adding its collection counts. Verified older bundles retain support through
+  their bound captured text. Standalone rendering never guesses provenance.
 
 - Give evaluation profile contracts, declarative candidates, and registration
   their own configuration boundaries. Routing and the legacy Gemini helper use

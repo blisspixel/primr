@@ -217,3 +217,16 @@ external self-certification is documented against the evidence above; the
 technical security controls remain active. Revisit this decision when a
 maintainer supplies the required attestations and completes the application.
 This assessment does not claim that the project has completed or passed it.
+
+
+Scorecard's CI/SAST history check has a verified false positive for
+[PR #211](https://github.com/blisspixel/primr/pull/211), recorded on 2026-10-20.
+GitHub reports that merged PR's base, head, and merge commit as
+`6287b3e2c8f8aaab3dfb5b5472d34156b3504b2d`, with zero PR commits. Its commit has
+successful CI and CodeQL checks, but the GraphQL PR `commits(last: 1)` connection
+is empty. Scorecard 5.6.0 caches checks from that connection and treats the
+empty list as missing checks without consulting the commit's check runs.
+Consequently it reports 12 of 13 PRs checked despite successful checks on all
+13 heads. The affected CI-Tests and SAST alerts are false positives, not omitted
+validation. Keep both workflows and required branch checks enabled; rerun
+Scorecard after release and reassess if its underlying history changes.

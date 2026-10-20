@@ -20,7 +20,7 @@ target. Regenerate via [`CONTRIBUTING.md`](CONTRIBUTING.md).*
 The root README is a **front door** only. Operator detail lives in the guides
 below (Diataxis: learning, doing, looking up, understanding).
 
-> **Index currency:** reviewed against primr **1.39.18** on **2026-10-12**. The
+> **Index currency:** reviewed against primr **1.39.20** on **2026-10-20**. The
 > *Updated* column is each document's last substantive revision (git
 > `last-commit` date). `tests/test_docs_index.py` fails CI if a doc under
 > `docs/` is missing from this map or an index link does not resolve, so the
@@ -30,12 +30,12 @@ below (Diataxis: learning, doing, looking up, understanding).
 
 | Document | Description | Updated |
 |----------|-------------|---------|
-| [INSTALLATION](INSTALLATION.md) | Install, upgrade, and troubleshoot Primr or prepare a source checkout | 2026-09-01 |
-| [ZERO_COST](ZERO_COST.md) | Run keyless collection and finish a sourced dossier with an existing agent plan | 2026-09-01 |
-| [API_KEYS](API_KEYS.md) | API key setup, validation (`primr keys test`), security, and troubleshooting | 2026-09-01 |
-| [OPENROUTER](OPENROUTER.md) | Optional paid gateway, explicit opt-in, expanded model catalog, role overrides, per-run ceilings, and custom models | 2026-09-16 |
-| [CONFIG](CONFIG.md) | First-run configuration and the full settings reference | 2026-09-01 |
-| [RUN_MODES](RUN_MODES.md) | Run modes, costs, budget readiness, strategy selection, outputs, and zero-cost rendering | 2026-09-02 |
+| [INSTALLATION](INSTALLATION.md) | Install, upgrade, and troubleshoot Primr or prepare a source checkout | 2026-10-20 |
+| [ZERO_COST](ZERO_COST.md) | Run keyless collection and finish a sourced dossier with an existing agent plan | 2026-10-11 |
+| [API_KEYS](API_KEYS.md) | API key setup, validation (`primr keys test`), security, and troubleshooting | 2026-10-12 |
+| [OPENROUTER](OPENROUTER.md) | Optional paid gateway, explicit opt-in, expanded model catalog, role overrides, per-run ceilings, and custom models | 2026-10-13 |
+| [CONFIG](CONFIG.md) | First-run configuration and the full settings reference | 2026-10-11 |
+| [RUN_MODES](RUN_MODES.md) | Run modes, costs, budget readiness, strategy selection, outputs, and zero-cost rendering | 2026-10-12 |
 | [AZURE_QUICKSTART](AZURE_QUICKSTART.md) | Stand up the team/org Azure deployment end to end | 2026-07-18 |
 
 ## How-to guides (task-oriented)
@@ -43,15 +43,15 @@ below (Diataxis: learning, doing, looking up, understanding).
 | Document | Description | Updated |
 |----------|-------------|---------|
 | [BATCH](BATCH.md) | Run primr across many companies from a CSV | 2026-07-18 |
-| [RECOVERY](RECOVERY.md) | Resume after a crash, reboot, or interrupted run | 2026-07-17 |
-| [IMPROVE](IMPROVE.md) | Improve and refine an existing report (`primr improve` / `refine`) | 2026-04-10 |
-| [SKILL_PACK](SKILL_PACK.md) | `primr skills` end to end: planning, curation, artifacts, CLI/MCP | 2026-08-13 |
-| [EVAL](EVAL.md) | Evaluate and compare models with the eval harness | 2026-08-22 |
+| [RECOVERY](RECOVERY.md) | Resume after a crash, reboot, or interrupted run | 2026-08-14 |
+| [IMPROVE](IMPROVE.md) | Improve and refine an existing report (`primr improve` / `refine`) | 2026-08-13 |
+| [SKILL_PACK](SKILL_PACK.md) | `primr skills` end to end: planning, curation, artifacts, CLI/MCP | 2026-08-14 |
+| [EVAL](EVAL.md) | Evaluate and compare models with the eval harness | 2026-10-13 |
 | [MODEL_ONBOARDING](MODEL_ONBOARDING.md) | Register and validate a new model | 2026-08-13 |
 | [AGENT_INTEGRATION](AGENT_INTEGRATION.md) | Operate Primr from MCP, A2A, skills, and agent hosts | 2026-09-13 |
 | [OPENCLAW](OPENCLAW.md) | OpenClaw integration and governed workflows | 2026-08-13 |
 | [COPILOT_COWORK_GUIDE](COPILOT_COWORK_GUIDE.md) | Sideload a skill pack into Microsoft 365 Copilot Cowork | 2026-07-21 |
-| [COPILOT_STUDIO_GUIDE](COPILOT_STUDIO_GUIDE.md) | Use primr from Copilot Studio | 2026-07-21 |
+| [COPILOT_STUDIO_GUIDE](COPILOT_STUDIO_GUIDE.md) | Use primr from Copilot Studio | 2026-08-13 |
 | [FOUNDRY_AGENT_GUIDE](FOUNDRY_AGENT_GUIDE.md) | Use primr from a Microsoft Foundry agent | 2026-07-21 |
 | [CLOUD_DEPLOYMENT](CLOUD_DEPLOYMENT.md) | Serverless deployment on AWS, Azure, and GCP | 2026-08-13 |
 | [SECURITY_OPS](SECURITY_OPS.md) | Key rotation, audit logs, operational security | 2026-08-13 |
@@ -61,13 +61,13 @@ below (Diataxis: learning, doing, looking up, understanding).
 | Document | Description | Updated |
 |----------|-------------|---------|
 | [API](API.md) | MCP server and A2A protocol, programmatic usage | 2026-08-13 |
-| [Job Status](JOB_STATUS.md) | Versioned CLI, MCP, A2A, and API lifecycle contract | 2026-07-10 |
+| [Job Status](JOB_STATUS.md) | Versioned CLI, MCP, A2A, and API lifecycle contract | 2026-08-05 |
 | [STRATEGY_PORTFOLIO](STRATEGY_PORTFOLIO.md) | YAML-defined long-form strategy documents and selection | 2026-08-30 |
-| [NEXT_STEPS](NEXT_STEPS.md) | One executable release card, dependency gates, and version update protocol | 2026-09-13 |
+| [NEXT_STEPS](NEXT_STEPS.md) | One executable release card, dependency gates, and version update protocol | 2026-10-20 |
 | [ROADMAP_REVIEW](ROADMAP_REVIEW.md) | Current-source evidence for priorities, MCP and Agent Plugins compatibility, evaluation, and development guidance | 2026-09-13 |
-| [CHANGELOG](CHANGELOG.md) | Version history | 2026-09-09 |
+| [CHANGELOG](CHANGELOG.md) | Version history | 2026-10-20 |
 | [MIGRATION](MIGRATION.md) | Error-hierarchy migration notes | 2026-02-02 |
-| [EVAL_V1_24_0](EVAL_V1_24_0.md) | Historical decision record: the v1.24.0 cross-provider eval plan | 2026-06-26 |
+| [EVAL_V1_24_0](EVAL_V1_24_0.md) | Historical decision record: the v1.24.0 cross-provider eval plan | 2026-10-11 |
 | [ROADMAP](https://github.com/blisspixel/primr/blob/main/ROADMAP.md) | Release dependencies, long-range gates, and implementation ledger | 2026-09-02 |
 
 ## Explanation (understanding why)
@@ -75,17 +75,17 @@ below (Diataxis: learning, doing, looking up, understanding).
 | Document | Description | Updated |
 |----------|-------------|---------|
 | [Company Analyst Product Contract](design/company-analyst-product-contract.md) | Canonical product, long-form artifact, free-first economics, evaluation, and release contract | 2026-08-30 |
-| [ARCHITECTURE](ARCHITECTURE.md) | System design and the 9-tier scraping engine | 2026-09-01 |
+| [ARCHITECTURE](ARCHITECTURE.md) | System design and the 9-tier scraping engine | 2026-10-20 |
 | [ARTIFACTS](ARTIFACTS.md) | The research-vs-shipping artifact pipeline and ship-time gates | 2026-09-01 |
 | [INTERNALS](INTERNALS.md) | Core algorithms and prompt strategy | 2026-08-13 |
 | [STATE_MACHINES](STATE_MACHINES.md) | Tier escalation and job lifecycle | 2026-02-02 |
 | [CONCURRENCY](CONCURRENCY.md) | Threading and concurrency model | 2026-08-13 |
-| [SECURITY](SECURITY.md) | Security policy and the scoped AI/agent threat model | 2026-08-22 |
+| [SECURITY](SECURITY.md) | Security policy and the scoped AI/agent threat model | 2026-10-20 |
 | [design/](design/README.md) | Per-workstream design docs and decision audits | — |
 
 ## Contributing
 
 | Document | Description | Updated |
 |----------|-------------|---------|
-| [CONTRIBUTING](CONTRIBUTING.md) | Dev environment setup and the contribution workflow | 2026-09-13 |
+| [CONTRIBUTING](CONTRIBUTING.md) | Dev environment setup and the contribution workflow | 2026-10-20 |
 | [CLAUDE.md](https://github.com/blisspixel/primr/blob/main/CLAUDE.md) | The development contract: seams, constraints, verification gates | — |

@@ -8,8 +8,10 @@ of the CostTracker implementation as specified in the PhD-Level Excellence spec.
 **Validates: Requirements 5.1-5.6**
 """
 
+from string import ascii_lowercase, digits
+
 import pytest
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from primr.utils.observability import correlation_scope
@@ -57,7 +59,10 @@ operation_name_strategy = st.sampled_from(
 
 # Strategy for generating custom pricing tables
 custom_pricing_strategy = st.dictionaries(
-    st.from_regex(r"[a-z]+-[a-z0-9]+", fullmatch=True),
+    st.tuples(
+        st.text(ascii_lowercase, min_size=1, max_size=32),
+        st.text(ascii_lowercase + digits, min_size=1, max_size=64),
+    ).map("-".join),
     st.tuples(price_strategy, price_strategy),
     min_size=1,
     max_size=5,
@@ -177,6 +182,11 @@ class TestCostCalculationCorrectness:
         custom_pricing=custom_pricing_strategy,
         input_tokens=token_count_strategy,
         output_tokens=token_count_strategy,
+    )
+    @example(
+        custom_pricing={"m" * 1024 + "-" + "0" * 1024: (0.001, 1000.0)},
+        input_tokens=10_000_000,
+        output_tokens=10_000_000,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_custom_pricing_table_is_used(

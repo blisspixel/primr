@@ -85,15 +85,6 @@ def test_docker_base_images_are_digest_pinned() -> None:
     )
 
 
-def test_pillow_security_floor_excludes_known_vulnerable_release() -> None:
-    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    dependencies = {
-        requirement.replace(" ", "").lower() for requirement in pyproject["project"]["dependencies"]
-    }
-
-    assert "pillow>=12.3.0" in dependencies
-
-
 @pytest.mark.parametrize(
     ("extra", "package", "vulnerable", "patched"),
     [
@@ -103,6 +94,7 @@ def test_pillow_security_floor_excludes_known_vulnerable_release() -> None:
         (None, "httpx2", "2.10.0", "2.12.0"),
         (None, "httpx2", "2.11.0", "2.12.0"),
         (None, "urllib3", "2.7.0", "2.8.0"),
+        (None, "pillow", "12.3.0", "13.0.0"),
         (None, "certifi", "2026.5.20", "2026.10.19"),
         ("docs", "mkdocs-material", "9.7.6", "9.7.7"),
     ],
@@ -168,6 +160,8 @@ def test_scheduled_audits_and_grouped_dependency_proposals() -> None:
         "github-actions",
         "docker",
     }
+    python = next(entry for entry in updates["updates"] if entry["package-ecosystem"] == "uv")
+    assert python["versioning-strategy"] == "lockfile-only"
     for entry in updates["updates"]:
         assert entry["open-pull-requests-limit"] <= 2
         assert entry["schedule"]["interval"] == "weekly"

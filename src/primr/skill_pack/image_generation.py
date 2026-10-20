@@ -29,6 +29,7 @@ from primr.skill_pack import icons
 logger = logging.getLogger(__name__)
 
 MAX_PROVIDER_IMAGE_BYTES = 5 * 1024 * 1024
+MAX_PROVIDER_IMAGE_PIXELS = 16 * 1024 * 1024
 
 
 # ---------------------------------------------------------------------------
@@ -152,8 +153,8 @@ class GeminiImageProvider(ImageGenerationProvider):
 
     Uses the configured current image model with `client.models.generate_content(
     config=GenerateContentConfig(response_modalities=['TEXT','IMAGE'], ...))`.
-    Image bytes are extracted from response.parts via part.as_image() (PIL
-    Image), saved to PNG bytes, then resized client-side.
+    Encoded image bytes are extracted from inline_data and validated before
+    decoding and resizing client-side.
 
     Falls back gracefully if the installed google-genai is too old to
     expose response_modalities — the fallback chain handles it.
@@ -200,9 +201,7 @@ class GeminiImageProvider(ImageGenerationProvider):
             config=config,
         )
 
-        # Extract image bytes. The current SDK exposes either response.parts
-        # with .as_image(), or candidate parts with inline_data.data bytes.
-        # We try the modern path first.
+        # Keep SDK response bytes encoded until the shared validation boundary.
         png_bytes: bytes | None = None
         parts = getattr(response, "parts", None)
         if parts is None:
@@ -214,20 +213,12 @@ class GeminiImageProvider(ImageGenerationProvider):
 
         if parts:
             for part in parts:
-                as_image = getattr(part, "as_image", None)
-                if callable(as_image):
-                    img = as_image()
-                    if img is not None and hasattr(img, "save"):
-                        import io
-
-                        buf = io.BytesIO()
-                        img.save(buf, format="PNG")  # type: ignore[attr-defined]
-                        png_bytes = buf.getvalue()
-                        break
                 inline = getattr(part, "inline_data", None)
                 if inline is not None and getattr(inline, "data", None):
                     raw = inline.data
-                    png_bytes = raw if isinstance(raw, bytes) else bytes(raw)
+                    if not isinstance(raw, bytes):
+                        raise RuntimeError("Gemini image response contained non-byte image data")
+                    png_bytes = raw
                     break
 
         if png_bytes is None:
@@ -306,34 +297,30 @@ class OpenAIImageProvider(ImageGenerationProvider):
 
 
 def _resize_to(png_bytes: bytes, width: int, height: int) -> bytes:
-    """Resize a PNG to target dimensions. No-op if Pillow is unavailable.
+    """Validate provider bytes before decoding; reject failures for local fallback."""
+    import io
+    import warnings
 
-    Pillow is the only dep that can resize binary PNG; without it we return
-    the source bytes unchanged. The Cowork manifest spec is forgiving about
-    exact pixel dimensions for placeholders, but real submissions need
-    correct sizes — that gates upgrading Pillow from optional to required.
-    """
-    if not icons.pillow_available():
-        return png_bytes
-    try:
-        import io
+    from PIL import Image
 
-        from PIL import Image  # type: ignore[import-not-found]
-
-        with Image.open(io.BytesIO(png_bytes)) as src:
-            rgb = src.convert("RGB")
-            # Pillow 9.1+ moved resampling enums under Image.Resampling;
-            # fall back to the legacy constant if the new path is missing.
-            resample = getattr(getattr(Image, "Resampling", None), "LANCZOS", None)
-            if resample is None:
-                resample = getattr(Image, "LANCZOS", 1)  # 1 = LANCZOS in legacy Pillow
-            resized = rgb.resize((width, height), resample)
-            buf = io.BytesIO()
-            resized.save(buf, format="PNG", optimize=True)
-            return buf.getvalue()
-    except Exception as exc:
-        logger.warning("Image resize failed (returning unscaled): %s", exc)
-        return png_bytes
+    if not png_bytes or len(png_bytes) > MAX_PROVIDER_IMAGE_BYTES:
+        raise ValueError("Image provider payload is empty or exceeded byte limit")
+    if width <= 0 or height <= 0 or width * height > MAX_PROVIDER_IMAGE_PIXELS:
+        raise ValueError("Image target dimensions exceeded pixel limit")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", Image.DecompressionBombWarning)
+        # Providers return ordinary web images. Do not autodetect document,
+        # TIFF, or other unrelated native decoders from untrusted response bytes.
+        with Image.open(io.BytesIO(png_bytes), formats=("PNG", "JPEG")) as src:
+            if src.width * src.height > MAX_PROVIDER_IMAGE_PIXELS:
+                raise ValueError("Image provider dimensions exceeded pixel limit")
+            with (
+                src.convert("RGB") as rgb,
+                rgb.resize((width, height), Image.Resampling.LANCZOS) as resized,
+            ):
+                buf = io.BytesIO()
+                resized.save(buf, format="PNG", optimize=True)
+                return buf.getvalue()
 
 
 def _fetch_provider_image_url(url_value: str, timeout: float = 120.0) -> bytes:
