@@ -127,6 +127,6 @@ class TestAccordionCostGate:
         code = handle_test_accordion(_config(skip_confirm=False))
 
         assert code == 1
-        assert "--skip-confirm" in capsys.readouterr().out
+        assert "--skip-confirm" in capsys.readouterr().err
         prompt.assert_not_called()
         launch.assert_not_called()

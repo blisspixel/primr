@@ -245,7 +245,7 @@ def test_resume_pending_jobs_returns_error_when_acknowledgement_fails(monkeypatc
     monkeypatch.setattr("primr.ai.job_persistence.remove_pending_job", lambda _job_id: False)
 
     assert cli.resume_pending_jobs() == 1
-    assert "pending job record could not be updated" in capsys.readouterr().out
+    assert "pending job record could not be updated" in capsys.readouterr().err
 
 
 def test_find_latest_run_state_returns_none_for_malformed_json(tmp_path, monkeypatch):

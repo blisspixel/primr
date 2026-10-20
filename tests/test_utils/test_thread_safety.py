@@ -76,11 +76,11 @@ class TestConsoleThreadSafety:
         captured = capsys.readouterr()
 
         # All section messages should be present
-        assert "Writing section 1" in captured.out
+        assert "Writing section 1" in captured.err
         assert "Section 1 complete" in captured.out
-        assert "Writing section 2" in captured.out
+        assert "Writing section 2" in captured.err
         assert "Section 2 complete" in captured.out
-        assert "Writing section 3" in captured.out
+        assert "Writing section 3" in captured.err
         assert "Section 3 complete" in captured.out
 
     def test_concurrent_step_ok_pairs(self, capsys):
@@ -107,7 +107,7 @@ class TestConsoleThreadSafety:
         # All step/ok pairs should be present
         for tid in range(3):
             for i in range(3):
-                assert f"T{tid}-Step-{i}" in captured.out
+                assert f"T{tid}-Step-{i}" in captured.err
                 assert f"T{tid}-OK-{i}" in captured.out
 
 

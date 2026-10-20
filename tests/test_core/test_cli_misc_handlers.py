@@ -179,7 +179,7 @@ class TestHandleGenerateVendor:
         result = run_generate_vendor(_config(generate_vendor="azure", skip_confirm=False))
 
         assert result == 1
-        assert "--skip-confirm" in capsys.readouterr().out
+        assert "--skip-confirm" in capsys.readouterr().err
         preflight.assert_not_called()
         gen_mock.assert_not_called()
 

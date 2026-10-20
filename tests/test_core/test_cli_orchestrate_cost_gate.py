@@ -148,7 +148,7 @@ class TestOrchestrateCostGate:
         code = handle_orchestrate(_config(orchestrate_max_cost=None))
 
         assert code == 1
-        assert "--max-cost <usd>" in capsys.readouterr().out
+        assert "--max-cost <usd>" in capsys.readouterr().err
         prompt.assert_not_called()
         launch.assert_not_called()
 

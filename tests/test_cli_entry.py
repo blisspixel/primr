@@ -107,3 +107,28 @@ def test_home_and_explicit_banner_do_not_import_operational_cli(args, monkeypatc
     if not args:
         assert "$0 now: primr prep" in output
         assert "Provider-backed: primr init" in output
+
+
+def test_home_defers_unrelated_utilities_in_fresh_interpreter():
+    script = """
+import importlib, sys
+from primr.cli_entry import main
+main([])
+assert 'primr.core.cli' not in sys.modules
+assert 'primr.utils.sensitive_instruction_safety' not in sys.modules
+assert 'primr.utils.async_utils' not in sys.modules
+import primr.utils as utilities
+from primr.utils import run_sync, RetryPolicy, Console, console
+assert run_sync is importlib.import_module('primr.utils.async_utils').run_sync
+assert RetryPolicy is importlib.import_module('primr.utils.retry').RetryPolicy
+assert Console is importlib.import_module('primr.utils.console').Console
+assert console is importlib.import_module('primr.utils.console').console
+assert 'run_sync' in dir(utilities)
+try:
+    utilities.not_a_real_export
+except AttributeError:
+    pass
+else:
+    raise AssertionError('unknown exports must fail')
+"""
+    subprocess.run([sys.executable, "-B", "-c", script], check=True, capture_output=True, text=True)

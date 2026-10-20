@@ -181,7 +181,7 @@ class TestCostConfirmationGate:
         state = _read_state(seams["folder"])
         assert state["status"] == "failed"
         assert state["events"][-1]["status"] == "failed"
-        assert "no interactive input" in capsys.readouterr().out
+        assert "no interactive input" in capsys.readouterr().err
         seams["fast"].assert_not_called()
 
     def test_skip_confirm_bypasses_estimate(self, seams):

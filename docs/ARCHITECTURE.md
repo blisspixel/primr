@@ -340,6 +340,10 @@ renderer preserve inspectable evidence, but do not validate claim entailment.
 discovery owner carries baseline provenance. Local draft comparisons cannot
 enter quality-evidence exports or model recommendations.
 
+Utility compatibility exports resolve through their owning modules on first
+access, retaining type-checking imports and the eagerly bound public console
+singleton. The home path does not initialize unrelated async or sanitizer code.
+
 The lightweight entry point also handles the bare home screen and explicit
 `--banner` before cloud imports or credential validation. The banner is static
 ANSI cyan with a dim tagline; legacy animated modes resolve to static output.

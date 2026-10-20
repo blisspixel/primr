@@ -258,22 +258,22 @@ class TestPhaseBanner:
         c = Console()
         c.phase_banner(1, 3, "Research Phase")
         captured = capsys.readouterr()
-        assert "Research Phase" in captured.out
-        assert "PHASE 1/3" in captured.out
+        assert "Research Phase" in captured.err
+        assert "PHASE 1/3" in captured.err
 
     def test_phase_banner_with_description(self, capsys):
         """phase_banner() should display description if provided."""
         c = Console()
         c.phase_banner(1, 2, "Phase", description="Doing stuff")
         captured = capsys.readouterr()
-        assert "Doing stuff" in captured.out
+        assert "Doing stuff" in captured.err
 
     def test_phase_banner_with_duration(self, capsys):
         """phase_banner() displays a supplied duration expectation."""
         c = Console()
         c.phase_banner(1, 2, "Phase", expected_duration="5-10 minutes")
         captured = capsys.readouterr()
-        assert "Expected duration: 5-10 minutes" in captured.out
+        assert "Expected duration: 5-10 minutes" in captured.err
 
     def test_phase_banner_without_duration_has_no_empty_label(self, capsys):
         c = Console()
@@ -298,17 +298,17 @@ class TestPhaseComplete:
         c = Console()
         c.phase_complete("Research Phase")
         captured = capsys.readouterr()
-        assert "Research Phase" in captured.out
+        assert "Research Phase" in captured.err
 
     def test_phase_complete_with_stats(self, capsys):
         """phase_complete() should display stats if provided."""
         c = Console()
         c.phase_complete("Phase", stats=[("Sections", "10"), ("Pages", "50")])
         captured = capsys.readouterr()
-        assert "Sections" in captured.out
-        assert "10" in captured.out
-        assert "Pages" in captured.out
-        assert "50" in captured.out
+        assert "Sections" in captured.err
+        assert "10" in captured.err
+        assert "Pages" in captured.err
+        assert "50" in captured.err
 
 
 class TestProgressWithTime:
@@ -369,9 +369,9 @@ class TestTimedOperation:
         with non_interactive_console.timed_operation("Test operation", show_spinner=False):
             pass
         captured = capsys.readouterr()
-        assert "Test operation" in captured.out
+        assert "Test operation" in captured.err
         # Check for either ASCII (+) or unicode (✓) indicator
-        assert "+" in captured.out or "\u2713" in captured.out
+        assert "+" in captured.err or "\u2713" in captured.err
 
 
 class TestHeartbeat:
@@ -426,7 +426,7 @@ class TestPhaseBannerCompletenessProperty:
         captured = capsys.readouterr()
 
         # Title must be present (step numbers are intentionally not displayed)
-        assert title in captured.out
+        assert title in captured.err
 
     @given(
         step=st.integers(min_value=1, max_value=10),
@@ -444,7 +444,7 @@ class TestPhaseBannerCompletenessProperty:
         c.phase_banner(step, total, title, description=description)
         captured = capsys.readouterr()
 
-        assert description in captured.out
+        assert description in captured.err
 
 
 class TestProgressTimeDisplayProperty:

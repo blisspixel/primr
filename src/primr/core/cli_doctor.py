@@ -176,7 +176,10 @@ def _provider_availability_status(snapshot: ProviderQuotaSnapshot) -> tuple[str,
         if decision.state is AvailabilityState.BUSY:
             return "busy", f"retry after {decision.retry_after_seconds or 0}s"
         source = safe_code_or(snapshot.metadata.get("endpoint_source"), "unknown")
-        if source == "default_localhost":
+        if source == "default_localhost" and not any(
+            os.environ.get(name)
+            for name in ("OLLAMA_API_KEY", "OLLAMA_BASE_URL", "LOCAL_LLM_BASE_URL")
+        ):
             return "not configured", "optional; no local server detected"
         return "unreachable", error
     if not snapshot.metadata.get("configured", snapshot.ok) and error == "missing_api_key":

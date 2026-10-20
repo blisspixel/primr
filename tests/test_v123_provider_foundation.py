@@ -153,8 +153,8 @@ class TestRegistryExpansion:
             "bedrock",
         }
 
-    def test_get_available_providers_includes_ollama_without_env(self, monkeypatch) -> None:
-        """Ollama is available even without OLLAMA_API_KEY (has api_key_default)."""
+    def test_get_available_providers_excludes_unconfigured_ollama(self, monkeypatch) -> None:
+        """An authentication placeholder does not configure a local runtime."""
         from primr.ai.providers.registry import get_available_providers
 
         # Clear all provider keys to isolate
@@ -164,9 +164,10 @@ class TestRegistryExpansion:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
 
+        monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
         available = get_available_providers()
         available_names = {p.name for p in available}
-        assert "ollama" in available_names
+        assert "ollama" not in available_names
 
     def test_get_available_providers_excludes_openai_without_key(self, monkeypatch) -> None:
         """OpenAI is excluded when OPENAI_API_KEY is unset."""
@@ -422,11 +423,12 @@ class TestOllamaIntegration:
             cost = PrimrModels.calculate_cost(model_name, 1_000_000, 500_000)
             assert cost == 0.0, f"calculate_cost({model_name!r}, 1M, 500k) = {cost}, expected 0.0"
 
-    def test_ollama_provider_available_with_default_key(self, monkeypatch) -> None:
-        """Ollama provider is available with default key (no env var needed)."""
+    def test_ollama_provider_available_with_explicit_endpoint(self, monkeypatch) -> None:
+        """An explicitly configured endpoint is eligible for a metadata probe."""
         from primr.ai.providers.registry import get_available_providers
 
         monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
+        monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
         available = get_available_providers()
         available_names = {p.name for p in available}
         assert "ollama" in available_names
@@ -634,17 +636,38 @@ class TestDoctorDiagnostics:
 
         provider = MagicMock()
         provider.is_available.return_value = usable
-        return patch("primr.ai.providers.build_provider", return_value=provider)
+        import os
+        from contextlib import ExitStack
+
+        from primr.ai.provider_availability_collectors import (
+            collect_provider_availability_snapshots,
+        )
+
+        snapshots = collect_provider_availability_snapshots(
+            env=dict(os.environ),
+            local_list_models_fn=lambda _: (
+                ["test-chat:7b"] if os.environ.get("OLLAMA_API_KEY") else []
+            ),
+        )
+        stack = ExitStack()
+        stack.enter_context(patch("primr.ai.providers.build_provider", return_value=provider))
+        stack.enter_context(
+            patch(
+                "primr.core.cli_doctor.collect_provider_availability_snapshots",
+                return_value=snapshots,
+            )
+        )
+        return stack
 
     def test_check_providers_lists_all_five(self, monkeypatch, capsys) -> None:
         """With every key set and every SDK present, all providers are usable."""
-        from primr.core.cli_doctor import _check_providers
+        from primr.core.cli_doctor import _check_provider_availability as _check_providers
 
         # Set all keys so all providers show as configured
-        monkeypatch.setenv("XAI_API_KEY", "test")
-        monkeypatch.setenv("GEMINI_API_KEY", "test")
-        monkeypatch.setenv("OPENAI_API_KEY", "test")
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+        monkeypatch.setenv("XAI_API_KEY", "configured-test-key")
+        monkeypatch.setenv("GEMINI_API_KEY", "configured-test-key")
+        monkeypatch.setenv("OPENAI_API_KEY", "configured-test-key")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "configured-test-key")
         monkeypatch.setenv("OLLAMA_API_KEY", "test")
 
         with self._patch_usable(monkeypatch):
@@ -653,10 +676,10 @@ class TestDoctorDiagnostics:
 
     def test_check_providers_shows_not_configured(self, monkeypatch, capsys) -> None:
         """_check_providers shows 'not configured' for providers without keys."""
-        from primr.core.cli_doctor import _check_providers
+        from primr.core.cli_doctor import _check_provider_availability as _check_providers
 
         # Only set XAI key, leave others unset
-        monkeypatch.setenv("XAI_API_KEY", "test")
+        monkeypatch.setenv("XAI_API_KEY", "configured-test-key")
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -669,9 +692,9 @@ class TestDoctorDiagnostics:
 
     def test_check_providers_warns_when_key_set_but_sdk_missing(self, monkeypatch) -> None:
         """A configured key whose SDK can't be imported is a warning, not silence."""
-        from primr.core.cli_doctor import _check_providers
+        from primr.core.cli_doctor import _check_provider_availability as _check_providers
 
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "configured-test-key")
         monkeypatch.delenv("XAI_API_KEY", raising=False)
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -684,7 +707,7 @@ class TestDoctorDiagnostics:
 
     def test_check_providers_no_crash_when_none_configured(self, monkeypatch) -> None:
         """_check_providers doesn't crash when no providers are configured."""
-        from primr.core.cli_doctor import _check_providers
+        from primr.core.cli_doctor import _check_provider_availability as _check_providers
 
         monkeypatch.delenv("XAI_API_KEY", raising=False)
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -692,8 +715,6 @@ class TestDoctorDiagnostics:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
 
-        # Should not crash — returns 1 warning for "no providers configured"
-        # but Ollama has api_key_default so it's always available
-        warnings = _check_providers(0)
-        # Either 0 (ollama available via default) or 1 (no providers) — just don't crash
-        assert isinstance(warnings, int)
+        with self._patch_usable(monkeypatch):
+            warnings = _check_providers(0)
+        assert warnings == 0

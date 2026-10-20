@@ -1122,7 +1122,7 @@ class TestCLIWiring:
         )
 
         assert _handle_calibrate(config) == 1
-        assert "--skip-confirm" in capsys.readouterr().out
+        assert "--skip-confirm" in capsys.readouterr().err
         prompt.assert_not_called()
         assert live_calls == []
 

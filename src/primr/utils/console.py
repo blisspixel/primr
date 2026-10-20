@@ -220,7 +220,7 @@ class Console:
             return
         if state in {"ready", "set"}:
             marker, color = self._check, self._green
-        elif state == "unreachable":
+        elif state in {"unreachable", "busy"}:
             marker, color = "!", self._yellow
         elif state == "failed":
             marker, color = self._cross, self._red
@@ -503,7 +503,7 @@ class Console:
         if self.quiet:
             return
         self.clear_line()
-        self._print()
+        self._print(diagnostic=True)
         # Modern minimal design - just bold title with subtle accent
         phase_label = (
             f"PHASE {step_num}/{total_steps}"
@@ -513,23 +513,26 @@ class Console:
         self._print(
             f"{self._cyan}{self._pointer}{self._reset} "
             f"{self._bold}{phase_label}{self._reset} "
-            f"{self._dim}{self._dot}{self._reset} {title}"
+            f"{self._dim}{self._dot}{self._reset} {title}",
+            diagnostic=True,
         )
         if description:
-            self._print(f"  {self._dim}{description}{self._reset}")
+            self._print(f"  {self._dim}{description}{self._reset}", diagnostic=True)
         if expected_duration:
-            self._print(f"  {self._dim}Expected duration: {expected_duration}{self._reset}")
-        self._print()
+            self._print(
+                f"  {self._dim}Expected duration: {expected_duration}{self._reset}", diagnostic=True
+            )
+        self._print(diagnostic=True)
 
     def phase_complete(self, title, stats=None):
         if self.quiet:
             return
         self.clear_line()
-        self._print(f"{self._green}{self._check}{self._reset} {title}")
+        self._print(f"{self._green}{self._check}{self._reset} {title}", diagnostic=True)
         if stats:
             for label, value in stats:
                 if label.lower() != "duration":
-                    self._print(f"  {self._dim}{label}: {value}{self._reset}")
+                    self._print(f"  {self._dim}{label}: {value}{self._reset}", diagnostic=True)
 
     def divider(self, char="·"):
         """Modern subtle divider - 2026 design."""
@@ -671,7 +674,8 @@ class Console:
             elapsed = self._elapsed(start)
             time_str = f" ({elapsed})" if elapsed else ""
             self._print(
-                f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}"
+                f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}",
+                diagnostic=True,
             )
         else:
             self._print(f"{self._dim}{message}...{self._reset}", diagnostic=True)
@@ -679,7 +683,8 @@ class Console:
             elapsed = self._elapsed(start)
             time_str = f" ({elapsed})" if elapsed else ""
             self._print(
-                f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}"
+                f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}",
+                diagnostic=True,
             )
 
     @contextmanager

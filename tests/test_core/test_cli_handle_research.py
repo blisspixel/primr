@@ -106,7 +106,9 @@ class TestEarlyValidation:
     def test_human_missing_inputs_preserves_guidance(self, capsys):
         assert _handle_research(_config(company_name=None)) == 1
 
-        output = capsys.readouterr().out
+        captured_streams = capsys.readouterr()
+
+        output = captured_streams.out + captured_streams.err
         assert "Both company name and website are required" in output
         assert 'Usage: primr "Company Name" https://company.com' in output
         assert "primr doctor" in output
@@ -269,7 +271,9 @@ class TestSuccessPath:
 
         assert _handle_research(_config(skip_confirm=False)) == 1
 
-        output = capsys.readouterr().out
+        captured_streams = capsys.readouterr()
+
+        output = captured_streams.out + captured_streams.err
         assert "explicit approval" in output
         assert "--skip-confirm" in output
         preflight.assert_not_called()
@@ -462,11 +466,12 @@ class TestSuccessPath:
         monkeypatch.setattr("primr.core.research_agent.perform_research", partial_run)
 
         assert _handle_research(_config(premium_mode=True)) == 1
-        output = capsys.readouterr().out
+        captured_streams = capsys.readouterr()
+        output = captured_streams.out + captured_streams.err
         assert "Strategy fulfillment PARTIAL" in output
         assert "Completed: ai:azure" in output
-        assert "Skipped: ai:aws" in output
-        assert str(tmp_path / "_run_state.json") in output
+        assert "Skipped: ai:aws" in " ".join(output.split())
+        assert str(tmp_path / "_run_state.json") in output.replace("\n  ", "")
         assert "fresh dry-run" in output
 
     def test_unreadable_outcome_state_fails_closed_with_json_detail(
@@ -504,7 +509,8 @@ class TestSuccessPath:
         )
 
         assert _handle_research(_config(premium_mode=True)) == 1
-        output = capsys.readouterr().out
+        captured_streams = capsys.readouterr()
+        output = captured_streams.out + captured_streams.err
         assert "active company run" in output
         assert "Wait for the active run to finish" in output
         assert "Traceback" not in output

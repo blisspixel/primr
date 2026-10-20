@@ -151,7 +151,8 @@ def test_update_reports_unavailable_confirmation_input(monkeypatch, capsys, prom
     monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: pytest.fail("no upgrade"))
 
     assert cli_update.run_update() == 1
-    output = capsys.readouterr().out
+    captured_streams = capsys.readouterr()
+    output = captured_streams.out + captured_streams.err
     assert "input is unavailable" in output
     assert "Update cancelled" not in output
 

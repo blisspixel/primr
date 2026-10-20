@@ -29,7 +29,7 @@ class TestPhaseBarners:
         console.phase_banner(1, 3, "Test Phase", "Description here", "5-10 min")
 
         captured = capsys.readouterr()
-        output = captured.out
+        output = captured.err
 
         # Should have phase number and title
         assert "PHASE 1" in output
@@ -45,7 +45,7 @@ class TestPhaseBarners:
         console.phase_banner(2, 3, "Another Phase")
 
         captured = capsys.readouterr()
-        output = captured.out
+        output = captured.err
 
         assert "PHASE 2" in output
         assert "Another Phase" in output
@@ -91,7 +91,7 @@ class TestConsoleMessages:
 
         captured = capsys.readouterr()
         # Status messages use dim formatting
-        assert "Processing..." in captured.out
+        assert "Processing..." in captured.err
 
     def test_warn_message_format(self, capsys):
         """Warning messages should use ! prefix."""
@@ -99,7 +99,7 @@ class TestConsoleMessages:
         console.warn("Something to note")
 
         captured = capsys.readouterr()
-        output = strip_ansi(captured.out)
+        output = strip_ansi(captured.err)
         assert "! Something to note" in output
 
     def test_trust_summary_format(self, capsys):
@@ -123,7 +123,7 @@ class TestPhaseComplete:
         console.phase_complete("Data Collection")
 
         captured = capsys.readouterr()
-        output = strip_ansi(captured.out)
+        output = strip_ansi(captured.err)
         # Modern design uses ✓ (Unicode) or + (ASCII fallback)
         assert "✓ Data Collection" in output or "+ Data Collection" in output
 
@@ -133,7 +133,7 @@ class TestPhaseComplete:
         console.phase_complete("Analysis", stats=[("Pages", "15"), ("Sources", "3")])
 
         captured = capsys.readouterr()
-        output = strip_ansi(captured.out)
+        output = strip_ansi(captured.err)
         # Modern design uses ✓ (Unicode) or + (ASCII fallback)
         assert "✓ Analysis" in output or "+ Analysis" in output
         assert "Pages: 15" in output
@@ -160,8 +160,8 @@ class TestBackwardCompatibility:
 
         captured = capsys.readouterr()
         # Modern format - no more ALL CAPS or separators
-        assert "PHASE 1" in captured.out
-        assert "Old Style Phase" in captured.out
+        assert "PHASE 1" in captured.err
+        assert "Old Style Phase" in captured.err
 
     def test_console_methods_unchanged(self):
         """All existing console methods still exist."""

@@ -334,7 +334,7 @@ class TestBackwardCompat:
     def test_phase_complete_skips_duration_stat(self, capsys):
         c = Console(capabilities=_noncursor_caps())
         c.phase_complete("Phase", stats=[("Duration", "5s"), ("Pages", "10")])
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "Pages" in out
         assert "Duration" not in out
 
@@ -346,7 +346,7 @@ class TestBackwardCompat:
     def test_phase_banner_no_total(self, capsys):
         c = Console(capabilities=_noncursor_caps())
         c.phase_banner(2, 0, "Title")
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "PHASE 2" in out
         assert "/0" not in out
 
@@ -442,7 +442,7 @@ class TestContextManagers:
         c = Console(capabilities=_noncursor_caps())
         with c.timed_operation("op", show_spinner=True):
             pass
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "op" in out
 
     @pytest.mark.timing
@@ -450,7 +450,7 @@ class TestContextManagers:
         c = Console(capabilities=_interactive_caps())
         with c.timed_operation("op", show_spinner=True):
             time.sleep(0.05)
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "op" in out
 
     def test_heartbeat_quiet(self, capsys):
