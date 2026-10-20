@@ -11,6 +11,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
+import yaml
 from packaging.requirements import Requirement
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -102,6 +103,7 @@ def test_pillow_security_floor_excludes_known_vulnerable_release() -> None:
         (None, "httpx2", "2.10.0", "2.12.0"),
         (None, "httpx2", "2.11.0", "2.12.0"),
         (None, "urllib3", "2.7.0", "2.8.0"),
+        (None, "certifi", "2026.5.20", "2026.10.19"),
         ("docs", "mkdocs-material", "9.7.6", "9.7.7"),
     ],
 )
@@ -118,6 +120,10 @@ def test_dependency_security_floors_exclude_affected_versions(
 
     assert vulnerable not in requirement.specifier
     assert patched in requirement.specifier
+    lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
+    versions = [entry["version"] for entry in lock["package"] if entry["name"] == package]
+    assert versions, f"{package} must remain in the existing dependency graph"
+    assert all(version in requirement.specifier for version in versions)
 
 
 @pytest.mark.parametrize(
@@ -145,7 +151,7 @@ def test_transitive_security_constraints_and_locked_versions(
     assert all(version in specifier for version in versions)
 
 
-def test_dependency_audits_run_on_a_schedule_without_bot_authored_prs() -> None:
+def test_scheduled_audits_and_grouped_dependency_proposals() -> None:
     workflow = WORKFLOW_DIR / "dependency-audit.yml"
 
     assert workflow.is_file()
@@ -155,7 +161,27 @@ def test_dependency_audits_run_on_a_schedule_without_bot_authored_prs() -> None:
     assert "uv sync --locked --all-extras" in text
     assert "uv run --no-sync pip-audit" in text
     assert "aquasecurity/trivy-action@" in text
-    assert not (ROOT / ".github" / "dependabot.yml").exists()
+    updates = yaml.safe_load((ROOT / ".github" / "dependabot.yml").read_text())
+    assert updates["version"] == 2
+    assert {entry["package-ecosystem"] for entry in updates["updates"]} == {
+        "uv",
+        "github-actions",
+        "docker",
+    }
+    for entry in updates["updates"]:
+        assert entry["open-pull-requests-limit"] <= 2
+        assert entry["schedule"]["interval"] == "weekly"
+        groups = list(entry["groups"].values())
+        assert any(group.get("applies-to") == "security-updates" for group in groups)
+        version_groups = [
+            group
+            for group in groups
+            if group.get("applies-to", "version-updates") == "version-updates"
+        ]
+        assert version_groups
+        assert all(set(group["update-types"]) <= {"minor", "patch"} for group in version_groups)
+    docker = next(entry for entry in updates["updates"] if entry["package-ecosystem"] == "docker")
+    assert set(docker["directories"]) == {"/deploy", "/openclaw"}
 
 
 def test_setup_uv_actions_pin_the_export_tool_version() -> None:

@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/primr.svg)](https://pypi.org/project/primr/)
 [![Python 3.11-3.15](https://img.shields.io/badge/Python-3.11--3.15-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/blisspixel/primr/badge)](https://securityscorecards.dev/viewer/?uri=github.com/blisspixel/primr)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/blisspixel/primr/badge)](https://scorecard.dev/viewer/?uri=github.com/blisspixel/primr)
 
 **Company name + website → evidence-grounded, long-form strategic reports.**
 Built for agent hosts and the CLI: structured research, strategic insight,

@@ -72,7 +72,16 @@ Source: `docs/images/primr-demo-terminal.html`. Requires Playwright Chromium
 `main` is the only long-lived branch. Review dependency updates together when
 they share a resolver constraint, merge through a passing pull request, and
 delete the completed feature branches. Scheduled pip-audit and Trivy checks
-remain active; automatic dependency-fix PRs are disabled by repository policy.
+remain active. Grouped weekly update PRs cover uv, GitHub Actions, and container
+base images, with separate groups for security fixes. Major updates stay separate
+for deliberate compatibility review. There is no automatic merge policy.
+
+Treat update PRs as proposals. Review the upstream changes, apply the accepted
+changes on a maintainer-authored feature branch, regenerate both exports below,
+and run the affected compatibility and security gates. Link and close the
+original proposal once the maintainer PR lands. Preserve maintainer authorship
+without bot coauthor trailers; do not merge the proposal branch itself. This
+keeps review automation separate from the default branch's commit authorship.
 
 After changing the dependency lock with uv 0.11.33, regenerate both checked-in
 container exports before running the release gate:
@@ -236,6 +245,11 @@ git diff main...HEAD | grep -i -E "\\b(real|actual)\\b.*\\binc\\.|<real-company-
 If a real name slips into a commit message, fix it before the commit lands - rewriting messages after a tagged release means rewriting tags too.
 
 ## Pull Request Process
+
+CI and CodeQL cancel superseded validation for the same pull request. Push and
+scheduled runs use independent groups, preserving every main-commit result and
+release verification. Update the branch before requesting review so the final
+diff and the successful checks both belong to the current PR head.
 
 1. Create a feature branch: `git checkout -b feature/your-feature-name`
 2. Make your changes with clear, atomic commits

@@ -132,54 +132,11 @@ still crosses Primr's estimate, approval, scope, and runtime budget gates.
 - Chat logs and reports are persisted locally; protect `logs/` and working dirs
   with normal filesystem permissions.
 
-## Supported Versions
+## Supported Versions and Vulnerability Reporting
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.39.x  | Yes                |
-| < 1.39  | No                 |
-
-Requires Python 3.12+ (3.10/3.11 are past or nearing end-of-life).
-
-## Reporting a Vulnerability
-
-If you discover a security vulnerability in Primr, please report it responsibly.
-
-**Do NOT open a public GitHub issue for security vulnerabilities.**
-
-### How to Report
-
-1. Report security vulnerabilities privately through [GitHub vulnerability reporting](https://github.com/blisspixel/primr/security/advisories/new).
-2. Include:
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Any suggested fixes (optional)
-
-### What to Expect
-
-- Acknowledgment within 48 hours
-- Status update within 7 days
-- Fix timeline depends on severity:
-  - Critical: 24-48 hours
-  - High: 7 days
-  - Medium: 30 days
-  - Low: Next release
-
-### Scope
-
-Security issues we care about:
-- SSRF vulnerabilities
-- Authentication/authorization bypasses
-- Injection attacks (SQL, command, template)
-- Path traversal
-- Sensitive data exposure
-- Denial of service
-
-Out of scope:
-- Rate limiting effectiveness (configurable by deployment)
-- Issues requiring physical access
-- Social engineering
+The root [Security Policy](https://github.com/blisspixel/primr/blob/main/SECURITY.md) is the canonical source for supported
+versions, private vulnerability reporting, response timelines, and disclosure
+scope. This document owns the detailed threat model and security controls.
 
 ## Security Measures
 
@@ -220,3 +177,43 @@ See [SECURITY_OPS.md](SECURITY_OPS.md) for operational security guidance.
 ## Acknowledgments
 
 We appreciate responsible disclosure and will acknowledge security researchers who report valid vulnerabilities (with permission).
+
+## External supply-chain signals and certification
+
+Maintain host and base-image CA stores independently of Python dependencies.
+The certifi security floor protects clients that use its bundle; native/system
+trust stores, user-supplied CA bundles, and pip's vendored trust bundle have
+separate owners and update paths. Rebuild images after dependency or base-image
+trust updates. Do not disable certificate verification to work around trust
+failures.
+
+Scorecard findings describe repository practices; their count is not a count of
+exploitable vulnerabilities. Address technical findings in their owning code or
+workflow, rerun the analyzer on the default branch, and retain the resulting
+check evidence. Do not disable an analyzer or present a missing certification
+as a vulnerability fix.
+
+| Signal | Repository evidence and handling |
+|--------|----------------------------------|
+| Automated tests | The maintained Python matrix and Windows/macOS lanes run on PRs and main. The primary lane enforces combined branch coverage; separate transport and recovery checks retain their own gates. See [contributing](CONTRIBUTING.md). |
+| Static analysis | CodeQL, Ruff, mypy, and Bandit run in CI. A successful scan job does not establish that every finding is resolved; verify findings on the default branch after merging. |
+| Dependency updates | Weekly grouped Python, Actions, and container proposals remain subject to review and the full CI gates. Reapply accepted updates as maintainer-authored commits; do not merge bot branches or add bot coauthor trailers. |
+| Disclosure policy | The [root policy](https://github.com/blisspixel/primr/blob/main/SECURITY.md) publishes supported versions, private reporting, and response expectations directly. |
+| Release delivery | The [release workflow](https://github.com/blisspixel/primr/blob/main/.github/workflows/release.yml) checks main's CI before publication and uses trusted publishing, artifact hashes, SBOMs, and provenance. |
+| OpenSSF Best Practices badge | No badge is claimed. A badge is a separate voluntary self-certification, not an automatic consequence of these controls. |
+
+The [OpenSSF passing criteria](https://www.bestpractices.dev/en/criteria/0) were
+reviewed on 2026-10-20. Public repository evidence supports the licensing,
+documentation, contribution, version control, test, static analysis, HTTPS
+delivery, and disclosure-process requirements. A full application additionally
+needs maintainer attestations, including secure-development knowledge and
+private vulnerability-response history. Source code and CI cannot establish
+those personal or private facts. Do not invent an application identifier,
+publish an unearned badge, or transfer GitHub credentials to a certification
+service to remove a dashboard warning.
+
+**Disposition (2026-10-20): accepted administrative finding.** The missing
+external self-certification is documented against the evidence above; the
+technical security controls remain active. Revisit this decision when a
+maintainer supplies the required attestations and completes the application.
+This assessment does not claim that the project has completed or passed it.

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Require certifi 2026.10.19 or newer in published package metadata and the
+  locked source/container environments. This removes the affected emSign root
+  from certifi's bundle (GHSA-6q48-6c7w-9gw2) without changing custom CA or TLS
+  verification behavior. Rebuild container images to consume the refreshed bundle.
+
 ### Changed
 
 - End prep and provider-backed research with one factual collection signature,
@@ -81,6 +88,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove the fallback-source import cycle by giving recovery adapters a shared
   typed result and HTTP callback contract. The fan-out injects its SSRF-safe
   transport explicitly; standalone adapters use the same canonical HTTP seam.
+
+- Enable bounded, grouped dependency-update proposals for Python, Actions, and
+  container images while retaining maintainer review, commit authorship, and all
+  security gates. Surface supported versions and private disclosure details in
+  the root security policy. Allow a manual Scorecard refresh after CI settles,
+  and use the current pinned Scorecard action and its migrated public endpoints.
 
 - Register Gemini 4 Argon with synchronous output limits, current pricing, and
   the December 1 price change. Report reasoning and writing defaults remain

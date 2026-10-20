@@ -14,6 +14,12 @@ on:
   schedule:
     - cron: "24 5 * * 1" # weekly, Monday 05:24 UTC
 
+# A newer PR head supersedes its queued validation. Keep every main and
+# scheduled run independent so release and default-branch evidence is retained.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 

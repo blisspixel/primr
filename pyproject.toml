@@ -45,6 +45,10 @@ dependencies = [
     # core runtime requirement, not an optional add-on.
     "openai>=1.0.0",
     "requests>=2.34.0",
+    # Existing Requests/HTTPX trust-store dependency. This runtime floor also
+    # protects wheel installs from compromised emSign trust roots
+    # (GHSA-6q48-6c7w-9gw2); uv-only constraints do not reach pip consumers.
+    "certifi>=2026.10.19",
     # Directly used by the pinned HTTP adapter and retry policy. Version 2.8.0
     # fixes unbounded chunk headers, deflate streaming, and proxy TLS handling.
     "urllib3>=2.8.0",
