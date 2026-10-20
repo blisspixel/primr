@@ -246,6 +246,11 @@ If a real name slips into a commit message, fix it before the commit lands - rew
 
 ## Pull Request Process
 
+CI and CodeQL cancel superseded validation for the same pull request. Push and
+scheduled runs use independent groups, preserving every main-commit result and
+release verification. Update the branch before requesting review so the final
+diff and the successful checks both belong to the current PR head.
+
 1. Create a feature branch: `git checkout -b feature/your-feature-name`
 2. Make your changes with clear, atomic commits
 3. Ensure all tests pass and code quality checks succeed
@@ -288,8 +293,3 @@ Feel free to open an issue for questions or discussions about the project.
 ## License
 
 By contributing, you agree that your contributions will be licensed under the Apache License 2.0.
-
-CI and CodeQL cancel superseded validation for the same pull request. Push and
-scheduled runs use independent groups, preserving every main-commit result and
-release verification. Update the branch before requesting review so the final
-diff and the successful checks both belong to the current PR head.
