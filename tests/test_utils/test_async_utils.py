@@ -400,3 +400,14 @@ class TestExecutorConfiguration:
 
         # Shutdown should not raise
         shutdown_executor(wait=True)
+
+
+def test_run_sync_accepts_a_custom_awaitable():
+    async def value():
+        return 42
+
+    class Value:
+        def __await__(self):
+            return value().__await__()
+
+    assert run_sync(Value()) == 42

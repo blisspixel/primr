@@ -1695,9 +1695,6 @@ from primr.data.scraping.profiles import HTTP_PROFILES
 SOFT_BLOCK_INDICATORS = [sig[0] for sig in WAF_SIGNATURES]
 USER_AGENTS = [p.user_agent for p in HTTP_PROFILES]
 
-# Global cache reference for tests
-_SCRAPE_CACHE = LRUCache(max_size=100)
-
 
 def is_excluded_site(url: str) -> bool:
     """Check if URL is in excluded sites list."""
@@ -1709,6 +1706,7 @@ __all__ = [
     "COMMON_PAGE_PATTERNS",
     "SOFT_BLOCK_INDICATORS",
     "USER_AGENTS",
+    "LRUCache",
     "cache_content",
     "clear_cache",
     "detect_soft_block",

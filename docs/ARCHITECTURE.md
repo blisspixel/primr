@@ -366,6 +366,15 @@ with a 4.5:1 floor for normal text on each actual report background, including
 muted metadata on white and alice-blue callouts. Tests inspect saved Word text
 and explicit run/background colors as well as inherited palette pairs.
 
+The MCP cost-cap policy reads only its explicit enforcement override; server
+construction and serving do not publish process-global transport policy. The
+legacy scrape facade re-exports the canonical cache type and delegates cache
+operations to the orchestrator instead of allocating an unused second cache.
+Ranked links compare descending scores while retaining record equality and
+stable input order for distinct tied records. All comparison methods decline
+unrelated types. The sync bridge awaits through a coroutine wrapper so its
+Awaitable contract works on every maintained interpreter.
+
 The fast-mode orchestrator (`perform_fast_research`) is decomposed into
 per-stage modules (roadmap #23; see
 [`design/23-orchestrator-refactor-map.md`](design/23-orchestrator-refactor-map.md)

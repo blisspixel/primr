@@ -30,10 +30,10 @@ import asyncio
 import functools
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Coroutine
+    from collections.abc import Awaitable, Callable
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -158,7 +158,11 @@ def run_sync(coro: Awaitable[T]) -> T:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(cast("Coroutine[Any, Any, T]", coro))
+
+        async def consume() -> T:
+            return await coro
+
+        return asyncio.run(consume())
 
     close = getattr(coro, "close", None)
     if callable(close):

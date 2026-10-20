@@ -49,15 +49,9 @@ def mcp_server_with_tasks():
 
 @pytest.fixture(autouse=True)
 def _reset_transport_policy(monkeypatch):
-    """Reset the published MCP transport after every test.
+    """Explicitly opt legacy tool tests out below the approval boundary.
 
-    Most legacy tool tests exercise behavior below the approval boundary, so
-    they opt out explicitly. Policy tests remove this override when asserting
-    the production default. PrimrMCPServer.run() also publishes its transport
-    process-wide, which must not leak between tests.
+    Policy tests remove this override when asserting the production default.
+    Enforcement does not depend on transport or process-global server state.
     """
-    from primr.mcp_server.cost_caps import set_active_transport
-
     monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "0")
-    yield
-    set_active_transport(None)

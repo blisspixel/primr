@@ -56,9 +56,7 @@ try:
         ConsoleSpanExporter,
         SimpleSpanProcessor,
     )
-    from opentelemetry.trace import Span as OTelSpan
     from opentelemetry.trace import Status, StatusCode
-    from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
     _OTEL_AVAILABLE = True
 except ImportError:
@@ -71,8 +69,6 @@ except ImportError:
     Resource = None  # type: ignore
     Status = None  # type: ignore
     StatusCode = None  # type: ignore
-    OTelSpan = None  # type: ignore
-    TraceContextTextMapPropagator = None  # type: ignore
 
 
 # =============================================================================

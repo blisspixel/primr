@@ -35,6 +35,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   labels. Recommendation priorities use words in navy, and muted text uses
   contrast-tested #6B6B6B.
 
+- Return a structured error if a hypothesis disappears while applying an update.
+  Complete ranked-link comparisons without changing stable tie ordering or
+  record equality, and accept custom awaitables at the sync boundary.
+- Remove unused transport publication state, duplicate scrape-cache allocation,
+  unused telemetry imports, and unused generic declarations. MCP cost-cap
+  enforcement remains enabled by default on every transport.
+
 - Keep keyless startup and estimate requests free of setup prompts. Show a
   short home screen with the prep path first, and a static ANSI wordmark only
   at home or on explicit banner requests.

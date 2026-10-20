@@ -438,6 +438,18 @@ async def _handle_save_hypothesis(
                             ),
                         )
                     ]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "error": True,
+                                "error_type": "hypothesis_update_failed",
+                                "message": "Hypothesis was not found when applying the update",
+                            }
+                        ),
+                    )
+                ]
             else:
                 return [
                     TextContent(

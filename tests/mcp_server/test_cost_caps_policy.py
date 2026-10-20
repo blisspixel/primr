@@ -2,16 +2,13 @@
 
 import pytest
 
-from primr.mcp_server.cost_caps import is_cost_cap_enforced, set_active_transport
+from primr.mcp_server.cost_caps import is_cost_cap_enforced
 
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
     monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
     monkeypatch.delenv("PRIMR_MCP_TRANSPORT", raising=False)
-    set_active_transport(None)
-    yield
-    set_active_transport(None)
 
 
 class TestExplicitOverrides:
@@ -46,15 +43,7 @@ class TestTransportDefault:
         assert is_cost_cap_enforced() is True
 
 
-class TestTransportPublication:
-    def test_active_transport_http_enforces(self):
-        set_active_transport("streamable-http")
-        assert is_cost_cap_enforced() is True
-
-    def test_active_transport_stdio_still_enforces(self):
-        set_active_transport("stdio")
-        assert is_cost_cap_enforced() is True
-
+class TestTransportIndependence:
     def test_env_transport_fallback_when_no_server(self, monkeypatch):
         # Deploy manifests can still signal transport via env when policy is
         # checked without an in-process server having called run().
@@ -62,9 +51,7 @@ class TestTransportPublication:
         assert is_cost_cap_enforced() is True
 
     def test_constructing_a_server_does_not_change_policy(self, tmp_path):
-        # Construction must be side-effect free: only run() publishes the
-        # transport. Tests across the suite construct servers freely; that
-        # must never flip process-wide enforcement.
+        # Construction must never flip process-wide enforcement.
         from primr.mcp_server.server import PrimrMCPServer
 
         PrimrMCPServer(
@@ -74,7 +61,7 @@ class TestTransportPublication:
         assert is_cost_cap_enforced() is True
 
     @pytest.mark.asyncio
-    async def test_run_publishes_transport(self, tmp_path, monkeypatch):
+    async def test_running_a_server_preserves_enforcement(self, tmp_path, monkeypatch):
         from primr.mcp_server.server import PrimrMCPServer
 
         server = PrimrMCPServer(

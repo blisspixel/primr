@@ -133,9 +133,26 @@ class ScoredLink:
     score: float
     reasons: list[str] = field(default_factory=list)
 
-    def __lt__(self, other: "ScoredLink") -> bool:
-        """Enable sorting by score (descending)."""
+    def __lt__(self, other: object) -> bool:
+        """Rank by descending score; distinct tied records remain unordered."""
+        if not isinstance(other, ScoredLink):
+            return NotImplemented
         return self.score > other.score
+
+    def __gt__(self, other: object) -> bool:
+        if not isinstance(other, ScoredLink):
+            return NotImplemented
+        return self.score < other.score
+
+    def __le__(self, other: object) -> bool:
+        if not isinstance(other, ScoredLink):
+            return NotImplemented
+        return self < other or self == other
+
+    def __ge__(self, other: object) -> bool:
+        if not isinstance(other, ScoredLink):
+            return NotImplemented
+        return self > other or self == other
 
 
 @dataclass
