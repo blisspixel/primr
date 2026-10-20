@@ -419,6 +419,10 @@ def _run_recon(args: list[str] | None) -> int:
 
 def main(args: list[str] | None = None) -> int:
     """Run the main CLI entry point and return its process exit code."""
+    from primr.cli_help import maybe_print_home, print_keyless_hint
+
+    if maybe_print_home(list(args) if args is not None else sys.argv[1:]):
+        return 0
     # Intercept "primr recon ..." before argparse - delegate to the recon Typer app.
     if _is_recon_command(args):
         return _run_recon(args)
@@ -440,6 +444,14 @@ def main(args: list[str] | None = None) -> int:
 
     config = parse_args(args)
 
+    if (
+        config.banner_explicit
+        and config.command == Command.RESEARCH
+        and not config.has_company_info
+    ):
+        maybe_show_startup_banner(mode=config.banner_mode, quiet=config.quiet, explicit=True)
+        return 0
+
     # Validate configuration early, requiring provider keys only for command paths that use them.
     include_api_keys = should_include_api_keys(config)
 
@@ -453,7 +465,9 @@ def main(args: list[str] | None = None) -> int:
                 message="Configuration validation failed",
                 hints=tuple(str(error) for error in validation_result.errors),
             )
-        if _should_offer_interactive_key_setup(validation_result):
+        if config.dry_run_requested:
+            print_keyless_hint()
+        if not config.dry_run_requested and _should_offer_interactive_key_setup(validation_result):
             console.warn("No API keys configured yet.")
             console.info("Primr will tell you what each key is for and where to get it.")
             console.blank()
@@ -509,20 +523,6 @@ def main(args: list[str] | None = None) -> int:
         from primr.utils.console import Console, set_console
 
         set_console(Console(verbose=True))
-
-    maybe_show_startup_banner(
-        mode=config.banner_mode,
-        quiet=config.quiet,
-        explicit=config.banner_explicit,
-    )
-
-    # Allow explicit "primr --banner" as a no-op command.
-    if (
-        config.banner_explicit
-        and config.command == Command.RESEARCH
-        and not config.has_company_info
-    ):
-        return 0
 
     # Dispatch to appropriate handler
     handlers = {

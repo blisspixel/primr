@@ -5,13 +5,15 @@ from __future__ import annotations
 import sys
 
 from primr import __version__
-from primr.cli_help import maybe_print_root_help, maybe_print_scoped_help
+from primr.cli_help import maybe_print_home, maybe_print_root_help, maybe_print_scoped_help
 
 
 def main(args: list[str] | None = None) -> int:
     """Handle deterministic fast paths before loading the operational CLI."""
     argv = list(args) if args is not None else sys.argv[1:]
 
+    if maybe_print_home(argv):
+        return 0
     maybe_print_root_help(argv)
     maybe_print_scoped_help(argv)
 

@@ -95,3 +95,15 @@ assert "primr.core" not in sys.modules
 
     assert completed.returncode == 0, completed.stderr
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("args", [[], ["--banner"]])
+def test_home_and_explicit_banner_do_not_import_operational_cli(args, monkeypatch, capsys):
+    _block_operational_cli(monkeypatch)
+    monkeypatch.setattr("builtins.input", lambda *a: pytest.fail("home must not prompt"))
+    assert cli_entry.main(args) == 0
+    output = capsys.readouterr().out
+    assert "primr" in output
+    if not args:
+        assert "$0 now: primr prep" in output
+        assert "Provider-backed: primr init" in output

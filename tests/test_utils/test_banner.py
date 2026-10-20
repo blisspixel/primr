@@ -17,9 +17,10 @@ def _ctx(*, is_tty: bool = True, unicode: bool = True, cursor: bool = True) -> B
     )
 
 
-def test_resolve_banner_mode_auto_animated(monkeypatch):
-    monkeypatch.delenv("CI", raising=False)
-    assert resolve_banner_mode("auto", explicit=False, ctx=_ctx()) == "animated"
+def test_resolve_banner_mode_auto_static(monkeypatch):
+    for key in ("CI", "NO_COLOR", "TERM", "PRIMR_NO_BANNER", "PRIMR_BANNER"):
+        monkeypatch.delenv(key, raising=False)
+    assert resolve_banner_mode("auto", explicit=False, ctx=_ctx()) == "static"
 
 
 def test_resolve_banner_mode_auto_off_non_tty():

@@ -5,6 +5,30 @@ from __future__ import annotations
 import argparse
 import sys
 
+
+def print_keyless_hint() -> None:
+    """Show the executable free path without requesting provider credentials."""
+    print('$0 now: primr prep "ExampleCo" https://example.co --dry-run')
+
+
+def maybe_print_home(argv: list[str]) -> bool:
+    """Keep the home screen ahead of operational imports and key validation."""
+    if argv and argv != ["--banner"]:
+        return False
+    from primr.utils.banner import maybe_show_startup_banner
+
+    explicit = bool(argv)
+    shown = maybe_show_startup_banner(mode="static" if explicit else "auto", explicit=explicit)
+    if not shown:
+        print("primr  strategic intelligence in minutes")
+    if not explicit:
+        print()
+        print_keyless_hint()
+        print("Provider-backed: primr init")
+        print("Other keyless commands: primr recon | primr render")
+    return True
+
+
 ROOT_HELP = """usage: primr [COMPANY] [WEBSITE] [OPTIONS]
 
 Build evidence-grounded company research, from a zero-API-spend host handoff

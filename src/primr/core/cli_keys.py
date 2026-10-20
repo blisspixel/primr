@@ -129,7 +129,7 @@ def run_keys(args: list[str] | None) -> int:
         console.info(f"User config: {user_path}")
         local_path = get_local_env_path()
         if local_path:
-            console.info(f"Local override: {local_path}")
+            console.wrapped(f"Local override: {local_path}", indent="  ")
         return 0
 
     if parsed.action == "list":
@@ -137,18 +137,36 @@ def run_keys(args: list[str] | None) -> int:
 
         load_primr_env()
         console.banner("Primr Keys")
-        console.info(f"User config: {get_user_env_path()}")
+        console.wrapped(f"User config: {get_user_env_path()}", indent="  ")
         local_path = get_local_env_path()
         if local_path:
-            console.info(f"Local override: {local_path}")
+            console.wrapped(f"Local override: {local_path}", indent="  ")
         sandbox = keystore_sandbox_warning()
         if sandbox:
             console.warn(sandbox)
         console.blank()
-        for env_name, purpose in KEY_HELP.items():
+        current_group = ""
+        for env_name, purpose in sorted(
+            KEY_HELP.items(),
+            key=lambda item: (
+                1 if item[0] == "OLLAMA_API_KEY" else 2 if item[0].startswith("SEARCH_") else 0
+            ),
+        ):
+            group = (
+                "optional local"
+                if env_name == "OLLAMA_API_KEY"
+                else "search"
+                if env_name.startswith("SEARCH_")
+                else "research providers"
+            )
+            if group != current_group:
+                console.wrapped(group)
+                current_group = group
             active, _source, shadowed = describe_key_source(env_name)
             if active:
-                console.ok(f"{env_name} configured ({mask_secret(active)}) - {purpose}")
+                console.state_row(
+                    env_name, "set", f"{mask_secret(active)}; {purpose}", label_width=24
+                )
                 if shadowed is not None:
                     console.warn(
                         f"  {env_name} is set by an OS environment variable, overriding the "
@@ -156,7 +174,8 @@ def run_keys(args: list[str] | None) -> int:
                         f".env file to take effect."
                     )
             else:
-                console.info(f"{env_name} not set - {purpose}")
+                console.state_row(env_name, "not set", purpose, label_width=24)
+        console.wrapped('Next: primr prep "ExampleCo" https://example.co --dry-run')
         return 0
 
     if parsed.action == "set":

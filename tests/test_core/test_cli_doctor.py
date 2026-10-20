@@ -26,7 +26,6 @@ from primr.core.cli_doctor import (
     _check_filesystem,
     _check_gemini_resources,
     _check_provider_availability,
-    _check_providers,
     _show_file_locations,
     run_doctor,
 )
@@ -79,10 +78,7 @@ class TestCheckApiKeys:
         output = capsys.readouterr().out
         assert all_passed is True
         assert warnings == 0
-        assert "Keyless ready" in output
-        assert "primr prep" in output
-        assert "primr recon" in output
-        assert "Provider-backed research needs a cloud LLM key" in output
+        assert "API_KEY not set" not in output
 
     @pytest.mark.parametrize(
         "env_name",
@@ -148,62 +144,10 @@ class TestCheckApiKeys:
 # ---------------------------------------------------------------------------
 
 
-class TestCheckProviders:
-    @staticmethod
-    def _entry(name="grok", env="XAI_API_KEY", default=None):
-        from types import SimpleNamespace
-
-        return SimpleNamespace(
-            name=name,
-            description=f"{name} provider",
-            roles=["reasoning"],
-            api_key_env=env,
-            api_key_default=default,
-        )
-
-    def test_no_providers_increments_warning(self):
-        with patch("primr.ai.providers.KNOWN_PROVIDERS", []):
-            assert _check_providers(0) == 1
-
-    def test_usable_provider_adds_no_warning(self, monkeypatch):
-        # Key set AND SDK importable -> counts as usable, no warning added.
-        monkeypatch.setenv("XAI_API_KEY", "xai-test-key")
-        usable = MagicMock()
-        usable.is_available.return_value = True
-        with (
-            patch("primr.ai.providers.KNOWN_PROVIDERS", [self._entry()]),
-            patch("primr.ai.providers.build_provider", return_value=usable),
-        ):
-            assert _check_providers(2) == 2
-
-    def test_key_set_but_sdk_missing_warns(self, monkeypatch):
-        # The exact trap: key configured but the provider can't be built/used.
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-        monkeypatch.delenv("XAI_API_KEY", raising=False)
-        unusable = MagicMock()
-        unusable.is_available.return_value = False
-        entry = self._entry(name="anthropic", env="ANTHROPIC_API_KEY")
-        with (
-            patch("primr.ai.providers.KNOWN_PROVIDERS", [entry]),
-            patch("primr.ai.providers.build_provider", return_value=unusable),
-        ):
-            # One warning for the unusable provider, plus one for zero usable.
-            assert _check_providers(0) == 2
-
-    def test_unset_provider_is_informational_not_a_warning(self, monkeypatch):
-        # No key -> informational line, but still zero usable -> single error bump.
-        monkeypatch.delenv("XAI_API_KEY", raising=False)
-        with patch("primr.ai.providers.KNOWN_PROVIDERS", [self._entry()]):
-            assert _check_providers(0) == 1
-
-
-# ---------------------------------------------------------------------------
-# _check_provider_availability
-# ---------------------------------------------------------------------------
-
-
 class TestCheckProviderAvailability:
-    def test_provider_availability_outputs_sanitized_summary(self):
+    @patch("primr.ai.providers.build_provider")
+    def test_provider_availability_outputs_sanitized_summary(self, build):
+        build.return_value.is_available.return_value = True
         snapshots = (
             ProviderQuotaSnapshot(
                 provider="openai",
@@ -251,10 +195,12 @@ class TestCheckProviderAvailability:
             assert _check_provider_availability(3) == 3
 
         output = str(console.mock_calls)
-        assert "OpenAI GPT: configured" in output
-        assert "Anthropic Claude: not configured" in output
-        assert "Local OpenAI-compatible: available" in output
-        assert "ANTHROPIC_API_KEY" in output
+        assert "OpenAI GPT" in output
+        assert "ready" in output
+        assert "Anthropic Claude" in output
+        assert "not configured" in output
+        assert "Ollama/local" in output
+        assert "ready" in output
         assert "custom-model-name" not in output
         assert "operator-host" not in output
         console.warn.assert_not_called()
@@ -286,7 +232,7 @@ class TestCheckProviderAvailability:
         output = str(console.mock_calls)
         assert "availability_error" in output
         assert "operator-host" not in output
-        console.warn.assert_called_once()
+        console.state_row.assert_called_once()
 
     def test_busy_local_capacity_warns_with_bounded_retry_guidance(self):
         snapshots = (
@@ -318,7 +264,7 @@ class TestCheckProviderAvailability:
         output = str(console.mock_calls)
         assert "busy" in output
         assert "retry after 1800s" in output
-        console.warn.assert_called_once()
+        console.state_row.assert_called_once()
 
     def test_collector_failure_warns_with_safe_error(self):
         console = MagicMock()
@@ -373,8 +319,9 @@ class TestCheckProviderAvailability:
             assert _check_provider_availability(0) == 0
 
         output = str(console.mock_calls)
-        assert "local_openai_compatible: available (0 local model(s), $0 API runtime)" in output
-        assert "anthropic: not configured (provider key unset)" in output
+        assert "0 local model(s); $0 API runtime" in output
+        assert "anthropic" in output
+        assert "not configured" in output
         assert "operator-host" not in output
         console.warn.assert_not_called()
 
@@ -453,7 +400,7 @@ class TestFileLocations:
 
         _show_file_locations()
 
-        lines = [call.args[0] for call in console.info.call_args_list]
+        lines = [call.args[0] for call in console.wrapped.call_args_list]
         joined = "\n".join(lines)
         assert "User data (durable):" in joined
         assert "Research memory:" in joined
@@ -556,7 +503,7 @@ class TestCheckGeminiResources:
 
         assert all_passed is True
         assert warnings == 1
-        assert "cache inventory could not be verified" in capsys.readouterr().out
+        assert "cache inventory could not be verified" in capsys.readouterr().err
 
     def test_store_inventory_failure_is_visible(self, monkeypatch, capsys):
         monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
@@ -573,7 +520,7 @@ class TestCheckGeminiResources:
 
         assert all_passed is True
         assert warnings == 1
-        assert "store inventory could not be verified" in capsys.readouterr().out
+        assert "store inventory could not be verified" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
@@ -590,7 +537,6 @@ class TestRunDoctor:
             "_check_gemini_resources",
         ):
             monkeypatch.setattr(cli_doctor, name, lambda ap, wc: (ap and all_passed, wc + warnings))
-        monkeypatch.setattr(cli_doctor, "_check_providers", lambda wc: wc + warnings)
         monkeypatch.setattr(
             cli_doctor,
             "_check_provider_availability",

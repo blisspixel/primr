@@ -340,6 +340,18 @@ renderer preserve inspectable evidence, but do not validate claim entailment.
 discovery owner carries baseline provenance. Local draft comparisons cannot
 enter quality-evidence exports or model recommendations.
 
+The lightweight entry point also handles the bare home screen and explicit
+`--banner` before cloud imports or credential validation. The banner is static
+ANSI cyan with a dim tagline; legacy animated modes resolve to static output.
+Routine operational commands do not render it. Estimate requests never enter
+interactive key setup. Console progress, warnings, and failures use stderr;
+results and structured JSON retain stdout. Live cursor updates follow stderr's
+terminal capabilities and clear only a line actually written by progress.
+Provider readiness in doctor uses one shared availability snapshot per provider,
+including the existing zero-token local endpoint probe. A dummy local auth token
+is request compatibility, not configuration or readiness evidence. Key states
+and diagnostic details wrap at the terminal width after secret redaction.
+
 The fast-mode orchestrator (`perform_fast_research`) is decomposed into
 per-stage modules (roadmap #23; see
 [`design/23-orchestrator-refactor-map.md`](design/23-orchestrator-refactor-map.md)
