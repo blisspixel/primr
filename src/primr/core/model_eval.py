@@ -18,27 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from primr.config.eval_profile_registry import (
-    get_eval_profile as get_eval_profile,
-)
-from primr.config.eval_profile_registry import (
-    list_eval_profile_names as list_eval_profile_names,
-)
-from primr.config.eval_profile_registry import (
-    list_eval_profiles as list_eval_profiles,
-)
-from primr.config.eval_profile_registry import (
-    register_eval_profile as register_eval_profile,
-)
-from primr.config.eval_profile_registry import (
-    unregister_eval_profile as unregister_eval_profile,
-)
-from primr.config.eval_profile_types import (
-    EvalProfileSlot as EvalProfileSlot,
-)
-from primr.config.eval_profile_types import (
-    ProfileRecipe as ProfileRecipe,
-)
+from primr.config import eval_profile_registry, eval_profile_types
 from primr.config.models import PrimrModels
 from primr.core.eval_calibration import (
     append_calibration_sections,
@@ -55,6 +35,16 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
+
+
+# Preserve the public evaluation facade with explicit owner-bound aliases.
+get_eval_profile = eval_profile_registry.get_eval_profile
+list_eval_profile_names = eval_profile_registry.list_eval_profile_names
+list_eval_profiles = eval_profile_registry.list_eval_profiles
+register_eval_profile = eval_profile_registry.register_eval_profile
+unregister_eval_profile = eval_profile_registry.unregister_eval_profile
+EvalProfileSlot = eval_profile_types.EvalProfileSlot
+ProfileRecipe = eval_profile_types.ProfileRecipe
 
 
 EVAL_PROFILES: tuple[str, ...] = ("full", "lite", "fast")

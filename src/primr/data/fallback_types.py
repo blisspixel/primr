@@ -15,7 +15,8 @@ class HttpGet(Protocol):
         timeout: float = 15.0,
         headers: dict[str, str] | None = None,
         params: dict[str, str | int] | None = None,
-    ) -> tuple[int | None, bytes | None, str | None]: ...
+    ) -> tuple[int | None, bytes | None, str | None]:
+        """Return status, body, and content type through the guarded HTTP seam."""
 
 
 @dataclass

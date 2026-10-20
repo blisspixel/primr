@@ -16,13 +16,15 @@ class ReportTransform(Protocol):
         report_content: str,
         source_urls: list[str],
         model: str | None = None,
-    ) -> str: ...
+    ) -> str:
+        """Transform a report while preserving its company and evidence context."""
 
 
 class AIPrompt(Protocol):
     def __call__(
         self, company_name: str, platform: str, discovery_notes_content: str | None = None
-    ) -> str: ...
+    ) -> str:
+        """Build the AI strategy prompt for the selected platform."""
 
 
 class YamlPrompt(Protocol):
@@ -31,7 +33,8 @@ class YamlPrompt(Protocol):
         strategy_config: dict[str, Any],
         company_name: str,
         discovery_notes_content: str | None = None,
-    ) -> str: ...
+    ) -> str:
+        """Build a prompt from the selected strategy configuration."""
 
 
 class StrategyEnrichment(Protocol):
@@ -47,7 +50,8 @@ class StrategyEnrichment(Protocol):
         website: str | None,
         grok_reasoning: str | None = None,
         grok_writing: str | None = None,
-    ) -> str: ...
+    ) -> str:
+        """Enrich the strategy using the existing evidence and routed models."""
 
 
 class StrategyPreparation(Protocol):
@@ -59,7 +63,8 @@ class StrategyPreparation(Protocol):
         strategy_label: str,
         source_urls: list[str],
         model: str | None = None,
-    ) -> tuple[str, dict[str, int | float | bool], list[str]]: ...
+    ) -> tuple[str, dict[str, int | float | bool], list[str]]:
+        """Return prepared strategy text, QA metrics, and rejected sources."""
 
 
 class StrategySave(Protocol):
@@ -72,7 +77,8 @@ class StrategySave(Protocol):
         output_dir: str | Path | None = None,
         diagnostics_dir: str | Path | None = None,
         write_txt: bool = True,
-    ) -> str | None: ...
+    ) -> str | None:
+        """Write strategy artifacts to their explicitly selected destinations."""
 
 
 @dataclass(frozen=True)

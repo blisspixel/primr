@@ -61,7 +61,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     "ai/deep_research.py": 3812,
     "data/scraping/browsers.py": 1833,
     "data/hiring_signals.py": 1571,
-    "core/model_eval.py": 1648,
+    "core/model_eval.py": 1638,
     "data/scrape.py": 1776,
     "data/fallback_sources.py": 1026,
     # cli_batch_runtime.py received extracted batch-runtime code during the

@@ -49,11 +49,13 @@ def generate_prompt(template_name: str, **kwargs: Any) -> str:
 
 
 class Prompt(Protocol):
-    def __call__(self, template_name: str, **kwargs: Any) -> str: ...
+    def __call__(self, template_name: str, **kwargs: Any) -> str:
+        """Render the named legacy template with its supplied variables."""
 
 
 class ModelCall(Protocol):
-    def __call__(self, prompt: str, model_type: str = "fast") -> str: ...
+    def __call__(self, prompt: str, model_type: str = "fast") -> str:
+        """Generate text with the explicitly selected model role."""
 
 
 class Fetch(Protocol):
@@ -64,19 +66,23 @@ class Fetch(Protocol):
         max_pages: int | None = None,
         use_vision: bool = False,
         working_folder: str | None = None,
-    ) -> dict[str, str]: ...
+    ) -> dict[str, str]:
+        """Collect website text through the existing guarded scraper."""
 
 
 class ExternalQueries(Protocol):
-    def __call__(self, company_name: str, website: str, max_queries: int) -> list[str]: ...
+    def __call__(self, company_name: str, website: str, max_queries: int) -> list[str]:
+        """Build the bounded company-specific external search plan."""
 
 
 class SaveSection(Protocol):
-    def __call__(self, folder_path: str, section_key: str, content: str) -> object: ...
+    def __call__(self, folder_path: str, section_key: str, content: str) -> object:
+        """Persist one section in its explicitly owned working folder."""
 
 
 class ScrapeQuality(Protocol):
-    def __call__(self, corpus: dict[str, str]) -> tuple[bool, str]: ...
+    def __call__(self, corpus: dict[str, str]) -> tuple[bool, str]:
+        """Return the existing scrape-quality decision and explanation."""
 
 
 def _validate_scrape_quality(
