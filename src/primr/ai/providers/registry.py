@@ -10,6 +10,7 @@ multi-provider policies need to inspect availability.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -77,9 +78,9 @@ KNOWN_PROVIDERS: tuple[ProviderEntry, ...] = (
     ProviderEntry(
         name="ollama",
         api_key_env="OLLAMA_API_KEY",
-        api_key_default="ollama",
         description="Ollama local inference (utility, zero cost)",
         roles=("utility",),
+        env_alternatives=("OLLAMA_BASE_URL",),
     ),
     ProviderEntry(
         name="foundry",
@@ -106,13 +107,12 @@ def list_known_providers() -> tuple[ProviderEntry, ...]:
 def get_available_providers() -> list[ProviderEntry]:
     """Return the subset of providers that are usable.
 
-    A provider is available if its API key env var is set OR if it has a
-    configured default key (e.g. Ollama doesn't need a real key).
+    Configuration is explicit credentials or an endpoint/profile setting.
+    A synthetic local authentication token does not prove a server is running.
     """
-    import os
 
     def _configured(p: ProviderEntry) -> bool:
-        if p.api_key_default is not None or os.getenv(p.api_key_env):
+        if os.getenv(p.api_key_env):
             return True
         return any(os.getenv(alt) for alt in p.env_alternatives)
 
@@ -144,7 +144,7 @@ def build_provider(entry: ProviderEntry) -> Provider:
     if entry.name == "ollama":
         return OpenAICompatibleProvider(
             name="ollama",
-            base_url="http://localhost:11434/v1",
+            base_url=os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434/v1",
             api_key_env="OLLAMA_API_KEY",
             api_key_default="ollama",
         )

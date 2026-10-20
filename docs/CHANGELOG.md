@@ -18,6 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reject authored Python replacement fields across maintained interpreters,
   including newer f-string syntax that Python 3.11 cannot parse.
+- Keep keyless startup and estimate requests free of setup prompts. Show a
+  short home screen with the prep path first, and a static ANSI wordmark only
+  at home or on explicit banner requests.
+- Report each provider once in compact doctor output. Local readiness now
+  comes from the existing endpoint probe; an optional authentication placeholder
+  no longer makes Ollama configured or eligible for automatic key validation.
+- Send progress, warnings, and failures to stderr while preserving result and
+  JSON output on stdout. Mask progress text before truncation and formatting;
+  wrap doctor details and grouped key states for narrow terminals.
+
 - Reject retired direct Gemini Pro and image previews during selection and
   before requests, with the provider's replacement named. Keep historical model
   identities and costs, active Flash Preview, and prior-user-only Gemini 2.5

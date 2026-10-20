@@ -70,7 +70,7 @@ class TestDryRunFlags:
         )
 
         assert result == 1
-        assert "requires --inference hybrid" in capsys.readouterr().out
+        assert "requires --inference hybrid" in capsys.readouterr().err
 
     def test_human_estimate_discloses_uncapped_host_cost(self, capsys):
         result = run_dry_run(
@@ -304,7 +304,8 @@ class TestDryRunFlags:
         result = run_dry_run(_config(mode="scrape"))
 
         assert result == 0
-        out = capsys.readouterr().out
+        captured_streams = capsys.readouterr()
+        out = captured_streams.out + captured_streams.err
         # Recovery details are verbose-only; default shows a one-liner.
         assert "Recovery:" in out
         assert "Recovery table JSON" not in out
@@ -335,7 +336,8 @@ class TestDryRunFlags:
         result = run_dry_run(_config(mode="complete", premium_mode=True, budget_usd=2.0))
 
         assert result == 0
-        out = capsys.readouterr().out
+        captured_streams = capsys.readouterr()
+        out = captured_streams.out + captured_streams.err
         assert "Budget policy" in out
         assert "optional strategy generation" in out
         assert "required Deep Research task cannot be stopped" in out

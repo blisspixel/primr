@@ -164,7 +164,7 @@ class TestHandleClearJobs:
         monkeypatch.setattr("primr.ai.job_persistence.remove_pending_jobs", lambda _ids: (False, 0))
 
         assert _handle_clear_jobs(_config(init_yes=True)) == 1
-        assert "left unchanged" in capsys.readouterr().out
+        assert "left unchanged" in capsys.readouterr().err
 
     def test_corrupt_registry_is_visible_and_unchanged(self, monkeypatch, capsys):
         remove = MagicMock()
@@ -175,7 +175,7 @@ class TestHandleClearJobs:
 
         assert _handle_clear_jobs(_config(init_yes=True)) == 1
         remove.assert_not_called()
-        assert "could not read the recovery registry" in capsys.readouterr().out
+        assert "could not read the recovery registry" in capsys.readouterr().err
 
 
 class TestHandleShowUsage:

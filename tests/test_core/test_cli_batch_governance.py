@@ -162,7 +162,7 @@ def test_background_batch_requires_explicit_approval(monkeypatch, tmp_path, caps
     )
 
     assert result == 1
-    assert "--skip-confirm" in capsys.readouterr().out
+    assert "--skip-confirm" in capsys.readouterr().err
     prompt.assert_not_called()
     preflight.assert_not_called()
     research.assert_not_called()
@@ -426,7 +426,7 @@ def test_background_enrichment_requires_explicit_approval(monkeypatch, tmp_path,
     result = enrich_batch(str(tmp_path / "batch.csv"), output_dir=tmp_path)
 
     assert result == 1
-    assert "--skip-confirm" in capsys.readouterr().out
+    assert "--skip-confirm" in capsys.readouterr().err
     prompt.assert_not_called()
     lookup.assert_not_called()
 

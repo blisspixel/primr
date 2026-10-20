@@ -161,14 +161,14 @@ class TestStatusAndInteractive:
     def test_status_interactive_writes_inline(self, capsys):
         c = Console(capabilities=_interactive_caps())
         c.status("scanning")
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "scanning" in out
         assert "\r" in out
 
     def test_status_non_interactive_prints(self, capsys):
         c = Console(capabilities=_noncursor_caps())
         c.status("scanning")
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "scanning" in out
 
     def test_status_quiet_suppressed(self, capsys):
@@ -178,8 +178,10 @@ class TestStatusAndInteractive:
 
     def test_clear_line_interactive(self, capsys):
         c = Console(capabilities=_interactive_caps())
+        c.status("active")
+        capsys.readouterr()
         c.clear_line()
-        assert "\r" in capsys.readouterr().out
+        assert "\r" in capsys.readouterr().err
 
     def test_clear_line_non_interactive_noop(self, capsys):
         c = Console(capabilities=_noncursor_caps())
@@ -204,7 +206,7 @@ class TestStatusAndInteractive:
     def test_fail_prints_even_in_quiet(self, capsys):
         c = Console(quiet=True, capabilities=_noncursor_caps())
         c.fail("boom")
-        assert "boom" in capsys.readouterr().out
+        assert "boom" in capsys.readouterr().err
 
     def test_muted_prints(self, capsys):
         c = Console(capabilities=_noncursor_caps())
@@ -226,9 +228,9 @@ class TestScrapeProgress:
     def test_scrape_progress_non_interactive_only_on_complete(self, capsys):
         c = Console(capabilities=_noncursor_caps())
         c.scrape_progress(3, 10, "/about")
-        assert capsys.readouterr().out == ""
+        assert capsys.readouterr().err == ""
         c.scrape_progress(10, 10, "/about", start_time=time.time() - 5)
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "/about" in out
 
     def test_scrape_progress_interactive_with_timing_and_eta(self, capsys):
@@ -241,7 +243,7 @@ class TestScrapeProgress:
             eta_seconds=120,
             ok_count=1,
         )
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "Scraping 3/50" in out
         assert "ok 1" in out
         assert "elapsed" in out
@@ -250,7 +252,7 @@ class TestScrapeProgress:
     def test_scrape_progress_truncates_long_path(self, capsys):
         c = Console(capabilities=_interactive_caps())
         c.scrape_progress(1, 2, "/" + "x" * 300)
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "..." in out
 
 
@@ -332,7 +334,7 @@ class TestBackwardCompat:
     def test_phase_complete_skips_duration_stat(self, capsys):
         c = Console(capabilities=_noncursor_caps())
         c.phase_complete("Phase", stats=[("Duration", "5s"), ("Pages", "10")])
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "Pages" in out
         assert "Duration" not in out
 
@@ -344,7 +346,7 @@ class TestBackwardCompat:
     def test_phase_banner_no_total(self, capsys):
         c = Console(capabilities=_noncursor_caps())
         c.phase_banner(2, 0, "Title")
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "PHASE 2" in out
         assert "/0" not in out
 
@@ -361,20 +363,20 @@ class TestBackwardCompat:
     def test_progress_interactive_writes(self, capsys):
         c = Console(capabilities=_interactive_caps())
         c.progress(5, 10, "x")
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "5/10" in out
 
     def test_progress_interactive_truncates_label(self, capsys):
         c = Console(capabilities=_interactive_caps())
         c.progress(5, 10, "y" * 40)
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "..." in out
 
     def test_progress_zero_total(self, capsys):
         c = Console(capabilities=_interactive_caps())
         c.progress(0, 0, "x")
         # 0% with zero total, no crash
-        assert "0/0" in capsys.readouterr().out
+        assert "0/0" in capsys.readouterr().err
 
     def test_progress_quiet(self, capsys):
         c = Console(quiet=True, capabilities=_interactive_caps())
@@ -384,7 +386,7 @@ class TestBackwardCompat:
     def test_status_with_time_shows_elapsed(self, capsys):
         c = Console(capabilities=_noncursor_caps())
         c.status_with_time("working", start_time=time.time() - 5)
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "working" in out
         assert "5s" in out
 
@@ -395,8 +397,10 @@ class TestBackwardCompat:
 
     def test_status_line_done(self, capsys):
         c = Console(capabilities=_interactive_caps())
+        c.status("active")
+        capsys.readouterr()
         c.status_line_done()
-        assert "\r" in capsys.readouterr().out
+        assert "\r" in capsys.readouterr().err
 
     def test_warn_quiet(self, capsys):
         c = Console(quiet=True, capabilities=_noncursor_caps())
@@ -409,7 +413,7 @@ class TestContextManagers:
         c = Console(capabilities=_noncursor_caps())
         with c.spinner("loading") as update:
             update("still loading")
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "loading" in out
 
     def test_spinner_quiet_falls_through_to_static(self, capsys):
@@ -417,7 +421,7 @@ class TestContextManagers:
         c = Console(quiet=True, capabilities=_noncursor_caps())
         with c.spinner("loading"):
             pass
-        assert "loading" in capsys.readouterr().out
+        assert "loading" in capsys.readouterr().err
 
     @pytest.mark.timing
     def test_spinner_interactive_animates(self, capsys):
@@ -426,7 +430,7 @@ class TestContextManagers:
             update("phase two")
             time.sleep(0.25)
         # Spinner thread wrote frames and cleared on exit.
-        assert capsys.readouterr().out != ""
+        assert capsys.readouterr().err != ""
 
     def test_timed_operation_quiet(self, capsys):
         c = Console(quiet=True, capabilities=_noncursor_caps())
@@ -438,7 +442,7 @@ class TestContextManagers:
         c = Console(capabilities=_noncursor_caps())
         with c.timed_operation("op", show_spinner=True):
             pass
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "op" in out
 
     @pytest.mark.timing
@@ -446,7 +450,7 @@ class TestContextManagers:
         c = Console(capabilities=_interactive_caps())
         with c.timed_operation("op", show_spinner=True):
             time.sleep(0.05)
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "op" in out
 
     def test_heartbeat_quiet(self, capsys):
@@ -461,7 +465,7 @@ class TestContextManagers:
         c._last_output_time = time.time() - 100
         with c.heartbeat("beat", interval=0.05):
             time.sleep(0.12)
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert "beat" in out
 
 

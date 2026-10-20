@@ -9,8 +9,10 @@ Design principles:
 """
 
 import os
+import re
 import shutil
 import sys
+import textwrap
 import threading
 import time
 from contextlib import contextmanager
@@ -79,7 +81,7 @@ def _detect_terminal():
     no_color = os.environ.get("NO_COLOR") is not None
     term_dumb = os.environ.get("TERM", "").lower() == "dumb"
     force_color = os.environ.get("FORCE_COLOR") is not None
-    supports_color = force_color or (is_tty and not no_color and not term_dumb)
+    supports_color = not no_color and not term_dumb and (force_color or is_tty)
     encoding = getattr(sys.stdout, "encoding", None) or ""
     supports_unicode = "utf" in encoding.lower()
     supports_cursor = is_tty and not term_dumb
@@ -104,6 +106,8 @@ class Console:
         self._caps = capabilities or _detect_terminal()
         self._last_output_time: float = 0.0
         self._heartbeat_paused = False
+        self._live_line_active = False
+        self._diagnostic_interactive = capabilities is not None or stream_is_tty(sys.stderr)
 
         # Colors
         if self._caps.supports_color and self._caps.is_interactive:
@@ -178,14 +182,65 @@ class Console:
     def INDICATOR_FAIL(self):
         return self._cross
 
-    def _print(self, display_text="", end="\n"):
+    def _print(self, display_text="", end="\n", *, diagnostic=False):
         with self._lock:
             self._last_output_time = time.time()
-            safe_text = mask_sensitive_data(str(display_text))
+            safe_text = "".join(
+                mask_sensitive_data(part)
+                for part in re.split(r"(\x1b\[[0-9;]*m)", str(display_text))
+            )
 
             # CodeQL does not model `mask_sensitive_data` as a sanitizer.
-            sys.stdout.writelines((safe_text, end))
-            sys.stdout.flush()
+            if diagnostic and not self._diagnostic_interactive:
+                safe_text = re.sub(r"\x1b\[[0-9;]*m", "", safe_text)
+            stream = sys.stderr if diagnostic else sys.stdout
+            stream.writelines((safe_text, end))
+            stream.flush()
+
+    def wrapped(self, msg, *, indent="", diagnostic=False):
+        """Wrap result or diagnostic text without splitting an unmasked secret."""
+        if self.quiet and not diagnostic:
+            return
+        safe_text = mask_sensitive_data(str(msg))
+        paragraphs = safe_text.splitlines() or [""]
+        for paragraph in paragraphs:
+            self._print(
+                textwrap.fill(
+                    paragraph,
+                    width=self._caps.width,
+                    subsequent_indent=indent,
+                    break_on_hyphens=False,
+                ),
+                diagnostic=diagnostic,
+            )
+
+    def state_row(self, label, state, detail="", *, label_width=12):
+        """Render a state as words and a consistent marker, with a hanging indent."""
+        if self.quiet:
+            return
+        if state in {"ready", "set"}:
+            marker, color = self._check, self._green
+        elif state in {"unreachable", "busy"}:
+            marker, color = "!", self._yellow
+        elif state == "failed":
+            marker, color = self._cross, self._red
+        else:
+            marker, color = "-", self._dim
+        text = f"{marker} {label:<{label_width}} {state}"
+        if detail:
+            text += f"  {detail}"
+        # Redact before adding line breaks as well as at the final output seam.
+        lines = textwrap.wrap(
+            mask_sensitive_data(text),
+            width=self._caps.width,
+            subsequent_indent="  ",
+            break_on_hyphens=False,
+        )
+        for index, line in enumerate(lines):
+            if index == 0:
+                line = line.replace(marker, f"{color}{marker}{self._reset}", 1)
+                line = line.replace(state, f"{color}{state}{self._reset}", 1)
+            self._print(line)
 
     def _elapsed(self, start):
         if not start:
@@ -208,17 +263,23 @@ class Console:
         """Show a status message (dim, in-place if possible)."""
         if self.quiet:
             return
-        if self._caps.supports_cursor and self._caps.is_interactive:
+        msg = mask_sensitive_data(str(msg))
+        if (
+            self._caps.supports_cursor
+            and self._caps.is_interactive
+            and self._diagnostic_interactive
+        ):
             with self._lock:
                 width = min(self._caps.width, 120)
                 # Pad with spaces based on visible length (excluding ANSI codes)
                 visible_len = len(msg) + 1  # +1 for \r
                 pad = " " * max(0, width - visible_len)
                 line = f"\r{self._dim}{msg}{self._reset}{pad}"
-                sys.stdout.write(line)
-                sys.stdout.flush()
+                sys.stderr.write(mask_sensitive_data(line))
+                sys.stderr.flush()
+                self._live_line_active = True
         else:
-            self._print(f"{self._dim}{msg}{self._reset}")
+            self._print(f"{self._dim}{msg}{self._reset}", diagnostic=True)
 
     def found(self, msg):
         """Show discovery result: "Found 47 pages" """
@@ -237,7 +298,7 @@ class Console:
     def fail(self, msg):
         """Show failure: "✗ Could not scrape" """
         self.clear_line()
-        self._print(f"{self._red}{self._cross}{self._reset} {msg}")
+        self.wrapped(f"{self._red}{self._cross}{self._reset} {msg}", indent="  ", diagnostic=True)
 
     def muted(self, msg):
         """Show muted/secondary info."""
@@ -265,11 +326,15 @@ class Console:
         """Show scraping progress with clean inline updates."""
         if self.quiet:
             return
-        if not self._caps.supports_cursor or not self._caps.is_interactive:
+        if (
+            not self._caps.supports_cursor
+            or not self._caps.is_interactive
+            or not self._diagnostic_interactive
+        ):
             if current == total:
                 elapsed = self._elapsed(start_time) if start_time else ""
                 time_str = f" ({elapsed})" if elapsed else ""
-                self._print(f"{self._check} {path}{time_str}")
+                self._print(f"{self._check} {path}{time_str}", diagnostic=True)
             return
 
         # Interactive: clean inline progress
@@ -289,7 +354,7 @@ class Console:
         timing = f"  [{', '.join(timing_parts)}]" if timing_parts else ""
 
         ok_suffix = f" (ok {ok_count})" if ok_count is not None else ""
-        line = f"Scraping {current}/{total}{ok_suffix} {path}{timing}"
+        line = mask_sensitive_data(f"Scraping {current}/{total}{ok_suffix} {path}{timing}")
 
         # Truncate if too long, then pad to width
         if len(line) > width:
@@ -300,17 +365,24 @@ class Console:
             self._last_output_time = time.time()
             # Clear line first, then write new content
             # This works better on Windows terminals where \r alone may not work
-            sys.stdout.write(f"\r{' ' * width}\r{line}")
-            sys.stdout.flush()
+            sys.stderr.write(mask_sensitive_data(f"\r{' ' * width}\r{line}"))
+            sys.stderr.flush()
+            self._live_line_active = True
 
     def clear_line(self):
         """Clear the current line."""
-        if self._caps.supports_cursor and self._caps.is_interactive:
+        if (
+            self._live_line_active
+            and self._caps.supports_cursor
+            and self._caps.is_interactive
+            and self._diagnostic_interactive
+        ):
             with self._lock:
                 width = min(self._caps.width, 120)
                 # Clear by writing spaces, then return to start
-                sys.stdout.write(f"\r{' ' * width}\r")
-                sys.stdout.flush()
+                sys.stderr.write(f"\r{' ' * width}\r")
+                sys.stderr.flush()
+                self._live_line_active = False
 
     # =========================================================================
     # BACKWARD COMPATIBILITY API - Maps to modern methods
@@ -356,7 +428,7 @@ class Console:
         if self.quiet:
             return
         self.clear_line()
-        self._print(f"{self._yellow}!{self._reset} {msg}")
+        self.wrapped(f"{self._yellow}!{self._reset} {msg}", indent="  ", diagnostic=True)
 
     def ok(self, msg="", show_time=True):
         """Backward compat - maps to done."""
@@ -371,7 +443,7 @@ class Console:
         if self.quiet:
             return
         self.clear_line()
-        self._print(f"\n{self._cyan}>{self._reset} {msg}")
+        self._print(f"\n{self._cyan}>{self._reset} {msg}", diagnostic=True)
 
     def result(self, label, value, highlight=False):
         if self.quiet:
@@ -431,7 +503,7 @@ class Console:
         if self.quiet:
             return
         self.clear_line()
-        self._print()
+        self._print(diagnostic=True)
         # Modern minimal design - just bold title with subtle accent
         phase_label = (
             f"PHASE {step_num}/{total_steps}"
@@ -441,23 +513,26 @@ class Console:
         self._print(
             f"{self._cyan}{self._pointer}{self._reset} "
             f"{self._bold}{phase_label}{self._reset} "
-            f"{self._dim}{self._dot}{self._reset} {title}"
+            f"{self._dim}{self._dot}{self._reset} {title}",
+            diagnostic=True,
         )
         if description:
-            self._print(f"  {self._dim}{description}{self._reset}")
+            self._print(f"  {self._dim}{description}{self._reset}", diagnostic=True)
         if expected_duration:
-            self._print(f"  {self._dim}Expected duration: {expected_duration}{self._reset}")
-        self._print()
+            self._print(
+                f"  {self._dim}Expected duration: {expected_duration}{self._reset}", diagnostic=True
+            )
+        self._print(diagnostic=True)
 
     def phase_complete(self, title, stats=None):
         if self.quiet:
             return
         self.clear_line()
-        self._print(f"{self._green}{self._check}{self._reset} {title}")
+        self._print(f"{self._green}{self._check}{self._reset} {title}", diagnostic=True)
         if stats:
             for label, value in stats:
                 if label.lower() != "duration":
-                    self._print(f"  {self._dim}{label}: {value}{self._reset}")
+                    self._print(f"  {self._dim}{label}: {value}{self._reset}", diagnostic=True)
 
     def divider(self, char="·"):
         """Modern subtle divider - 2026 design."""
@@ -480,17 +555,23 @@ class Console:
         """Backward compat progress bar."""
         if self.quiet:
             return
-        if not self._caps.supports_cursor or not self._caps.is_interactive:
+        if (
+            not self._caps.supports_cursor
+            or not self._caps.is_interactive
+            or not self._diagnostic_interactive
+        ):
             if current == total:
-                self._print(f"{self._check} {label} ({current}/{total})")
+                self._print(f"{self._check} {label} ({current}/{total})", diagnostic=True)
             return
 
         pct = int(100 * current / total) if total > 0 else 0
+        label = mask_sensitive_data(str(label))
         display_label = label[:25] + "..." if len(label) > 25 else label
         line = f"\r{current}/{total} {display_label} ({pct}%)"
         with self._lock:
-            sys.stdout.write(line.ljust(60))
-            sys.stdout.flush()
+            sys.stderr.write(line.ljust(60))
+            sys.stderr.flush()
+            self._live_line_active = True
 
     def progress_done(self):
         """Clear progress line."""
@@ -520,8 +601,13 @@ class Console:
     @contextmanager
     def spinner(self, message="Working"):
         """Simple spinner context manager."""
-        if self.quiet or not self._caps.supports_cursor or not self._caps.is_interactive:
-            self._print(f"{self._dim}{message}...{self._reset}")
+        if (
+            self.quiet
+            or not self._caps.supports_cursor
+            or not self._caps.is_interactive
+            or not self._diagnostic_interactive
+        ):
+            self._print(f"{self._dim}{message}...{self._reset}", diagnostic=True)
             yield lambda m: None
             return
 
@@ -546,15 +632,16 @@ class Console:
             while not stop_event.is_set():
                 frame = frames[idx % len(frames)]
                 with self._lock:
-                    msg_text = current_msg[0]
+                    msg_text = mask_sensitive_data(str(current_msg[0]))
                     visible_len = len(frame) + 1 + len(msg_text)
                     if visible_len > line_width:
                         msg_text = msg_text[: line_width - len(frame) - 4] + "..."
                         visible_len = len(frame) + 1 + len(msg_text)
                     pad = " " * max(0, line_width - visible_len)
                     line = f"{self._cyan}{frame}{self._reset} {msg_text}{pad}"
-                    sys.stdout.write(f"\r{line}")
-                    sys.stdout.flush()
+                    sys.stderr.write(f"\r{line}")
+                    sys.stderr.flush()
+                    self._live_line_active = True
                 idx += 1
                 stop_event.wait(_tick_interval)
 
@@ -587,15 +674,17 @@ class Console:
             elapsed = self._elapsed(start)
             time_str = f" ({elapsed})" if elapsed else ""
             self._print(
-                f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}"
+                f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}",
+                diagnostic=True,
             )
         else:
-            self._print(f"{self._dim}{message}...{self._reset}")
+            self._print(f"{self._dim}{message}...{self._reset}", diagnostic=True)
             yield
             elapsed = self._elapsed(start)
             time_str = f" ({elapsed})" if elapsed else ""
             self._print(
-                f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}"
+                f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}",
+                diagnostic=True,
             )
 
     @contextmanager
@@ -615,17 +704,24 @@ class Console:
                     time_since = time.time() - self._last_output_time
                     if time_since >= interval and not self._heartbeat_paused:
                         elapsed = self._elapsed(start)
-                        if self._caps.supports_cursor and self._caps.is_interactive:
+                        if (
+                            self._caps.supports_cursor
+                            and self._caps.is_interactive
+                            and self._diagnostic_interactive
+                        ):
                             with self._lock:
                                 width = min(self._caps.width, 120)
-                                visible_text = f". {message} ({elapsed})"
+                                visible_text = mask_sensitive_data(f". {message} ({elapsed})")
                                 pad = " " * max(0, width - len(visible_text) - 1)
                                 line = f"\r{self._dim}{visible_text}{self._reset}{pad}"
-                                sys.stdout.write(line)
-                                sys.stdout.flush()
+                                sys.stderr.write(line)
+                                sys.stderr.flush()
+                                self._live_line_active = True
                                 self._last_output_time = time.time()
                         else:
-                            self._print(f"{self._dim}. {message} ({elapsed}){self._reset}")
+                            self._print(
+                                f"{self._dim}. {message} ({elapsed}){self._reset}", diagnostic=True
+                            )
 
         thread = threading.Thread(target=show_heartbeat, daemon=True)
         thread.start()

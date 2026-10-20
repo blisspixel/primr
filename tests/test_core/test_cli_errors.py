@@ -28,7 +28,8 @@ class TestReportUnexpectedError:
     def test_returns_one_and_shows_guidance(self, capsys):
         rc = report_unexpected_error(RuntimeError("boom"))
         assert rc == 1
-        out = capsys.readouterr().out
+        captured_streams = capsys.readouterr()
+        out = captured_streams.out + captured_streams.err
         assert "boom" in out
         assert "primr doctor" in out
         assert "--verbose" in out
@@ -101,7 +102,8 @@ class TestGuardDispatchErrors:
 
         rc = guard_dispatch(boom, _config(verbose=False))
         assert rc == 1
-        out = capsys.readouterr().out
+        captured_streams = capsys.readouterr()
+        out = captured_streams.out + captured_streams.err
         assert "kaboom" in out
         assert "primr doctor" in out
 

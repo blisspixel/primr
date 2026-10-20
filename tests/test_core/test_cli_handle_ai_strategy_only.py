@@ -233,7 +233,7 @@ class TestStrategyGeneration:
             release_resume_lease(company_root)
 
         assert result == 1
-        assert "Another active run" in capsys.readouterr().out
+        assert "Another active run" in capsys.readouterr().err
         gen_mock.assert_not_called()
 
     @pytest.mark.parametrize("budget", [float("nan"), float("inf"), float("-inf")])
@@ -590,7 +590,7 @@ class TestStrategyJsonContract:
         )
 
         assert result == 1
-        assert "--skip-confirm" in capsys.readouterr().out
+        assert "--skip-confirm" in capsys.readouterr().err
         input_mock.assert_not_called()
         gen_mock.assert_not_called()
 

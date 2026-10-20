@@ -4,8 +4,8 @@ Extracted from `primr.core.cli` for isolated unit testing.
 
 `run_doctor` orchestrates six smaller checks (API keys, providers,
 dependencies, filesystem, zero-spend API policy, Gemini resource cleanup) and
-emits a final pass/warn/fail summary. The smaller `_check_*` helpers each
-return a (passed, warning_count) tuple so they compose cleanly.
+emits a compact readiness summary. Provider rows share the routing collectors,
+including the existing zero-token local capacity probe.
 """
 
 from __future__ import annotations
@@ -44,74 +44,19 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     """Check API key configuration and actually test connectivity."""
     import requests
 
-    configured_model_keys = 0
+    # Key presence is reported once in the provider table. Keep malformed
+    # credentials actionable without treating an optional missing key as failure.
+    from primr.ai.providers import KNOWN_PROVIDERS
 
+    for entry in KNOWN_PROVIDERS:
+        value = os.environ.get(entry.api_key_env, "")
+        if value and entry.name != "ollama" and len(value) < 10:
+            console.error(f"{entry.api_key_env} set but appears too short")
+            all_passed = False
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
-    if gemini_key and len(gemini_key) >= 10:
-        configured_model_keys += 1
-        if gemini_key.startswith("AI"):
-            console.ok("GEMINI_API_KEY configured (valid format)")
-        else:
-            console.ok("GEMINI_API_KEY configured")
-            console.warn("  Key format unusual (expected to start with 'AI')")
-            warnings_count += 1
-    elif gemini_key:
-        console.error("GEMINI_API_KEY set but appears too short")
-        all_passed = False
-    else:
-        console.info("GEMINI_API_KEY not set (Gemini writing/premium disabled)")
-
-    xai_key = os.environ.get("XAI_API_KEY", "")
-    if xai_key and len(xai_key) >= 10:
-        configured_model_keys += 1
-        console.ok("XAI_API_KEY configured (enables Grok hybrid/full pipeline)")
-    elif xai_key:
-        console.error("XAI_API_KEY set but appears too short")
-        all_passed = False
-    else:
-        console.info("XAI_API_KEY not set (Grok hybrid/full pipeline disabled)")
-        console.info("  Run: primr keys set xai")
-        console.info("  Get your key at: https://console.x.ai/")
-
-    openai_key = os.environ.get("OPENAI_API_KEY", "")
-    if openai_key and len(openai_key) >= 10:
-        configured_model_keys += 1
-        console.ok(
-            "OPENAI_API_KEY configured (dry-run/eval/routed stages; "
-            "full execution still needs XAI or Gemini)"
-        )
-    elif openai_key:
-        console.error("OPENAI_API_KEY set but appears too short")
-        all_passed = False
-
-    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
-    if openrouter_key and len(openrouter_key) >= 10:
-        configured_model_keys += 1
-        from primr.ai.providers.openrouter import openrouter_routing_enabled
-
-        if openrouter_routing_enabled():
-            console.ok("OPENROUTER_API_KEY configured (paid gateway routing enabled)")
-        else:
-            console.ok("OPENROUTER_API_KEY configured (routing disabled until explicit opt-in)")
-    elif openrouter_key:
-        console.error("OPENROUTER_API_KEY set but appears too short")
-        all_passed = False
-
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if anthropic_key and len(anthropic_key) >= 10:
-        configured_model_keys += 1
-        console.ok(
-            "ANTHROPIC_API_KEY configured (dry-run/eval/routed stages; "
-            "full execution still needs XAI or Gemini)"
-        )
-    elif anthropic_key:
-        console.error("ANTHROPIC_API_KEY set but appears too short")
-        all_passed = False
-
-    if configured_model_keys == 0:
-        console.ok("Keyless ready: primr prep · primr recon · primr render")
-        console.info("  Provider-backed research needs a cloud LLM key.")
-        console.info("  Run one of: primr keys set gemini | xai | openai | openrouter | anthropic")
+    if len(gemini_key) >= 10 and not gemini_key.startswith("AI"):
+        console.warn("Gemini key format unusual (expected to start with 'AI')")
+        warnings_count += 1
 
     search_provider = os.environ.get("SEARCH_PROVIDER", "auto").lower().strip()
     search_key = os.environ.get("SEARCH_API_KEY", "")
@@ -179,114 +124,69 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     return all_passed, warnings_count
 
 
-def _check_providers(warnings_count: int) -> int:
-    """Report which LLM providers are configured AND usable (key + SDK).
-
-    A key being set is not enough - the provider's SDK must also be importable
-    (e.g. Anthropic needs ``pip install anthropic``). ``is_available()`` checks
-    both and makes no network call, so this stays cheap.
-    """
+def _check_provider_availability(warnings_count: int) -> int:
+    """Report one row per provider, using the shared zero-token local probe."""
     from primr.ai.providers import KNOWN_PROVIDERS, build_provider
 
-    # SDK names differ from provider names for the OpenAI-compatible providers,
-    # so only spell out the install hint where the package is non-obvious.
-    sdk_hint = {"anthropic": "pip install anthropic"}
-
-    usable_count = 0
-    for entry in KNOWN_PROVIDERS:
-        key_set = bool(os.getenv(entry.api_key_env)) or entry.api_key_default is not None
-        if not key_set:
-            console.info(f"  {entry.description}: not configured ({entry.api_key_env} unset)")
-            continue
-        try:
-            usable = build_provider(entry).is_available()
-        except Exception:
-            usable = False
-        roles = ", ".join(entry.roles) if entry.roles else "any"
-        if usable:
-            console.ok(f"{entry.description} [{roles}]")
-            usable_count += 1
-        else:
-            console.warn(
-                f"{entry.description}: {entry.api_key_env} set but the provider isn't usable"
-            )
-            hint = sdk_hint.get(entry.name)
-            if hint:
-                console.info(f"  Its SDK is missing - run: {hint}")
-            warnings_count += 1
-
-    if usable_count == 0:
-        console.warn("No usable LLM providers (provider-backed research unavailable)")
-        console.info("  Keyless commands remain ready: primr prep | primr recon")
-        console.info(
-            "  Set a provider key (primr keys set gemini|xai|openai|openrouter|anthropic) "
-            "+ install its SDK"
-        )
-        return warnings_count + 1
-
-    return warnings_count
-
-
-def _check_provider_availability(warnings_count: int) -> int:
-    """Show sanitized provider availability snapshots for routing."""
-
+    entries = {entry.name: entry for entry in KNOWN_PROVIDERS}
     try:
         snapshots = collect_provider_availability_snapshots()
     except Exception as e:
-        console.warn(f"Provider availability collection failed: {safe_code(str(e))}")
+        console.warn(
+            f"Provider availability collection failed: {safe_code(str(e)) or 'availability_error'}"
+        )
         return warnings_count + 1
 
     for snapshot in snapshots:
-        level, line = _provider_availability_status(snapshot)
-        if level == "ok":
-            console.ok(line)
-        elif level == "warn":
-            console.warn(line)
+        local = snapshot.provider == LOCAL_OPENAI_COMPATIBLE_PROVIDER
+        provider_code = safe_code(snapshot.provider) or "provider"
+        label = (
+            "Ollama/local"
+            if local
+            else safe_display_label(snapshot.display_name or snapshot.provider, provider_code)
+        )
+        state, detail = _provider_availability_status(snapshot)
+        entry = entries.get(snapshot.provider)
+        if state == "ready" and entry is not None:
+            try:
+                usable = build_provider(entry).is_available()
+            except Exception:
+                usable = False
+            if not usable:
+                state, detail = "failed", "configured; SDK unavailable"
+            elif os.environ.get(entry.api_key_env) and len(os.environ[entry.api_key_env]) < 10:
+                state, detail = "failed", "credential too short"
+        if entry is not None:
+            roles = "/".join(entry.roles) or "any"
+            detail = roles if state == "not configured" else f"{roles}; {detail}"
+        console.state_row(label, state, detail, label_width=18)
+        if state in {"unreachable", "failed", "busy"}:
             warnings_count += 1
-        else:
-            console.info(line)
     return warnings_count
 
 
 def _provider_availability_status(snapshot: ProviderQuotaSnapshot) -> tuple[str, str]:
-    provider_code = safe_code(snapshot.provider) or "provider"
-    display_name = safe_display_label(snapshot.display_name or snapshot.provider, provider_code)
+    """Return sanitized state and detail; never expose local hosts or models."""
     decision = availability_decision(snapshot)
-    error = safe_code(snapshot.error)
-    quota_source = safe_code_or(snapshot.metadata.get("quota_source"), "unknown")
-
+    error = safe_code(snapshot.error) or "availability_error"
     if snapshot.provider == LOCAL_OPENAI_COMPATIBLE_PROVIDER:
-        endpoint_source = safe_code_or(snapshot.metadata.get("endpoint_source"), "unknown")
         model_count = safe_count(snapshot.metadata.get("model_count", 0))
         if decision.available:
-            return (
-                "ok",
-                f"{display_name}: available ({model_count} local model(s), $0 API runtime)",
-            )
+            return "ready", f"{model_count} local model(s); $0 API runtime"
         if decision.state is AvailabilityState.BUSY:
-            retry_seconds = decision.retry_after_seconds or 0
-            retry_at = decision.retry_at.isoformat() if decision.retry_at is not None else "unknown"
-            return (
-                "warn",
-                f"{display_name}: busy (retry after {retry_seconds}s, no earlier than {retry_at})",
-            )
-        return (
-            "info",
-            f"{display_name}: not available ({error or 'not_detected'}, source {endpoint_source})",
-        )
-
-    configured = bool(snapshot.metadata.get("configured", snapshot.ok))
-    if not configured and error == "missing_api_key":
-        api_key_env = safe_env_label(snapshot.metadata.get("api_key_env"))
-        return ("info", f"{display_name}: not configured ({api_key_env} unset)")
-
-    if decision.available:
-        detail = f"quota {quota_source or 'unknown'}"
-        if decision.headroom_percent is not None:
-            detail = f"{decision.headroom_percent:.1f}% headroom, {detail}"
-        return ("ok", f"{display_name}: configured ({detail})")
-
-    return ("warn", f"{display_name}: unavailable ({error or 'availability_error'})")
+            return "busy", f"retry after {decision.retry_after_seconds or 0}s"
+        source = safe_code_or(snapshot.metadata.get("endpoint_source"), "unknown")
+        if source == "default_localhost" and not any(
+            os.environ.get(name)
+            for name in ("OLLAMA_API_KEY", "OLLAMA_BASE_URL", "LOCAL_LLM_BASE_URL")
+        ):
+            return "not configured", "optional; no local server detected"
+        return "unreachable", error
+    if not snapshot.metadata.get("configured", snapshot.ok) and error == "missing_api_key":
+        return "not configured", safe_env_label(snapshot.metadata.get("api_key_env"))
+    if not decision.available:
+        return "unreachable", error
+    return "ready", "key and SDK present; live model probe skipped"
 
 
 def _check_dependencies(warnings_count: int) -> int:
@@ -488,7 +388,7 @@ def _show_file_locations() -> None:
         ("Usage history", str(get_usage_file().resolve())),
     ]
     for label, path in locations:
-        console.info(f"{label}: {path}")
+        console.wrapped(f"{label}: {path}", indent="  ")
     console.info(
         "Per-run folders are safe to archive/delete after a run; "
         "the user cache is shared across runs (PRIMR_CACHE_DIR to relocate), "
@@ -540,14 +440,11 @@ def run_doctor(*, fix: bool = False) -> int:
         all_passed = False
     _show_install_source()
 
-    console.step("API Configuration")
+    console.step("Configuration")
     all_passed, warnings_count = _check_api_keys(all_passed, warnings_count)
     warnings_count = _check_key_shadowing(warnings_count)
 
     console.step("Providers")
-    warnings_count = _check_providers(warnings_count)
-
-    console.step("Provider Availability")
     warnings_count = _check_provider_availability(warnings_count)
 
     console.step("Dependencies")
@@ -556,30 +453,26 @@ def run_doctor(*, fix: bool = False) -> int:
     console.step("File System")
     all_passed, warnings_count = _check_filesystem(all_passed, warnings_count)
 
-    console.step("File Locations")
-    _show_file_locations()
+    if console.verbose:
+        console.step("File Locations")
+        _show_file_locations()
 
-    console.step("Model Probe Policy")
-    all_passed, warnings_count = _check_api_connectivity(all_passed, warnings_count)
-
-    console.step("Gemini Resources")
-    all_passed, warnings_count = _check_gemini_resources(all_passed, warnings_count)
+    if os.environ.get("GEMINI_API_KEY"):
+        console.step("Gemini Resources")
+        all_passed, warnings_count = _check_gemini_resources(all_passed, warnings_count)
 
     console.step("Updates")
     _check_for_update()
 
     console.blank()
-    if all_passed and warnings_count == 0:
-        console.success_box("All checks passed", "Primr is ready to use")
-    elif all_passed:
-        console.success_box(
-            f"Ready with {warnings_count} warning(s)",
-            "Primr can run, but some features may be limited",
-        )
+    if all_passed:
+        console.wrapped("Keyless ready: prep | recon | render ($0 model calls)")
+        if warnings_count:
+            console.wrapped(f"{warnings_count} warning(s); see details above")
+        console.wrapped('Next: primr prep "ExampleCo" https://example.co --dry-run')
     else:
-        console.error("Some checks failed - fix issues above before running research")
-        if not fix:
-            console.info("Run 'primr doctor --fix' for guided setup.")
+        console.error("Some checks failed; see details above")
+        console.wrapped("Next: primr doctor --fix")
 
     if fix:
         if all_passed and warnings_count == 0:
@@ -608,14 +501,17 @@ def _show_install_source() -> None:
     than site-packages, so we can tell the two apart and flag a mismatch with
     the repo the user is sitting in.
     """
-    import primr as _pkg
+    from importlib import import_module
+
+    _pkg = import_module("primr")
 
     pkg_dir = os.path.dirname(_pkg.__file__)
     editable = "site-packages" not in pkg_dir.replace("\\", "/")
     kind = "editable/dev" if editable else "installed release"
     console.ok(f"primr {_pkg.__version__} ({kind})")
-    console.muted(f"  running from {pkg_dir}")
-    console.muted(f"  python {sys.version.split()[0]} @ {sys.executable}")
+    if console.verbose:
+        console.wrapped(f"  running from {pkg_dir}", indent="  ")
+        console.wrapped(f"  python {sys.version.split()[0]} @ {sys.executable}", indent="  ")
 
     from primr.config.env import keystore_sandbox_warning
 

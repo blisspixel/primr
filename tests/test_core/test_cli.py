@@ -740,7 +740,7 @@ class TestMain:
         mock_validation = MagicMock(valid=True, errors=[], warnings=[])
         with (
             patch("primr.utils.config_validation.validate_config", return_value=mock_validation),
-            patch("primr.core.cli.maybe_show_startup_banner") as mock_banner,
+            patch("primr.utils.banner.maybe_show_startup_banner") as mock_banner,
             patch("primr.core.cli._handle_research") as mock_research,
         ):
             result = main(["--banner"])
@@ -761,11 +761,11 @@ class TestRunDoctor:
         """Test doctor returns appropriate exit code."""
         with (
             patch.dict(os.environ, {"GEMINI_API_KEY": ""}),
-            patch("primr.core.cli_doctor._check_api_connectivity") as mock_api,
+            patch("primr.core.cli_doctor._check_filesystem") as mock_fs,
         ):
-            mock_api.return_value = (False, 0)
+            mock_fs.return_value = (False, 0)
             result = run_doctor()
-            # Should fail without API key
+            # Actual filesystem failures must still affect the process exit code.
             assert result == 1
 
     def test_doctor_with_valid_config(self):

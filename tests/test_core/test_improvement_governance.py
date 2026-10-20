@@ -191,7 +191,9 @@ def test_background_agentic_improve_requires_explicit_approval(
         improve_output_file=run,
     )
 
-    stdout = capsys.readouterr().out
+    captured_streams = capsys.readouterr()
+
+    stdout = captured_streams.out + captured_streams.err
     assert result == 1
     assert "approval" in stdout.lower()
     assert "--skip-confirm" in stdout

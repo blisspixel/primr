@@ -191,7 +191,7 @@ class TestCheckApiQuota:
         monkeypatch.setattr("primr.config.settings.get_settings", lambda: fake_settings)
         assert check_api_quota() == 1
         captured = capsys.readouterr()
-        assert "GEMINI_API_KEY" in captured.out
+        assert "GEMINI_API_KEY" in (captured.out + captured.err)
 
     def test_quota_available(self, monkeypatch):
         fake_settings = MagicMock()
@@ -223,7 +223,7 @@ class TestCheckApiQuota:
         ):
             assert check_api_quota() == 1
         captured = capsys.readouterr()
-        assert "EXHAUSTED" in captured.out
+        assert "EXHAUSTED" in (captured.out + captured.err)
 
 
 class TestCheckPendingJobs:
@@ -233,7 +233,7 @@ class TestCheckPendingJobs:
         monkeypatch.setattr(cli_recovery, "_read_pending_jobs", lambda: (False, {}))
 
         assert check_pending_jobs() == 1
-        assert "could not read the recovery registry" in capsys.readouterr().out
+        assert "could not read the recovery registry" in capsys.readouterr().err
 
     def test_unreadable_registry_json_is_visible_and_nonzero(self, monkeypatch, capsys):
         import json
@@ -356,7 +356,8 @@ class TestCheckPendingJobs:
         monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
 
         assert check_pending_jobs() == 1
-        output = capsys.readouterr().out
+        captured_streams = capsys.readouterr()
+        output = captured_streams.out + captured_streams.err
         assert "CHECK ERROR" in output
         assert "Re-run `primr --check-jobs` later" in output
 

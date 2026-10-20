@@ -160,5 +160,5 @@ def test_background_eval_requires_explicit_approval(monkeypatch, capsys):
     )
 
     assert code == 1
-    assert "--skip-confirm" in capsys.readouterr().out
+    assert "--skip-confirm" in capsys.readouterr().err
     prompt.assert_not_called()

@@ -39,9 +39,7 @@ class TestRegistry:
         assert len(result) >= 2
 
 
-# Providers like Ollama have a default key (no env var required) and so are
-# always reported as available. The tests below scope assertions to the
-# env-keyed providers we are actually toggling.
+# Cloud credential controls are separate from explicit local configuration.
 _ENV_KEYED_PROVIDER_NAMES = {"xai", "gemini", "openai", "anthropic", "openrouter"}
 
 
@@ -192,3 +190,16 @@ def test_validate_provider_credentials_delegates_to_provider():
         result = validate_provider_credentials(entry)
     assert result.ok is True
     provider.validate_credentials.assert_called_once()
+
+
+def test_no_local_endpoint_or_key_means_no_configured_ollama():
+    with patch.dict("os.environ", {}, clear=True):
+        assert get_available_providers() == []
+
+
+def test_explicit_local_endpoint_is_configured_and_used():
+    with patch.dict("os.environ", {"OLLAMA_BASE_URL": "http://localhost:12345/v1"}, clear=True):
+        assert [entry.name for entry in get_available_providers()] == ["ollama"]
+        entry = get_available_providers()[0]
+        provider = build_provider(entry)
+        assert provider._base_url == "http://localhost:12345/v1"

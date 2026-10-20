@@ -529,7 +529,7 @@ async def test_saved_vendor_research_survives_acknowledgement_failure(
 
     assert result == str(out)
     assert out.read_text(encoding="utf-8") == "Durable research body"
-    assert "pending job remains listed" in capsys.readouterr().out
+    assert "pending job remains listed" in capsys.readouterr().err
     assert "sensitive-ack-body" not in caplog.text
 
 
@@ -557,7 +557,7 @@ async def test_saved_vendor_research_survives_negative_acknowledgement(tmp_path:
 
     assert result == str(out)
     assert out.read_text(encoding="utf-8") == "Durable research body"
-    assert "pending job remains listed" in capsys.readouterr().out
+    assert "pending job remains listed" in capsys.readouterr().err
 
 
 def test_vendor_usage_failure_log_omits_exception_body(caplog):
@@ -676,7 +676,8 @@ async def test_generate_vendor_research_write_failure_retains_job_and_records_us
     assert result is None
     record_usage.assert_called_once()
     acknowledge_mock.assert_not_called()
-    output = capsys.readouterr().out
+    captured_streams = capsys.readouterr()
+    output = captured_streams.out + captured_streams.err
     assert "OSError" in output
     assert "private-cache-location" not in output
     assert "private-cache-location" not in caplog.text
@@ -704,7 +705,8 @@ async def test_generate_vendor_research_exception_is_body_safe(tmp_path: Path, c
     record_usage.assert_called_once()
     assert record_usage.call_args.args[0] == "aws"
     assert record_usage.call_args.args[1] >= 0
-    output = capsys.readouterr().out
+    captured_streams = capsys.readouterr()
+    output = captured_streams.out + captured_streams.err
     assert "RuntimeError" in output
     assert "network down" not in output
     assert "network down" not in caplog.text

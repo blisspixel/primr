@@ -660,7 +660,7 @@ class TestResumePendingJobs:
 
         assert resume_pending_jobs() == 1
         client_factory.assert_not_called()
-        assert "could not read the recovery registry" in capsys.readouterr().out
+        assert "could not read the recovery registry" in capsys.readouterr().err
 
     def test_returns_1_on_check_error(self, monkeypatch):
         client = Mock()

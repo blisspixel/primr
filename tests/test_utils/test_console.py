@@ -19,8 +19,8 @@ class TestConsole:
         """step() should print formatted step message."""
         captured_console.step("Test step")
         captured = capsys.readouterr()
-        assert "Test step" in captured.out
-        assert ">" in captured.out
+        assert "Test step" in captured.err
+        assert ">" in captured.err
 
     def test_ok_output(self, captured_console, capsys):
         """ok() should print success message."""
@@ -34,16 +34,16 @@ class TestConsole:
         """warn() should print warning message."""
         captured_console.warn("Warning message")
         captured = capsys.readouterr()
-        assert "Warning message" in captured.out
-        assert "!" in captured.out
+        assert "Warning message" in captured.err
+        assert "!" in captured.err
 
     def test_error_output(self, captured_console, capsys):
         """error() should print error message."""
         captured_console.error("Error message")
         captured = capsys.readouterr()
-        assert "Error message" in captured.out
+        assert "Error message" in captured.err
         # Check for either ASCII (x) or unicode (✗) indicator
-        assert "x" in captured.out or "\u2717" in captured.out
+        assert "x" in captured.err or "\u2717" in captured.err
 
     def test_info_output(self, captured_console, capsys):
         """info() should print dim info message."""
@@ -81,7 +81,7 @@ class TestConsole:
         c = Console(quiet=True)
         c.error("Error message")
         captured = capsys.readouterr()
-        assert "Error message" in captured.out
+        assert "Error message" in captured.err
 
     @pytest.mark.parametrize("error", [EOFError(), OSError("detached"), ValueError("closed")])
     def test_prompt_yes_no_uses_default_when_input_is_unavailable(self, monkeypatch, error):
@@ -134,7 +134,7 @@ class TestConsoleProgress:
         # Non-interactive mode only prints on completion
         non_interactive_console.progress(10, 10, "item.txt")
         captured = capsys.readouterr()
-        assert "10/10" in captured.out
+        assert "10/10" in captured.err
 
     def test_progress_truncates_long_items(self, non_interactive_console, capsys):
         """progress() should handle long item names."""
@@ -142,7 +142,7 @@ class TestConsoleProgress:
         non_interactive_console.progress(10, 10, long_name)
         captured = capsys.readouterr()
         # Non-interactive mode shows full label, interactive mode truncates
-        assert long_name in captured.out or "..." in captured.out
+        assert long_name in captured.err or "..." in captured.err
 
     def test_progress_done(self, capsys):
         """progress_done() should clear the line."""
@@ -258,22 +258,22 @@ class TestPhaseBanner:
         c = Console()
         c.phase_banner(1, 3, "Research Phase")
         captured = capsys.readouterr()
-        assert "Research Phase" in captured.out
-        assert "PHASE 1/3" in captured.out
+        assert "Research Phase" in captured.err
+        assert "PHASE 1/3" in captured.err
 
     def test_phase_banner_with_description(self, capsys):
         """phase_banner() should display description if provided."""
         c = Console()
         c.phase_banner(1, 2, "Phase", description="Doing stuff")
         captured = capsys.readouterr()
-        assert "Doing stuff" in captured.out
+        assert "Doing stuff" in captured.err
 
     def test_phase_banner_with_duration(self, capsys):
         """phase_banner() displays a supplied duration expectation."""
         c = Console()
         c.phase_banner(1, 2, "Phase", expected_duration="5-10 minutes")
         captured = capsys.readouterr()
-        assert "Expected duration: 5-10 minutes" in captured.out
+        assert "Expected duration: 5-10 minutes" in captured.err
 
     def test_phase_banner_without_duration_has_no_empty_label(self, capsys):
         c = Console()
@@ -298,17 +298,17 @@ class TestPhaseComplete:
         c = Console()
         c.phase_complete("Research Phase")
         captured = capsys.readouterr()
-        assert "Research Phase" in captured.out
+        assert "Research Phase" in captured.err
 
     def test_phase_complete_with_stats(self, capsys):
         """phase_complete() should display stats if provided."""
         c = Console()
         c.phase_complete("Phase", stats=[("Sections", "10"), ("Pages", "50")])
         captured = capsys.readouterr()
-        assert "Sections" in captured.out
-        assert "10" in captured.out
-        assert "Pages" in captured.out
-        assert "50" in captured.out
+        assert "Sections" in captured.err
+        assert "10" in captured.err
+        assert "Pages" in captured.err
+        assert "50" in captured.err
 
 
 class TestProgressWithTime:
@@ -336,15 +336,15 @@ class TestProgressWithTime:
         # Non-interactive mode only prints on completion
         non_interactive_console.progress_with_time(10, 10, "item", start_time=start)
         captured = capsys.readouterr()
-        assert "10/10" in captured.out or "item" in captured.out
-        assert "1m" in captured.out
+        assert "10/10" in captured.err or "item" in captured.err
+        assert "1m" in captured.err
 
     def test_progress_with_time_no_start(self, non_interactive_console, capsys):
         """progress_with_time() should work without start_time."""
         # Non-interactive mode only prints on completion
         non_interactive_console.progress_with_time(10, 10, "item")
         captured = capsys.readouterr()
-        assert "10/10" in captured.out or "item" in captured.out
+        assert "10/10" in captured.err or "item" in captured.err
 
 
 class TestTimedOperation:
@@ -369,9 +369,9 @@ class TestTimedOperation:
         with non_interactive_console.timed_operation("Test operation", show_spinner=False):
             pass
         captured = capsys.readouterr()
-        assert "Test operation" in captured.out
+        assert "Test operation" in captured.err
         # Check for either ASCII (+) or unicode (✓) indicator
-        assert "+" in captured.out or "\u2713" in captured.out
+        assert "+" in captured.err or "\u2713" in captured.err
 
 
 class TestHeartbeat:
@@ -387,7 +387,7 @@ class TestHeartbeat:
             time.sleep(0.15)
         # Should complete without error
         captured = capsys.readouterr()
-        assert "Working" in captured.out
+        assert "Working" in captured.err
 
 
 # =============================================================================
@@ -426,7 +426,7 @@ class TestPhaseBannerCompletenessProperty:
         captured = capsys.readouterr()
 
         # Title must be present (step numbers are intentionally not displayed)
-        assert title in captured.out
+        assert title in captured.err
 
     @given(
         step=st.integers(min_value=1, max_value=10),
@@ -444,7 +444,7 @@ class TestPhaseBannerCompletenessProperty:
         c.phase_banner(step, total, title, description=description)
         captured = capsys.readouterr()
 
-        assert description in captured.out
+        assert description in captured.err
 
 
 class TestProgressTimeDisplayProperty:
@@ -487,13 +487,13 @@ class TestProgressTimeDisplayProperty:
         captured = capsys.readouterr()
 
         # Should show current/total or label
-        assert f"{total}/{total}" in captured.out or "item" in captured.out
+        assert f"{total}/{total}" in captured.err or "item" in captured.err
 
         # Should show time in format Xs or Xm Ys
         if elapsed_seconds >= 60:
-            assert "m" in captured.out
+            assert "m" in captured.err
         elif elapsed_seconds >= 1:
-            assert "s" in captured.out or "(" in captured.out
+            assert "s" in captured.err or "(" in captured.err
 
     @given(
         total=st.integers(min_value=1, max_value=100),
@@ -509,7 +509,7 @@ class TestProgressTimeDisplayProperty:
 
         # Label should be present (possibly truncated)
         assert (
-            label[:15] in captured.out
-            or "..." in captured.out
-            or f"{total}/{total}" in captured.out
+            label[:15] in captured.err
+            or "..." in captured.err
+            or f"{total}/{total}" in captured.err
         )
