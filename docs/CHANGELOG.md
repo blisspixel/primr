@@ -78,6 +78,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Update the Ruff lock to the latest reviewed patch in the supported 0.15 line,
+  preserving the existing compatibility cap and source formatting.
+
 - Refresh the reviewed runtime, build, test, and typing dependencies within the
   existing package bounds, including Google Gen AI, HTTP/ASGI clients, cloud
   SDKs, and mypy. Regenerate the hash-locked container exports. Python update
