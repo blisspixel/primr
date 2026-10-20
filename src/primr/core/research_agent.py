@@ -2089,11 +2089,6 @@ def _enrich_strategy_content(
 
 
 def _compute_session_llm_cost() -> float:
-    """Current actual LLM spend for this run, in USD.
-
-    Delegates to the shared run-budget accounting seam so summaries and
-    checkpoints cannot drift as provider paths are added.
-    """
     from primr.utils.run_budget import observed_session_spend
 
     return observed_session_spend()
@@ -2158,6 +2153,7 @@ def perform_fast_research(
     continuous_reasoning = setup.continuous_reasoning
     display_name = setup.display_name
     folder_path = setup.folder_path
+    diagnostics_dir = diagnostics_dir or Path(folder_path) / "_diagnostics"
     if output_dir is not None:
         _update_run_state(folder_path, output_dir=str(output_dir))
 
@@ -2435,6 +2431,7 @@ def _save_strategy_output(
     write_txt: bool = True,
 ) -> str | None:
     """Save strategy markdown/txt/docx output. Returns docx path or None."""
+    from primr.core.collection_coverage import load_diagnostics_coverage
     from primr.output.markdown_converter import markdown_to_docx
     from primr.output.output_utils import OUTPUT_DIR
 
@@ -2511,6 +2508,7 @@ def _save_strategy_output(
             markdown_to_docx(
                 markdown_text=strategy_content,
                 output_path=docx_path,
+                coverage=load_diagnostics_coverage(diagnostics_dir),
                 title=f"{display_label}: {company_name}",
                 subtitle=f"{platform.upper()} | {datetime.now().strftime('%B %d, %Y')}"
                 if platform != "agnostic"
@@ -2614,12 +2612,9 @@ def perform_research(
             output_dir = recorded_output
     run_output_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
     run_output_dir.mkdir(parents=True, exist_ok=True)
-    diagnostics_dir: Path | None = None
-    write_public_txt = True
-    if output_dir is not None:
-        diagnostics_dir = Path(folder_path) / "_diagnostics"
-        diagnostics_dir.mkdir(parents=True, exist_ok=True)
-        write_public_txt = False
+    diagnostics_dir = Path(folder_path) / "_diagnostics"
+    diagnostics_dir.mkdir(parents=True, exist_ok=True)
+    write_public_txt = output_dir is None
     resume_state = existing_state if resume_local else None
     platforms, platform_selection_source = restore_strategy_platforms(
         tuple(platforms), platform_selection_source, explicit_platforms, resume_state
@@ -3051,6 +3046,7 @@ def perform_research(
                     output_dir=run_output_dir,
                     diagnostics_dir=diagnostics_dir,
                     write_txt=write_public_txt,
+                    folder_path=folder_path,
                 )
 
             from primr.core.standard_strategy import run_standard_ai_strategy
@@ -3210,6 +3206,7 @@ def perform_deep_research(
     """
     display_name: str = company_name or normalized_hostname(website or "", strip_www=True)
     folder_path = folder_path or create_working_folder(company_name, website)
+    diagnostics_dir = diagnostics_dir or Path(folder_path) / "_diagnostics"
     run_output_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
     run_output_dir.mkdir(parents=True, exist_ok=True)
     if diagnostics_dir is not None:
@@ -3761,6 +3758,7 @@ def _convert_deep_research_to_docx(
     written_paths: list[Path] | None = None,
 ) -> str | None:
     """Convert Deep Research markdown to validated MD, TXT, and DOCX outputs."""
+    from primr.core.collection_coverage import load_diagnostics_coverage
     from primr.output.markdown_converter import markdown_to_docx
     from primr.output.output_utils import OUTPUT_DIR
 
@@ -3829,6 +3827,7 @@ def _convert_deep_research_to_docx(
             markdown_to_docx(
                 markdown_text=markdown_content,
                 output_path=docx_path,
+                coverage=load_diagnostics_coverage(diagnostics_dir),
                 title=f"Strategic Company Overview: {company_name}",
                 subtitle=subtitle,
             )
@@ -3841,6 +3840,7 @@ def _convert_deep_research_to_docx(
             markdown_to_docx(
                 markdown_text=markdown_content,
                 output_path=docx_path,
+                coverage=load_diagnostics_coverage(diagnostics_dir),
                 title=f"Strategic Company Overview: {company_name}",
                 subtitle=subtitle,
             )

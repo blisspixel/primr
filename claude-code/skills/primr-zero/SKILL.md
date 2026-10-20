@@ -166,10 +166,11 @@ run. Convert each finished report to DOCX (and TXT) with the zero-cost renderer
 — no model calls, no network:
 
 ```bash
-primr render path/to/report.md
+primr render path/to/report.md --evidence-bundle path/to/prep-bundle
 ```
 
-This emits `report.docx` and `report.txt` beside the Markdown. Run it on the
+Use the exact prep bundle used for this report; its verified source index supplies
+the factual collection signature under the Word title. This emits `report.docx` and `report.txt` beside the Markdown. Run it on the
 Strategic Overview and on any AI Strategy or optional-strategy document you
 produce, so the user gets the full `.md` + `.docx` set regardless of how the
 report was processed.

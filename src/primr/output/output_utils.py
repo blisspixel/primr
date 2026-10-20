@@ -22,6 +22,7 @@ from primr.config.config import OUTPUT_DIR, WORKING_DIR
 from primr.config.sections_config import SECTION_KEY_MAP
 
 # Import new premium report components
+from primr.output.collection_coverage import CollectionCoverage
 from primr.output.document_builder import DocumentBuilder
 from primr.utils.console import console
 from primr.utils.validators import company_path_component, sanitize_for_filename
@@ -303,6 +304,7 @@ def save_report_as_docx_premium(
     company_name,
     citation_style="numbered",
     output_dir: str | Path | None = None,
+    coverage: CollectionCoverage | None = None,
 ):
     """
     Generate premium consultant-grade DOCX using DocumentBuilder.
@@ -361,7 +363,9 @@ def save_report_as_docx_premium(
                     f.write(sidecar_content)
                 console.ok(f"Sources file: {sidecar_filename}")
 
-        builder = DocumentBuilder(company_name, processed_sections, citations=citations)
+        builder = DocumentBuilder(
+            company_name, processed_sections, citations=citations, coverage=coverage
+        )
         document = builder.build()
         if document is None:
             raise RuntimeError("Document builder returned no document")
@@ -374,7 +378,12 @@ def save_report_as_docx_premium(
         return None
 
 
-def save_report_as_docx(txt_path, company_name, output_dir: str | Path | None = None):
+def save_report_as_docx(
+    txt_path,
+    company_name,
+    output_dir: str | Path | None = None,
+    coverage: CollectionCoverage | None = None,
+):
     """
     Convert markdown TXT content into a formatted DOCX document.
 
@@ -401,6 +410,10 @@ def save_report_as_docx(txt_path, company_name, output_dir: str | Path | None = 
         # Title
         title = document.add_heading(lines[0].strip(), level=0)
         title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        if coverage is not None:
+            from primr.output.collection_coverage import add_docx_coverage
+
+            add_docx_coverage(document, coverage)
 
         # Date
         date_para = document.add_paragraph(lines[1].strip())
@@ -588,16 +601,22 @@ def generate_final_report(
         txt_output_dir = output_dir if write_txt else diagnostics_dir
         txt_path = save_report_as_txt(section_results, company_name, output_dir=txt_output_dir)
 
+    from primr.core.collection_coverage import load_run_coverage
+
+    coverage = load_run_coverage(folder_path) if folder_path is not None else None
+
     # Generate DOCX - try premium first, fall back to legacy
     docx_path = None
     if premium:
         docx_path = save_report_as_docx_premium(
-            section_results, company_name, citation_style, output_dir=output_dir
+            section_results, company_name, citation_style, output_dir=output_dir, coverage=coverage
         )
 
     # Fall back to legacy if premium fails or not requested
     if not docx_path and txt_path:
-        docx_path = save_report_as_docx(txt_path, company_name, output_dir=output_dir)
+        docx_path = save_report_as_docx(
+            txt_path, company_name, output_dir=output_dir, coverage=coverage
+        )
 
     if docx_path:
         convert_docx_to_pdf(docx_path)

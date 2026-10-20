@@ -98,6 +98,43 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
     assert result.pages_collected == 2
     assert result.hiring_postings == 1
     assert result.recon_collected is True
+
+    from docx import Document
+
+    from primr.core.cli_render import run_render
+    from primr.core.collection_coverage import load_prep_coverage
+
+    summary = load_prep_coverage(result.bundle_dir)
+    assert summary.pages_captured == manifest["coverage"]["pages_collected"]
+    assert summary.hiring_postings == manifest["coverage"]["hiring_postings_indexed"]
+    report = result.bundle_dir / "ExampleCo.md"
+    report.write_text("# Executive Summary\n\nSource-grounded body.", encoding="utf-8")
+    assert run_render(["render", str(report), "--evidence-bundle", str(result.bundle_dir)]) == 0
+    paragraphs = [p.text for p in Document(report.with_suffix(".docx")).paragraphs]
+    assert paragraphs[0] == "Executive Summary"
+    assert paragraphs[1] == "coverage  " + summary.description()
+    # Older published bundles bind raw character counts without capture digests.
+    # The existing reader verifies their framing; coverage must retain support.
+    import hashlib
+
+    legacy_index = json.loads(result.source_index_path.read_text())
+    for row in legacy_index["sources"]:
+        row.pop("captured_characters", None)
+        row.pop("captured_text_sha256", None)
+    legacy_bytes = (json.dumps(legacy_index) + "\n").encode("utf-8")
+    result.source_index_path.write_bytes(legacy_bytes)
+    legacy_manifest = json.loads(result.manifest_path.read_text())
+    for artifact in legacy_manifest["artifacts"]:
+        if artifact["path"] == "source_index.json":
+            artifact["size_bytes"] = len(legacy_bytes)
+            artifact["sha256"] = hashlib.sha256(legacy_bytes).hexdigest()
+    result.manifest_path.write_text(json.dumps(legacy_manifest), encoding="utf-8")
+    assert load_prep_coverage(result.bundle_dir) == summary
+    index_data = json.loads(result.source_index_path.read_text())
+    index_data["sources"].pop()
+    result.source_index_path.write_text(json.dumps(index_data))
+    with pytest.raises(ValueError):
+        load_prep_coverage(result.bundle_dir)
     assert result.status == "completed"
     assert result.partial_reason == ""
     assert manifest["coverage"]["source_classes"]["first_party_pages"]["state"] == "captured"
@@ -122,6 +159,7 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
 
     report = result.bundle_dir / "Acme_Host_Assisted_Strategic_Overview_07-18-2026.md"
     report.write_text("# Strategic Overview\n", encoding="utf-8")
+    capsys.readouterr()  # Discard rendering output before asserting the JSON inventory.
     assert list_recent_outputs(result.bundle_dir.parent, json_output=True) == 0
     inventory = json.loads(capsys.readouterr().out)
     report_record = next(row for row in inventory["artifacts"] if row["file_path"] == str(report))

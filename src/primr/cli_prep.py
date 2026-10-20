@@ -198,8 +198,6 @@ def run_prep_cli(args: list[str] | None) -> int:
             )
         if result.partial_reason:
             print(f"  Reason: {result.partial_reason}")
-        if result.next_step:
-            print(f"  Next step: {result.next_step}")
     print("  Incremental API spend: $0.00")
     print(f"  Pages: {result.pages_collected}")
     hiring_status = (
@@ -224,6 +222,20 @@ def run_prep_cli(args: list[str] | None) -> int:
     print(f"  Portable skill: {result.bundle_dir / 'primr-zero'}")
     print(f"  Manifest: {result.manifest_path}")
     print(f"  Bundle: {result.bundle_dir}")
+    from primr.core.collection_coverage import coverage_from_index
+    from primr.core.evidence_bundle_input import read_artifact_metadata
+    from primr.output.collection_coverage import CollectionCoverage, show_collection_coverage
+    from primr.utils.console import console
+
+    try:
+        coverage = coverage_from_index(
+            read_artifact_metadata(result.source_index_path), usable=result.status == "completed"
+        )
+    except (OSError, ValueError):
+        coverage = CollectionCoverage(usable=result.status == "completed")
+    show_collection_coverage(coverage, console)
+    if result.status != "completed" and result.next_step:
+        print(f"  Next step: {result.next_step}")
     if result.status == "completed":
         print(
             "  Next: give the bundle to a research-capable host and have it read the "

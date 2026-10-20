@@ -115,6 +115,13 @@ def finalize_research_command(
             )
         )
 
+    elif result_path or working_folder:
+        from primr.core.collection_coverage import load_run_coverage
+        from primr.output.collection_coverage import show_collection_coverage
+
+        show_collection_coverage(load_run_coverage(working_folder), console)
+        console.text("Next: primr --list-recent" if result_path else "Next: primr doctor")
+
     return 0 if fulfillment_status == "completed" else 1
 
 

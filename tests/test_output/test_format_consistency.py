@@ -10,7 +10,7 @@ Validates report structure, section ordering, and format conversion.
 import tempfile
 from pathlib import Path
 
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from primr.output.markdown_converter import (
@@ -377,15 +377,20 @@ def test_property_heading_hierarchy_preserved(heading_levels: list[int]):
         max_size=200,
     )
 )
+@example(text="0000000. 0")
+@example(text="1. literal content")
 @settings(max_examples=50, deadline=None)
 def test_property_content_not_lost_in_conversion(text: str):
     """
     **Feature: test-coverage-hardening, Property 10: Markdown table to DOCX preservation**
     **Validates: Requirements 7.4**
 
-    For any text content, conversion to DOCX should not lose the content.
+    Literal text encoded as Markdown must survive DOCX conversion unchanged.
     """
-    markdown = f"## Test Section\n\n{text}"
+    # A leading number and period is Markdown list syntax. Escape the period
+    # when serializing literal text; the assertion still checks every character.
+    literal_markdown = text.replace(".", r"\.")
+    markdown = f"## Test Section\n\n{literal_markdown}"
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         output_path = Path(f.name)

@@ -689,6 +689,10 @@ is `primary_report`, then retain that exact path. If inventory cannot run in the
 current host, retain the exact written report path and disclose that the
 inventory check was unavailable.
 
+Render the reviewed Markdown with `primr render <path> --evidence-bundle "<bundle>"`,
+using this exact prep bundle, to include its verified collection counts in Word.
+This rendering step makes no model calls or network requests.
+
 ## Optional downstream handoff
 
 When the user requests another skill or document workflow, pass the explicit

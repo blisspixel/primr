@@ -165,3 +165,28 @@ Do not introduce a second orchestrator or a DAG framework for this.
 - Streaming tokens to the terminal as the product surface  
 - Auto-email / Slack of partial drafts  
 - Treating prep-only output as a full paid Strategic Overview  
+
+## Recorded collection signature
+
+Prep and provider-backed completion show one `coverage` signature immediately
+before their final next step. Word repeats it directly beneath the title. This
+is collection metadata, never a claim-confidence or calibration score.
+
+`core.collection_coverage` derives counts from the collector's existing source
+classification. Only nonempty current `first_party` captures enter the
+first-party total; archives, fallback captures, regulatory/reference pages, and
+model synthesis stay in the separate other-captures count. Only verified hiring
+identities enter the linked-postings count. No global or most-recent trace is
+consulted. Blocked-page and redirect-loop counts stay absent when the run did
+not record them; a generic redirect-limit failure does not establish a loop.
+
+Provider runs write a source index and bind its digest and scalar counts in
+`_run_state.json`. Missing, malformed, linked, changed, or legacy metadata shows
+unknown counts rather than fabricated zeros. Prep uses its published index;
+`primr render --evidence-bundle PATH` additionally verifies the existing manifest,
+artifact hashes, and captured source identities before rendering. Legacy indexes
+without capture digests use the text frames already verified by that same reader,
+including empty-frame handling. They do not infer captured pages from raw length.
+Without that
+explicit bundle, standalone rendering makes no collection claim. A partial prep
+bundle remains visibly unusable even when it contains captured pages.

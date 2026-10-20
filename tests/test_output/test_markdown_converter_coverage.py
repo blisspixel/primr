@@ -242,6 +242,10 @@ def test_markdown_to_docx_full(tmp_path):
     result = markdown_to_docx(md, out, title="My Title", subtitle="My Subtitle")
     assert result == out
     assert out.exists()
+    # Unescaped Markdown still produces native numbered paragraphs.
+    document = Document(out)
+    numbered = [p for p in document.paragraphs if p.style.name == "List Number"]
+    assert [p.text for p in numbered] == ["numbered one", "numbered two"]
 
 
 def test_markdown_to_docx_does_not_duplicate_fast_report_subtitle(tmp_path):
