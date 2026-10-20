@@ -17,18 +17,23 @@ if TYPE_CHECKING:
 
 class CoverageConsole(Protocol):
     @property
-    def term_width(self) -> int: ...
+    def term_width(self) -> int:
+        """Return the available output width in columns."""
 
     @property
-    def INFO(self) -> str: ...
+    def INFO(self) -> str:
+        """Return the accent escape sequence, or an empty string."""
 
     @property
-    def WARNING(self) -> str: ...
+    def WARNING(self) -> str:
+        """Return the warning escape sequence, or an empty string."""
 
     @property
-    def RESET(self) -> str: ...
+    def RESET(self) -> str:
+        """Return the reset escape sequence, or an empty string."""
 
-    def text(self, msg: str) -> None: ...
+    def text(self, msg: str) -> None:
+        """Write one result line on the console output stream."""
 
 
 @dataclass(frozen=True)
