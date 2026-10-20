@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Verify native offline browser rendering separately from unit tests on the
   primary platform lanes. Type-check both the maintained floor and newest stable
   runtime, and refresh audit tooling for Python 3.15 compatibility.
+- Require the current DDGS search client, removing the old Brotli dependency
+  that required a compiler when installing or building containers on Python 3.15.
 
 - **Label-calibration gate.** The candidate `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` value is now a report-clustered Wilson lower bound at 95 percent confidence, recorded as `bound_method`, `confidence`, and `bound`. Calibration can judge frozen `scraped_content.txt` captures, sends the judge claim text with the confidence label removed, draws a seeded sample, and records each judge verdict. An explicit abstain does not count as untraceable. A human-confirmed `honestly_empty_confirmed` report with no Confirmed claims does not block the floor. The operator sets that boolean on the pack selection report; Primr does not infer it.
 

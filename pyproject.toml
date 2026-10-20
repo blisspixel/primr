@@ -79,7 +79,7 @@ dependencies = [
     "pyyaml>=6.0.0",
     "curl_cffi>=0.5.0",
     "DrissionPage>=4.0.0",
-    "ddgs>=9.0.0",
+    "ddgs>=9.16.0",
     # MCP SDK v2 speaks spec revision 2026-07-28 natively and still answers the
     # legacy initialize handshake; <3 guards against the next major rework.
     # 2.2.0 bounds retained HTTP sessions and reclaims closed/idle sessions
