@@ -85,7 +85,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enable bounded, grouped dependency-update proposals for Python, Actions, and
   container images while retaining maintainer review, commit authorship, and all
   security gates. Surface supported versions and private disclosure details in
-  the root security policy. Allow a manual Scorecard refresh after CI settles.
+  the root security policy. Allow a manual Scorecard refresh after CI settles,
+  and use the current pinned Scorecard action and its migrated public endpoints.
 
 - Register Gemini 4 Argon with synchronous output limits, current pricing, and
   the December 1 price change. Report reasoning and writing defaults remain
