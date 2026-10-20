@@ -65,6 +65,10 @@ def test_explicit_folder_and_section_callbacks_survive_canonical_dispatch(tmp_pa
     assert section.call_count == 18
     assert section.call_args.args[-2:] == ("Company overview", "Collected summary")
     assert (tmp_path / "_scraped_urls.txt").is_file()
+    from primr.core.collection_coverage import load_run_coverage
+
+    assert load_run_coverage(tmp_path).first_party_pages == 1
+
     assert any("15 report sections" in message for message in progress)
 
 

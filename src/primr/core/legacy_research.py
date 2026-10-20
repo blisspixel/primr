@@ -388,6 +388,13 @@ def run_research(
 
     _emit_wb(company_name, website, folder_path, scraped_data, external_data, progress)
 
+    try:
+        from primr.core.collection_coverage import record_run_collection
+
+        record_run_collection(folder_path, website, all_scraped)
+    except (OSError, ValueError) as exc:
+        logger.warning("Collection inventory could not be recorded: %s", exc)
+
     # Save raw scraped URLs to working folder for debugging
     urls_file = os.path.join(folder_path, "_scraped_urls.txt")
     with open(urls_file, "w", encoding="utf-8") as f:

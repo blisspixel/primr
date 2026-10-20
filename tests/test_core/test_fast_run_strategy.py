@@ -2,9 +2,8 @@
 
 Pins the stage orchestration: budget checkpoint, per-vendor AI strategy
 pipeline (single + parallel dispatch), YAML strategy loop, QA trust-stat
-assembly, and failure isolation. LLM-backed helpers are patched at the
-research_agent seam (they are lazy-imported there until their own
-extraction); the YAML loop reads the real strategy YAML from the package.
+assembly, and failure isolation. LLM-backed helpers enter through the typed callback contract; the YAML loop
+reads the real strategy YAML from the package.
 """
 
 from __future__ import annotations
@@ -44,20 +43,8 @@ def seams(monkeypatch, tmp_path):
         "failover": MagicMock(return_value="## Strategy\ncontent body"),
     }
     monkeypatch.setattr(
-        "primr.core.research_agent._build_ai_strategy_prompt", mocks["build_ai_prompt"]
-    )
-    monkeypatch.setattr(
         "primr.core.fast_run_strategy.get_or_generate_vendor_research_sync",
         mocks["vendor_research"],
-    )
-    monkeypatch.setattr("primr.core.research_agent._enrich_strategy_content", mocks["enrich"])
-    monkeypatch.setattr("primr.core.research_agent._prepare_strategy_for_output", mocks["prepare"])
-    monkeypatch.setattr("primr.core.research_agent._save_strategy_output", mocks["save"])
-    monkeypatch.setattr(
-        "primr.core.research_agent._build_strategy_prompt_from_yaml", mocks["build_yaml_prompt"]
-    )
-    monkeypatch.setattr(
-        "primr.core.research_agent._compute_session_llm_cost", mocks["session_cost"]
     )
     monkeypatch.setattr(
         "primr.pipeline.integration.strategy_with_recovery",
