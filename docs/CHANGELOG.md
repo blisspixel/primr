@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pages, and only identity-linked hiring postings count. The terminal wraps at
   its actual width; unusable bundles remain visibly incomplete. JSON is unchanged.
 - `primr render --evidence-bundle PATH` verifies the explicit prep bundle before
-  adding its collection counts. Standalone rendering never guesses provenance.
+  adding its collection counts. Verified older bundles retain support through
+  their bound captured text. Standalone rendering never guesses provenance.
 
 ### Security
 

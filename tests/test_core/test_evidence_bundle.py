@@ -113,6 +113,23 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
     paragraphs = [p.text for p in Document(report.with_suffix(".docx")).paragraphs]
     assert paragraphs[0] == "Executive Summary"
     assert paragraphs[1] == "coverage  " + summary.description()
+    # Older published bundles bind raw character counts without capture digests.
+    # The existing reader verifies their framing; coverage must retain support.
+    import hashlib
+
+    legacy_index = json.loads(result.source_index_path.read_text())
+    for row in legacy_index["sources"]:
+        row.pop("captured_characters", None)
+        row.pop("captured_text_sha256", None)
+    legacy_bytes = (json.dumps(legacy_index) + "\n").encode("utf-8")
+    result.source_index_path.write_bytes(legacy_bytes)
+    legacy_manifest = json.loads(result.manifest_path.read_text())
+    for artifact in legacy_manifest["artifacts"]:
+        if artifact["path"] == "source_index.json":
+            artifact["size_bytes"] = len(legacy_bytes)
+            artifact["sha256"] = hashlib.sha256(legacy_bytes).hexdigest()
+    result.manifest_path.write_text(json.dumps(legacy_manifest), encoding="utf-8")
+    assert load_prep_coverage(result.bundle_dir) == summary
     index_data = json.loads(result.source_index_path.read_text())
     index_data["sources"].pop()
     result.source_index_path.write_text(json.dumps(index_data))

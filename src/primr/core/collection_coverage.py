@@ -120,9 +120,15 @@ def load_prep_coverage(bundle: str | Path) -> CollectionCoverage:
         prepared = load_prepared_evidence(Path(bundle))
     except ReportSnapshotError as exc:
         raise ValueError("Cannot read a stable prep bundle") from exc
-    return coverage_from_index(
-        json.loads(prepared.source_index), usable=prepared.status == "completed"
-    )
+    index = json.loads(prepared.source_index)
+    # Earlier source indexes recorded raw character counts only. The shared
+    # reader has already verified their complete framing and source identities;
+    # count the bound, nonempty captures instead of guessing from raw lengths.
+    captured_characters = {source.source_id: len(source.text) for source in prepared.sources}
+    for row in index["sources"]:
+        if row.get("source_type") != "hiring" and "captured_characters" not in row:
+            row["captured_characters"] = captured_characters.get(row["source_id"], 0)
+    return coverage_from_index(index, usable=prepared.status == "completed")
 
 
 def load_diagnostics_coverage(diagnostics_dir: str | Path | None) -> CollectionCoverage | None:
