@@ -30,7 +30,7 @@ def _plain(text):
 
 
 def test_keyless_doctor_is_compact_truthful_and_zero_token(tmp_path, monkeypatch, capsys):
-    with patch.dict("os.environ", {}, clear=True):
+    with patch.dict("os.environ", {"PRIMR_CONFIG_DIR": str(tmp_path / "config")}, clear=True):
         snapshots = collect_provider_availability_snapshots(
             env={}, local_list_models_fn=lambda _: ()
         )
