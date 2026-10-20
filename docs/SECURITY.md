@@ -177,3 +177,35 @@ See [SECURITY_OPS.md](SECURITY_OPS.md) for operational security guidance.
 ## Acknowledgments
 
 We appreciate responsible disclosure and will acknowledge security researchers who report valid vulnerabilities (with permission).
+
+## External supply-chain signals and certification
+
+Scorecard findings describe repository practices; their count is not a count of
+exploitable vulnerabilities. Address technical findings in their owning code or
+workflow, rerun the analyzer on the default branch, and retain the resulting
+check evidence. Do not disable an analyzer or present a missing certification
+as a vulnerability fix.
+
+| Signal | Repository evidence and handling |
+|--------|----------------------------------|
+| Automated tests | The maintained Python matrix and Windows/macOS lanes run on PRs and main. The primary lane enforces combined branch coverage; separate transport and recovery checks retain their own gates. See [contributing](CONTRIBUTING.md). |
+| Static analysis | CodeQL, Ruff, mypy, and Bandit run in CI. A successful scan job does not establish that every finding is resolved; verify findings on the default branch after merging. |
+| Dependency updates | Weekly grouped Python, Actions, and container proposals remain subject to review and the full CI gates. Reapply accepted updates as maintainer-authored commits; do not merge bot branches or add bot coauthor trailers. |
+| Disclosure policy | The [root policy](https://github.com/blisspixel/primr/blob/main/SECURITY.md) publishes supported versions, private reporting, and response expectations directly. |
+| Release delivery | The [release workflow](https://github.com/blisspixel/primr/blob/main/.github/workflows/release.yml) checks main's CI before publication and uses trusted publishing, artifact hashes, SBOMs, and provenance. |
+| OpenSSF Best Practices badge | No badge is claimed. A badge is a separate voluntary self-certification, not an automatic consequence of these controls. |
+
+The [OpenSSF passing criteria](https://www.bestpractices.dev/en/criteria/0) were
+reviewed on 2026-10-20. Public repository evidence supports the licensing,
+documentation, contribution, version control, test, static analysis, HTTPS
+delivery, and disclosure-process requirements. A full application additionally
+needs maintainer attestations, including secure-development knowledge and
+private vulnerability-response history. Source code and CI cannot establish
+those personal or private facts. Do not invent an application identifier,
+publish an unearned badge, or transfer GitHub credentials to a certification
+service to remove a dashboard warning.
+
+If the optional badge finding is accepted, record that decision against this
+evidence and keep the technical controls active. Revisit it when a maintainer
+chooses to complete the external application. This assessment does not claim
+that the project has completed or passed that application.
