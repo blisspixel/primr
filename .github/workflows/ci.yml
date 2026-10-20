@@ -17,10 +17,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.12 is the supported floor; 3.13 and 3.14 are current/next stable.
-        # All three are hard gates: the full suite runs on each and the
-        # native-dependency stack must install cleanly on 3.14.
-        python-version: ["3.12", "3.13", "3.14"]
+        # Every maintained Python version is a hard correctness gate.
+        # Full lint, typing, security, and coverage run on newest stable.
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
 
     # UV_PYTHON pins the interpreter for every uv command in this job to the
     # matrix leg, so the install step and all `uv run --no-sync` steps agree on
@@ -30,13 +29,13 @@ jobs:
       UV_PYTHON: ${{ matrix.python-version }}
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install uv
         timeout-minutes: 5
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.11.33"
           enable-cache: true
@@ -55,7 +54,7 @@ jobs:
         # in the global coverage ratchet.
         run: uv sync --locked --all-extras
 
-      - name: URL parser fuzz smoke (Atheris)
+      - name: URL parser fuzz smoke (Atheris, cp313 engine)
         if: matrix.python-version == '3.13'
         timeout-minutes: 3
         run: |
@@ -73,6 +72,15 @@ jobs:
               "$RUNNER_TEMP/primr-url-corpus" \
               2>&1 | tee "$RUNNER_TEMP/primr-fuzz-artifacts/engine.log"
 
+      - name: Native browser compatibility on newest stable
+        env:
+          PRIMR_BROWSER_SMOKE: "1"
+        if: matrix.python-version == '3.15'
+        timeout-minutes: 5
+        run: |
+          uv run --no-sync playwright install --with-deps chromium
+          uv run --no-sync pytest tests/test_data/test_scraping/test_native_browser_runtime.py -q
+
       - name: Preserve fuzz failure inputs
         if: failure() && matrix.python-version == '3.13'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -85,38 +93,45 @@ jobs:
       # Lint / type-check / security gates are version-independent, so run them
       # once on the primary interpreter to save matrix minutes.
       - name: Lint
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         run: uv run --no-sync ruff check src/primr/
 
       - name: Format check
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         run: uv run --no-sync ruff format --check src/ tests/
 
       - name: Type check
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         run: uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'
 
+      - name: Type check maintained Python floor
+        if: matrix.python-version == '3.11'
+        run: uv run --no-sync mypy src/primr/ --python-version 3.11 --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'
+
       - name: Build documentation strictly
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         run: uv run --no-sync mkdocs build --strict
 
       - name: Security scan (bandit)
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         run: uv run --no-sync bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q
 
       - name: Dependency vulnerability audit (pip-audit)
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         # Audits the synced venv against the advisory DB. Add --ignore-vuln <ID>
         # here (with a comment) only for reviewed, non-actionable advisories.
         run: |
           uv run --no-sync pip-audit
-          # The isolated native fuzz engine is outside the application venv.
+
+      - name: Audit isolated native fuzz engine
+        if: matrix.python-version == '3.13'
+        run: |
           uv run --no-sync pip-audit --require-hashes --no-deps --disable-pip \
             -r tests/fuzz/requirements.txt
 
       - name: Build and inspect source distribution
         timeout-minutes: 5
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         env:
           PRIMR_VALIDATE_SDIST: "1"
         run: uv run --no-sync pytest tests/test_release_integrity.py::test_built_sdist_matches_release_inventory -q
@@ -138,7 +153,7 @@ jobs:
 
       - name: Test (non-primary interpreters)
         timeout-minutes: 25
-        if: matrix.python-version != '3.13'
+        if: matrix.python-version != '3.15'
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: |
@@ -151,7 +166,7 @@ jobs:
       # This preserves scope while keeping each step below the hosted timeout.
       - name: Test with coverage (agent protocols)
         timeout-minutes: 12
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: |
@@ -164,7 +179,7 @@ jobs:
 
       - name: Test with coverage (agentic and property)
         timeout-minutes: 12
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: |
@@ -175,7 +190,7 @@ jobs:
 
       - name: Test with coverage (providers and configuration)
         timeout-minutes: 12
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: |
@@ -186,7 +201,7 @@ jobs:
 
       - name: Test with coverage (core)
         timeout-minutes: 12
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: |
@@ -197,7 +212,7 @@ jobs:
 
       - name: Test with coverage (remaining suite)
         timeout-minutes: 12
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: |
@@ -210,87 +225,26 @@ jobs:
             --cov=src/primr --cov-branch --cov-append --cov-report=
 
       - name: Enforce global branch coverage
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         run: uv run --no-sync coverage report --fail-under=81
 
       # Keep this security invariant visible as a dedicated hard gate even though
       # the same test also contributes to the combined coverage result above.
       - name: Security gate (hardcoded secret scan)
         timeout-minutes: 5
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.15'
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: |
           uv run --no-sync pytest tests/property_tests/test_no_hardcoded_secrets_properties.py \
             --tb=short -q
 
-  python-315-preview:
-    # Python 3.15 is a pre-release until 2026-10-01. Keep this as a hard Linux
-    # compatibility lane without adding a stable-support classifier. Windows
-    # remains blocked until pywin32 publishes cp315 wheels.
-    name: python-3.15-preview (linux)
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          persist-credentials: false
-
-      - name: Install uv
-        timeout-minutes: 5
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
-        with:
-          version: "0.11.33"
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-          cache-suffix: ${{ runner.os }}-py3.15-preview
-
-      - name: Install Python 3.15.0rc2
-        timeout-minutes: 10
-        env:
-          PYTHON_ARCHIVE_URL: https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.15.0rc2%2B20260901-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz
-          PYTHON_ARCHIVE_SHA256: 9549c3789acb25209da019cc8506ea5b1684b81fb4b471dc64cb47d1d04d6422
-        run: |
-          archive="$RUNNER_TEMP/cpython-3.15.0rc2.tar.gz"
-          install_dir="$RUNNER_TEMP/cpython-3.15.0rc2"
-          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
-            "$PYTHON_ARCHIVE_URL" --output "$archive"
-          echo "$PYTHON_ARCHIVE_SHA256  $archive" | sha256sum --check --strict
-          mkdir -p "$install_dir"
-          tar -xzf "$archive" -C "$install_dir"
-          python_bin="$install_dir/python/bin/python3.15"
-          "$python_bin" --version
-          "$python_bin" -c \
-            'import sys; assert sys.version_info[:5] == (3, 15, 0, "candidate", 2)'
-          echo "PRIMR_PYTHON_315=$python_bin" >> "$GITHUB_ENV"
-
-      - name: Install native preview build prerequisites
-        timeout-minutes: 5
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y libxml2-dev libxslt1-dev zlib1g-dev
-
-      - name: Install locked dependencies
-        timeout-minutes: 10
-        run: uv sync --python "$PRIMR_PYTHON_315" --locked --all-extras
-
-      - name: Test Python 3.15 preview
-        timeout-minutes: 25
-        env:
-          GEMINI_API_KEY: fake-key-for-ci-tests
-        run: |
-          uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q \
-            -k "not test_wait_times_out_when_no_change" -m "not integration"
-
   cross-platform-test:
     # primr advertises Windows + macOS + Linux support; the matrix above only
     # exercises Linux. This job enforces the claim by running the portable test
-    # suite on Windows and macOS (Python 3.13, the primary interpreter).
+    # suite on Windows and macOS (Python 3.15, the primary interpreter).
     # OS-independent gates (lint, mypy, security, coverage) deliberately stay on
-    # the Linux job. Only correctness is re-checked here. No browser install:
-    # the suite mocks/skips the browser scraping tiers, so no Playwright download
-    # is needed (matching the Linux Test step).
+    # the Linux job. Native browser smoke checks also verify the stable runtime.
     name: cross-platform (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 35
@@ -299,29 +253,37 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest]
     env:
-      UV_PYTHON: "3.13"
+      UV_PYTHON: "3.15"
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install uv
         timeout-minutes: 5
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.11.33"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-          cache-suffix: ${{ runner.os }}-py3.13-cross-platform
+          cache-suffix: ${{ runner.os }}-py3.15-cross-platform
 
-      - name: Set up Python 3.13
+      - name: Set up Python 3.15
         timeout-minutes: 10
-        run: uv python install 3.13
+        run: uv python install 3.15
 
       - name: Install dependencies
         timeout-minutes: 10
         run: uv sync --locked --extra dev --extra api --extra a2a
+
+      - name: Native browser compatibility
+        env:
+          PRIMR_BROWSER_SMOKE: "1"
+        timeout-minutes: 5
+        run: |
+          uv run --no-sync playwright install chromium
+          uv run --no-sync pytest tests/test_data/test_scraping/test_native_browser_runtime.py -q
 
       - name: Test
         timeout-minutes: 25
@@ -338,25 +300,25 @@ jobs:
     name: A2A Integration Tests
     timeout-minutes: 15
     env:
-      UV_PYTHON: "3.13"
+      UV_PYTHON: "3.15"
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install uv
         timeout-minutes: 5
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.11.33"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-          cache-suffix: ${{ runner.os }}-py3.13-a2a
+          cache-suffix: ${{ runner.os }}-py3.15-a2a
 
-      - name: Set up Python 3.13
+      - name: Set up Python 3.15
         timeout-minutes: 10
-        run: uv python install 3.13
+        run: uv python install 3.15
 
       - name: Install dependencies (with A2A SDK)
         timeout-minutes: 10
@@ -380,7 +342,7 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -403,7 +365,7 @@ jobs:
     timeout-minutes: 40
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 

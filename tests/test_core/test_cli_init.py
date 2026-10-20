@@ -363,16 +363,16 @@ class TestRunInitFlow:
         )
         assert result == 0
 
-    def test_python_311_is_rejected(self, tmp_path, monkeypatch):
+    def test_python_310_is_rejected(self, tmp_path, monkeypatch):
         self._setup_fake_env(monkeypatch, tmp_path)
         from primr.core.cli_init import _run_init_flow
 
         class _VI(tuple):
             major = 3
-            minor = 11
+            minor = 10
             micro = 9
 
-        monkeypatch.setattr("sys.version_info", _VI((3, 11, 9, "final", 0)))
+        monkeypatch.setattr("sys.version_info", _VI((3, 10, 9, "final", 0)))
 
         result = _run_init_flow(
             non_interactive=True,

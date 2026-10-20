@@ -141,14 +141,14 @@ def test_package_metadata_declares_pep639_apache_license() -> None:
     assert "License :: OSI Approved :: MIT License" not in classifiers
 
 
-def test_release_workflow_builds_on_supported_python_floor() -> None:
-    floor = _read_pyproject_python_floor()
+def test_release_workflow_builds_on_newest_supported_python() -> None:
+    latest = (REPO_ROOT / ".python-version").read_text().strip()
     release_workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(
         encoding="utf-8"
     )
 
-    assert release_workflow.count(f"python-version: '{floor}'") == 2
-    assert f"Set up Python {floor}" in release_workflow
+    assert release_workflow.count(f"python-version: '{latest}'") == 2
+    assert f"Set up Python {latest}" in release_workflow
     assert "python-version: '3.11'" not in release_workflow
 
 
@@ -188,7 +188,7 @@ def test_release_requires_changelog_notes_and_verifies_pypi_hashes() -> None:
     assert "--attempts 18" in release_workflow
     assert "Check for an existing PyPI release before publishing" in release_workflow
     assert "--allow-absent" in release_workflow
-    assert "uv sync --locked --only-group release --no-install-project --python 3.12" in (
+    assert "uv sync --locked --only-group release --no-install-project --python 3.15" in (
         release_workflow
     )
     assert "python -m build --no-isolation" in release_workflow
@@ -257,8 +257,8 @@ def test_public_install_guidance_avoids_remote_code_piping() -> None:
     combined = "\n".join((readme, powershell_installer, shell_installer)).lower()
 
     for command in (
-        "uv tool install --python 3.14 primr",
-        "pipx install --python python3.14 primr",
+        "uv tool install --python 3.15 primr",
+        "pipx install --python python3.15 primr",
     ):
         assert readme.index(command) < readme.index("convenience installers")
     assert "download and inspect" in readme.lower()
@@ -325,12 +325,14 @@ def test_all_runtime_surfaces_use_supported_python_floor() -> None:
         encoding="utf-8"
     )
 
-    assert deploy_dockerfile.count(f"FROM python:{floor}-slim") == 2
-    assert f"FROM python:{floor}-slim" in openclaw_dockerfile
-    assert f"--runtime python{floor}" in aws_deploy
-    assert f"--runtime-version {floor}" in azure_deploy
-    assert f"linuxFxVersion: 'PYTHON|{floor}'" in azure_function
-    assert f'"linuxFxVersion": "PYTHON|{floor}"' in compiled_azure_template
+    latest = (REPO_ROOT / ".python-version").read_text().strip()
+    assert deploy_dockerfile.count(f"FROM python:{latest}-slim") == 2
+    assert openclaw_dockerfile.count(f"FROM python:{latest}-slim") == 2
+    # Managed cloud runtimes have their own supported-version schedules.
+    assert "--runtime python3.12" in aws_deploy
+    assert "--runtime-version 3.12" in azure_deploy
+    assert "linuxFxVersion: 'PYTHON|3.12'" in azure_function
+    assert '"linuxFxVersion": "PYTHON|3.12"' in compiled_azure_template
     assert pyproject["tool"]["ruff"]["target-version"] == f"py{compact_floor}"
 
     major, minor = floor.split(".")
@@ -354,6 +356,9 @@ def test_ci_matrix_matches_declared_python_classifiers() -> None:
     assert matrix_match is not None
     matrix_versions = set(re.findall(r'"(3\.\d+)"', matrix_match.group("versions")))
     assert matrix_versions == supported_versions
+    newest = max(supported_versions, key=lambda value: tuple(map(int, value.split("."))))
+    assert (REPO_ROOT / ".python-version").read_text().strip() == newest
+    assert f'UV_PYTHON: "{newest}"' in ci_workflow
 
 
 def test_dependency_guidance_uses_supported_python_floor() -> None:

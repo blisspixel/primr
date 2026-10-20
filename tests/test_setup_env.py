@@ -14,8 +14,8 @@ class _VersionInfo(tuple):
         return instance
 
 
-def test_rich_setup_rejects_python_311(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(setup_env.sys, "version_info", _VersionInfo(3, 11, 9))
+def test_rich_setup_rejects_python_310(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(setup_env.sys, "version_info", _VersionInfo(3, 10, 9))
     monkeypatch.setattr(setup_env, "find_best_python", lambda: None)
     monkeypatch.setattr(setup_env, "_print_python_install_guidance", lambda: None)
 
@@ -25,8 +25,8 @@ def test_rich_setup_rejects_python_311(monkeypatch: pytest.MonkeyPatch) -> None:
     assert exc_info.value.code == 1
 
 
-def test_rich_setup_accepts_python_312(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(setup_env.sys, "version_info", _VersionInfo(3, 12))
+def test_rich_setup_accepts_python_311(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(setup_env.sys, "version_info", _VersionInfo(3, 11))
 
     setup_env._ensure_supported_python_or_exit()
 
@@ -37,8 +37,8 @@ def test_rich_setup_accepts_future_major_python(monkeypatch: pytest.MonkeyPatch)
     setup_env._ensure_supported_python_or_exit()
 
 
-def test_basic_setup_rejects_python_311(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(setup_env.sys, "version_info", _VersionInfo(3, 11, 9))
+def test_basic_setup_rejects_python_310(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(setup_env.sys, "version_info", _VersionInfo(3, 10, 9))
 
     with pytest.raises(SystemExit) as exc_info:
         setup_env.main_basic()
@@ -46,8 +46,8 @@ def test_basic_setup_rejects_python_311(monkeypatch: pytest.MonkeyPatch) -> None
     assert exc_info.value.code == 1
 
 
-def test_basic_setup_accepts_python_312(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(setup_env.sys, "version_info", _VersionInfo(3, 12))
+def test_basic_setup_accepts_python_311(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(setup_env.sys, "version_info", _VersionInfo(3, 11))
     monkeypatch.setattr(setup_env, "install_status", lambda _package: (True, "1.0", "1.0"))
 
     setup_env.main_basic()

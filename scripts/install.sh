@@ -37,7 +37,7 @@ fi
 if [ "$PIPX_INSTALLED" = false ] && command -v uv >/dev/null 2>&1; then
     INSTALLER=uv
     PATH_COMMAND="uv tool update-shell"
-    echo "==> Using uv with Python 3.14 (downloaded automatically if needed)"
+    echo "==> Using uv with Python 3.15 (downloaded automatically if needed)"
 else
     INSTALLER=pipx
     PATH_COMMAND="pipx ensurepath"
@@ -45,15 +45,15 @@ else
 
     # Validate actual versions: a versioned executable can itself be a shim.
     PYTHON=""
-    for CANDIDATE in python3.14 python3.13 python3.12 python3; do
+    for CANDIDATE in python3.15 python3.14 python3.13 python3.12 python3.11 python3; do
         if command -v "$CANDIDATE" >/dev/null 2>&1 && \
-            "$CANDIDATE" -c 'import sys; sys.exit(not ((3, 12) <= sys.version_info[:2] <= (3, 14)))' 2>/dev/null; then
+            "$CANDIDATE" -c 'import sys; sys.exit(not ((3, 11) <= sys.version_info[:2] <= (3, 15)))' 2>/dev/null; then
             PYTHON="$(command -v "$CANDIDATE")"
             break
         fi
     done
     if [ -z "$PYTHON" ]; then
-        echo "Error: pipx needs Python 3.12 through 3.14 for browser-complete Primr installs."
+        echo "Error: pipx needs Python 3.11 through 3.15 for Primr installs."
         tool_guidance
         exit 1
     fi
@@ -107,9 +107,9 @@ fi
 
 if [ "$INSTALLER" = uv ]; then
     if [ -n "$REPO_ROOT" ]; then
-        uv tool install --upgrade --python 3.14 --editable "$REPO_ROOT"
+        uv tool install --upgrade --python 3.15 --editable "$REPO_ROOT"
     else
-        uv tool install --upgrade --python 3.14 "$PACKAGE"
+        uv tool install --upgrade --python 3.15 "$PACKAGE"
     fi
 else
     if [ "$PIPX_INSTALLED" = true ]; then
@@ -156,5 +156,5 @@ echo ""
 echo "For development / editable from source:"
 echo "  git clone https://github.com/blisspixel/primr.git"
 echo "  cd primr"
-echo "  uv tool install --python 3.14 --editable ."
+echo "  uv tool install --python 3.15 --editable ."
 echo ""

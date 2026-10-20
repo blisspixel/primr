@@ -8,11 +8,8 @@ version = "1.39.19"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = "Apache-2.0"
-# Floor is 3.12 (EOL-driven): 3.10 reaches EOL Oct 2026 and 3.11 Oct 2027,
-# while 3.12 carries security support to Oct 2028. Standardizing above the
-# soon-to-be-legacy line removes legacy codepaths and aligns with the
-# ecosystem. See ROADMAP "Engineering Standards & Toolchain".
-requires-python = ">=3.12"
+# Support maintained CPython releases; use the newest stable in development.
+requires-python = ">=3.11"
 authors = [
     {name = "Nick Seal", email = "nick@pueo.io"}
 ]
@@ -25,9 +22,11 @@ classifiers = [
     "Intended Audience :: Information Technology",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Office/Business",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Text Processing :: Markup :: Markdown",
@@ -72,6 +71,9 @@ dependencies = [
     # CVE-2026-84379/84380/84382 are fixed together in 2.12.0.
     "httpx2>=2.12.0",
     "playwright>=1.40.0",
+    # The browser compatibility guard reads this runtime version. 3.5.6 ships
+    # stable CPython 3.15 support; older builds could crash sync browser calls.
+    "greenlet>=3.5.6,<4",
     "patchright",
     "docx2pdf>=0.1.8",
     "pyyaml>=6.0.0",
@@ -118,7 +120,7 @@ dev = [
     "types-PyYAML",
     "ruff>=0.15.5,<0.16.0",
     "bandit>=1.7.0",
-    "pip-audit>=2.7.0",
+    "pip-audit>=2.10.1",
     "pre-commit>=3.5.0",
 ]
 api = [
@@ -230,13 +232,14 @@ constraint-dependencies = [
     "PyJWT>=2.15.1",
     "soupsieve>=2.9.0",
     "virtualenv>=21.14.4",
+    # Older vendored parsers import sre_constants, removed in Python 3.15.
+    "pip-api>=0.0.35",
 ]
 
 [tool.ruff]
 line-length = 100
-# Matches the supported floor (requires-python >= 3.12) so pyupgrade (UP) keeps
-# the codebase on modern 3.12+ idioms.
-target-version = "py312"
+# Match the maintained floor so syntax and APIs remain compatible with 3.11.
+target-version = "py311"
 
 [tool.ruff.lint]
 select = [

@@ -37,7 +37,7 @@ if (Get-Command pipx -ErrorAction SilentlyContinue) {
 if (-not $pipxInstalled -and (Get-Command uv -ErrorAction SilentlyContinue)) {
     $installer = "uv"
     $pathCommand = "uv tool update-shell"
-    Write-Host "==> Using uv with Python 3.14 (downloaded automatically if needed)" -ForegroundColor DarkGray
+    Write-Host "==> Using uv with Python 3.15 (downloaded automatically if needed)" -ForegroundColor DarkGray
 } else {
     $installer = "pipx"
     $pathCommand = "pipx ensurepath"
@@ -46,11 +46,11 @@ if (-not $pipxInstalled -and (Get-Command uv -ErrorAction SilentlyContinue)) {
     $pythonPath = $null
     $candidates = @()
     if (Get-Command py -ErrorAction SilentlyContinue) {
-        foreach ($minor in @("3.14", "3.13", "3.12")) {
+        foreach ($minor in @("3.15", "3.14", "3.13", "3.12", "3.11")) {
             $candidates += @{ Command = "py"; Prefix = @("-$minor") }
         }
     }
-    foreach ($name in @("python3.14", "python3.13", "python3.12", "python", "python3")) {
+    foreach ($name in @("python3.15", "python3.14", "python3.13", "python3.12", "python3.11", "python", "python3")) {
         if (Get-Command $name -ErrorAction SilentlyContinue) {
             $candidates += @{ Command = $name; Prefix = @() }
         }
@@ -59,7 +59,7 @@ if (-not $pipxInstalled -and (Get-Command uv -ErrorAction SilentlyContinue)) {
         $prefix = $candidate.Prefix
         # Validate actual versions: a versioned executable can itself be a shim.
         try {
-            & $candidate.Command @prefix -c 'import sys; sys.exit(not ((3, 12) <= sys.version_info[:2] <= (3, 14)))' 2>$null
+            & $candidate.Command @prefix -c 'import sys; sys.exit(not ((3, 11) <= sys.version_info[:2] <= (3, 15)))' 2>$null
         } catch {
             continue
         }
@@ -69,7 +69,7 @@ if (-not $pipxInstalled -and (Get-Command uv -ErrorAction SilentlyContinue)) {
         }
     }
     if (-not $pythonPath) {
-        Write-Host "Error: pipx needs Python 3.12 through 3.14 for browser-complete Primr installs." -ForegroundColor Red
+        Write-Host "Error: pipx needs Python 3.11 through 3.15 for Primr installs." -ForegroundColor Red
         Show-ToolGuidance
         exit 1
     }
@@ -131,7 +131,7 @@ if ($repoRoot) {
 }
 
 if ($installer -eq "uv") {
-    $installArguments = @("tool", "install", "--upgrade", "--python", "3.14")
+    $installArguments = @("tool", "install", "--upgrade", "--python", "3.15")
     if ($repoRoot) {
         $installArguments += @("--editable", "$repoRoot")
     } else {
@@ -184,5 +184,5 @@ Write-Host ""
 Write-Host "For development / editable from source:"
 Write-Host "  git clone https://github.com/blisspixel/primr.git"
 Write-Host "  cd primr"
-Write-Host "  uv tool install --python 3.14 --editable ."
+Write-Host "  uv tool install --python 3.15 --editable ."
 Write-Host ""

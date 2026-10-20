@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/blisspixel/primr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/primr/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/primr.svg)](https://pypi.org/project/primr/)
-[![Python 3.12-3.14](https://img.shields.io/badge/Python-3.12--3.14-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11-3.15](https://img.shields.io/badge/Python-3.11--3.15-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/blisspixel/primr/badge)](https://securityscorecards.dev/viewer/?uri=github.com/blisspixel/primr)
 
@@ -116,18 +116,18 @@ Mode matrix, platforms, strategy types, and cost controls:
 
 ## Install
 
-- Python 3.12 through 3.14; see the installation guide for the 3.15 preview lane
+- Python 3.11 through 3.15; Python 3.15 is the default
 - No API key or GPU for `primr recon` / `primr prep`
 - Keys only for provider-backed research (preferred default: [OpenRouter gateway](docs/OPENROUTER.md) when configured, or direct xAI + Gemini including Google Gemini 3.8 Flash; optional direct OpenAI, Anthropic, Bedrock, Azure)
 - `primr init` installs browser deps for scrape tiers
 
 ```bash
-uv tool install --python 3.14 primr
+uv tool install --python 3.15 primr
 primr --version
 ```
 
-With pipx, use `pipx install --python python3.14 primr` and an installed Python
-3.14. Plain `pip install primr` also works inside a Python 3.12 through 3.14
+With pipx, use `pipx install --python python3.15 primr` and an installed Python
+3.14. Plain `pip install primr` also works inside a Python 3.11 through 3.15
 virtual environment. Download and inspect convenience installers
 before running them. For those scripts, upgrades, PATH troubleshooting, and
 source-checkout setup, see

@@ -4,12 +4,41 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 from pathlib import Path
 
 import pytest
 
 from primr.skill_pack import publication
 from primr.skill_pack.schema import SkillPackArtifacts
+
+
+def test_readonly_cleanup_retries_with_owner_write_permission(tmp_path: Path):
+    target = tmp_path / "readonly.txt"
+    target.write_text("owned output", encoding="utf-8")
+    target.chmod(stat.S_IRUSR)
+    original = PermissionError("read-only output")
+
+    def remove(path: str) -> None:
+        assert Path(path).stat().st_mode & stat.S_IWUSR
+        Path(path).unlink()
+
+    publication._remove_readonly_path(remove, str(target), (PermissionError, original, None))
+    assert not target.exists()
+
+
+def test_readonly_cleanup_preserves_original_error_when_retry_fails(tmp_path: Path, monkeypatch):
+    original = PermissionError("original cleanup failure")
+
+    def deny_chmod(*_args):
+        raise OSError("retry denied")
+
+    monkeypatch.setattr(publication.os, "chmod", deny_chmod)
+    with pytest.raises(PermissionError) as raised:
+        publication._remove_readonly_path(
+            os.unlink, str(tmp_path), (PermissionError, original, None)
+        )
+    assert raised.value is original
 
 
 def _owned_output(tmp_path: Path, company_name: str = "Acme Corp") -> Path:

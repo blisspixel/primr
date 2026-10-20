@@ -232,13 +232,15 @@ def validate_replace_target(
         raise ValueError("refusing to replace an output directory without Primr ownership proof")
 
 
-def _remove_readonly_path(function: Any, path: str, error: BaseException) -> None:
+def _remove_readonly_path(
+    function: Any, path: str, exc_info: tuple[type[BaseException], BaseException, Any]
+) -> None:
     """Let rmtree retry a read-only path without swallowing its failure."""
     try:
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
         function(path)
     except OSError:
-        raise error from None
+        raise exc_info[1] from None
 
 
 def cleanup_owned_tree(path: Path, *, context: str) -> str | None:
@@ -246,7 +248,7 @@ def cleanup_owned_tree(path: Path, *, context: str) -> str | None:
     last_error: Exception | None = None
     for attempt in range(3):
         try:
-            shutil.rmtree(path, onexc=_remove_readonly_path)
+            shutil.rmtree(path, onerror=_remove_readonly_path)
             return None
         except Exception as exc:  # cleanup must not turn a committed publish into failure
             last_error = exc

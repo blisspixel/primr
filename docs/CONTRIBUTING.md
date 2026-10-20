@@ -58,10 +58,10 @@ Source: `docs/images/primr-demo-terminal.html`. Requires Playwright Chromium
    **Option C - guided bootstrap (Windows-friendly):**
    ```bash
    cd primr
-   py -3.13 setup_env.py           # Windows
-   # or: python3.13 setup_env.py   # macOS/Linux
+   py -3.15 setup_env.py           # Windows
+   # or: python3.15 setup_env.py   # macOS/Linux
    ```
-   `setup_env.py` auto-picks Python 3.12+ if your default is older, installs the editable package, downloads Playwright browsers, and adds the user Scripts dir to PATH on Windows. Useful for first-time contributors who hit the "which Python do I use?" issue.
+   `setup_env.py` auto-picks Python 3.11+ if your default is older, installs the editable package, downloads Playwright browsers, and adds the user Scripts dir to PATH on Windows. Useful for first-time contributors who hit the "which Python do I use?" issue.
 
 4. Copy `.env.example` to `.env` and add your API keys (or run `primr init` to walk through it).
 
