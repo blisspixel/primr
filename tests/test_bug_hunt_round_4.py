@@ -56,27 +56,24 @@ class TestEnvParseFallback:
 
 
 class TestBannerDurationGarbage:
-    def test_invalid_duration_falls_back(self, monkeypatch) -> None:
+    def test_invalid_legacy_duration_cannot_delay_or_crash_banner(
+        self, monkeypatch, capsys
+    ) -> None:
         from primr.utils import banner as banner_mod
 
         monkeypatch.setenv("PRIMR_BANNER_DURATION_MS", "nope")
         monkeypatch.setattr(banner_mod, "should_show_banner", lambda *a, **k: True)
-        monkeypatch.setattr(banner_mod, "resolve_banner_mode", lambda *a, **k: "animated")
         monkeypatch.setattr(
             banner_mod,
             "detect_banner_context",
             lambda: banner_mod.BannerContext(
-                is_tty=True,
-                supports_color=True,
-                supports_unicode=True,
-                supports_cursor=True,
+                is_tty=True, supports_color=True, supports_unicode=True, supports_cursor=True
             ),
         )
-        captured: dict[str, int] = {}
 
-        def fake_render(_ctx, duration_ms: int = 1500) -> None:
-            captured["duration_ms"] = duration_ms
+        def reject_animation(*args, **kwargs):
+            raise AssertionError("legacy duration must not enable animation")
 
-        monkeypatch.setattr(banner_mod, "render_animated_banner", fake_render)
+        monkeypatch.setattr(banner_mod, "render_animated_banner", reject_animation)
         assert banner_mod.maybe_show_startup_banner() is True
-        assert captured["duration_ms"] == 1500
+        assert banner_mod.BANNER_ART in capsys.readouterr().out
