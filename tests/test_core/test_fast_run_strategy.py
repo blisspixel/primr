@@ -15,6 +15,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from primr.core.fast_run_contracts import StrategyServices
 from primr.core.fast_run_strategy import StrategyPhaseResult, run_strategy_phase
 
 CLEAN_QA = {
@@ -103,6 +104,14 @@ def seams(monkeypatch, tmp_path):
 
 def _call(seams, **overrides) -> StrategyPhaseResult:
     defaults = {
+        "services": StrategyServices(
+            seams["build_ai_prompt"],
+            seams["build_yaml_prompt"],
+            seams["session_cost"],
+            seams["enrich"],
+            seams["prepare"],
+            seams["save"],
+        ),
         "has_strategies": True,
         "ai_strategy": True,
         "platforms": ["azure"],

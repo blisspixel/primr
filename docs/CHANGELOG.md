@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   labels. Recommendation priorities use words in navy, and muted text uses
   contrast-tested #6B6B6B.
 
+- Remove research-stage back imports through typed trust and strategy callbacks
+  and one canonical owner for the existing legacy section pipeline. Public
+  compatibility exports remain lazy; scrape gates, progress, explicit folders,
+  and existing callback seams are retained. The first-party import graph is now
+  acyclic and cannot grow a new cycle without failing CI.
+
 - Return a structured error if a hypothesis disappears while applying an update.
   Complete ranked-link comparisons without changing stable tie ordering or
   record equality, and accept custom awaitables at the sync boundary.

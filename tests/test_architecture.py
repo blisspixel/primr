@@ -56,7 +56,7 @@ NEW_FILE_MAX_LINES = 1000
 FILE_LINE_CEILINGS: dict[str, int] = {
     # research_agent.py and cli.py remain below their committed-main baselines.
     # These ceilings track the current measured sizes and may only shrink.
-    "core/research_agent.py": 4256,
+    "core/research_agent.py": 3983,
     "core/cli.py": 2439,
     "ai/deep_research.py": 3812,
     "data/scraping/browsers.py": 1833,
@@ -141,22 +141,7 @@ def test_no_empty_non_package_modules():
     assert not empty, "Remove empty non-package modules:\n" + "\n".join(empty)
 
 
-EXPECTED_IMPORT_CYCLES = {
-    frozenset(
-        {
-            "primr",
-            "primr.core.cli",
-            "primr.core.cli_dispatch",
-            "primr.core.cli_doctor",
-            "primr.core.cli_update",
-            "primr.core.deep_research_runner",
-            "primr.core.fast_run_strategy",
-            "primr.core.fast_run_trust",
-            "primr.core.research_agent",
-            "primr.core.research_orchestrator",
-        }
-    ),
-}
+EXPECTED_IMPORT_CYCLES: set[frozenset[str]] = set()
 
 
 def _module_name(path: Path) -> str:
@@ -284,6 +269,10 @@ def test_first_party_import_cycles_match_burndown_baseline():
         ("primr.core.research_agent", "primr.core.fast_run_validation"),
         ("primr.core.fast_run_sections", "primr.core.research_agent"),
         ("primr.core.research_agent", "primr.core.fast_run_sections"),
+        ("primr.core.legacy_research", "primr.core.research_orchestrator"),
+        ("primr.core.research_orchestrator", "primr.core.legacy_research"),
+        ("primr.core.fast_run_trust", "primr.core.research_agent"),
+        ("primr.core.fast_run_strategy", "primr.core.research_agent"),
         ("primr.core.refine", "primr.core.research_agent"),
         ("primr.core.research_agent", "primr.core.refine"),
     ],

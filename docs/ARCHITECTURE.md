@@ -1477,3 +1477,21 @@ router are `fast.scrape_summary`, `fast.source_relevance`, and
 - Subagents for scraping, analysis, writing, and QA
 - Hook system for governance (cost limits, quality gates)
 - Research memory that persists and evolves
+
+### Acyclic research composition
+
+All first-party Python import components are now acyclic, enforced by an empty
+cycle baseline. Fast trust and strategy stages receive typed callbacks from the
+research composition root; they never resolve helpers by importing that root.
+`core.legacy_research` owns the existing section pipeline, including its scrape
+quality gates, explicit working-folder binding, validated external collection,
+progress, and section persistence. The orchestrator calls that same owner;
+public research-agent functions remain thin compatibility facades that supply
+their existing callback seams. The separate typed structured workflow retains
+its existing public interface.
+
+The historical `research_agent.main` and package-level `perform_research` exports
+resolve lazily on explicit attribute access. Importing research stages does not
+initialize the operational CLI. These compatibility exports retain the exact
+function identities of their owners, with fresh-interpreter checks protecting
+the startup boundary.

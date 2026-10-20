@@ -90,6 +90,8 @@ def test_trust_polish_skips_llm_when_route_unavailable(monkeypatch, tmp_path):
     )
 
     result = polish_and_gate_fast_report(
+        polish_report=boom_polish,
+        repair_citations=boom_repair,
         company_label="ExampleCo",
         website=None,
         report_content="## Overview\nbody",

@@ -90,6 +90,8 @@ def seams(monkeypatch, tmp_path):
 
     def call(**overrides) -> FastTrustResult:
         defaults = {
+            "polish_report": mocks["polish"],
+            "repair_citations": mocks["repair"],
             "company_label": "AcmeCo",
             "website": "https://acme.example",
             "report_content": "## Section\nbody",
