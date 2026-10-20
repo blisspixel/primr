@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Validate background research IDs before saving or polling a job, and keep
+  experimental job creation explicitly non-streaming with current Google SDKs.
+
 - Reject authored Python replacement fields across maintained interpreters,
   including newer f-string syntax that Python 3.11 cannot parse.
 - Preserve claim evidence labels in Word reports without adding risk dots or
@@ -68,6 +71,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer end with a contradictory host-synthesis handoff.
 
 ### Changed
+
+- Refresh the reviewed runtime, build, test, and typing dependencies within the
+  existing package bounds, including Google Gen AI, HTTP/ASGI clients, cloud
+  SDKs, and mypy. Regenerate the hash-locked container exports. Python update
+  proposals now preserve manifest bounds; the intentional Ruff cap remains.
 
 - Refresh pinned artifact upload/download, CodeQL, Pages deployment, build
   provenance, and PyPI publishing actions to reviewed compatible releases.

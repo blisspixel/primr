@@ -722,7 +722,7 @@ Write the **{section["title"]}** section now:"""
         """Execute Deep Research API call for the dossier."""
         self._api_call_count += 1
         start_time = time.time()
-
+        from primr.ai.deep_research_parsing import require_interaction_id
         from primr.config.models import PrimrModels
         from primr.utils.model_policy import require_model_calls_allowed
 
@@ -735,9 +735,9 @@ Write the **{section["title"]}** section now:"""
                 input=prompt,
                 agent=PrimrModels.DEEP_RESEARCH_AGENT,
                 background=True,
+                stream=False,
             )
-
-            interaction_id = interaction.id
+            interaction_id = require_interaction_id(interaction)
             from primr.ai.job_persistence import save_pending_job
 
             save_pending_job(

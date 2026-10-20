@@ -19,6 +19,14 @@ def _field(value: Any, name: str, default: Any = None) -> Any:
     return getattr(value, name, default)
 
 
+def require_interaction_id(interaction: object) -> str:
+    """Read an accepted background job ID without coercing malformed responses."""
+    identifier = _field(interaction, "id")
+    if not isinstance(identifier, str) or not identifier.strip():
+        raise ValueError("Deep Research response did not include a non-empty interaction ID")
+    return identifier
+
+
 def _items(value: Any) -> Sequence[Any]:
     """Return list-like SDK fields while rejecting strings and mock sentinels."""
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):

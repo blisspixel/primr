@@ -168,6 +168,8 @@ def test_scheduled_audits_and_grouped_dependency_proposals() -> None:
         "github-actions",
         "docker",
     }
+    python = next(entry for entry in updates["updates"] if entry["package-ecosystem"] == "uv")
+    assert python["versioning-strategy"] == "lockfile-only"
     for entry in updates["updates"]:
         assert entry["open-pull-requests-limit"] <= 2
         assert entry["schedule"]["interval"] == "weekly"

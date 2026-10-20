@@ -76,6 +76,11 @@ remain active. Grouped weekly update PRs cover uv, GitHub Actions, and container
 base images, with separate groups for security fixes. Major updates stay separate
 for deliberate compatibility review. There is no automatic merge policy.
 
+Python proposals update the lockfile within the existing package requirements.
+Intentional compatibility caps, including the Ruff formatter line, need a
+separate reviewed manifest change. Automated proposals must not widen those
+caps while labeling the result a compatible update.
+
 Treat update PRs as proposals. Review the upstream changes, apply the accepted
 changes on a maintainer-authored feature branch, regenerate both exports below,
 and run the affected compatibility and security gates. Link and close the
