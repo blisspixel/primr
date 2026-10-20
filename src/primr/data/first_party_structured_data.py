@@ -6,17 +6,17 @@ import html
 import json
 import logging
 import re
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
+from primr.data.fallback_http import http_get as _default_http_get
+from primr.data.fallback_types import FallbackPage, HttpGet
 from primr.data.first_party_url import same_site
 
 logger = logging.getLogger(__name__)
-
-HttpGet = Callable[..., tuple[int | None, bytes | None, str | None]]
 
 _HTML_MAX_BYTES = 1_000_000
 _JSON_LD_BLOCK_MAX_CHARS = 500_000
@@ -157,12 +157,10 @@ def fetch_structured_data_content(
     max_pages: int = _DEFAULT_MAX_PAGES,
     max_entities: int = _DEFAULT_MAX_ENTITIES,
     max_probe_urls: int = _DEFAULT_MAX_PROBE_URLS,
-) -> list[Any]:
+) -> list[FallbackPage]:
     """Return fallback-page objects for JSON-LD facts without growing fan-out code."""
 
-    from primr.data.fallback_sources import FallbackPage, _http_get
-
-    resolved_http_get = http_get or _http_get
+    resolved_http_get = http_get or _default_http_get
     pages = fetch_structured_data_pages(
         base_host,
         http_get=resolved_http_get,

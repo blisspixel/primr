@@ -375,6 +375,14 @@ stable input order for distinct tied records. All comparison methods decline
 unrelated types. The sync bridge awaits through a coroutine wrapper so its
 Awaitable contract works on every maintained interpreter.
 
+Fallback recovery composition owns fan-out and injects its HTTP callback into
+PDF and structured-data adapters. Their shared FallbackPage result and HttpGet
+protocol live in a leaf contract module; the default HTTP adapter delegates to
+the existing per-hop validated, IP-pinned safe HTTP transport. Recovery adapters
+never import their composition root. The legacy FallbackPage and HTTP import
+surfaces remain compatible, and the import-cycle baseline removes the retired
+three-module component. Fresh-process tests cover both adapter import orders.
+
 The fast-mode orchestrator (`perform_fast_research`) is decomposed into
 per-stage modules (roadmap #23; see
 [`design/23-orchestrator-refactor-map.md`](design/23-orchestrator-refactor-map.md)
