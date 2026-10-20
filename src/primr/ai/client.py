@@ -61,6 +61,7 @@ from primr.ai.error_policy import (
     is_invalid_api_key_error,
     is_timeout_error,
 )
+from primr.config.models import PrimrModels
 from primr.config.settings import get_settings
 from primr.utils.errors import AIError, calculate_retry_delay, is_rate_limit_error
 from primr.utils.logging_config import get_logger
@@ -212,7 +213,7 @@ class AIClient:
             raise ValueError("prompt cannot be empty")
         if not 0.0 <= temperature <= 2.0:
             raise ValueError(f"temperature must be between 0.0 and 2.0, got {temperature}")
-        model = self._get_model(model_type)
+        model = PrimrModels.require_model_available(self._get_model(model_type))
         allowed_thinking_levels = supported_thinking_levels(model)
         if thinking_level not in allowed_thinking_levels:
             raise ValueError(
@@ -283,7 +284,6 @@ class AIClient:
                     self.usage_by_model[model]["output_tokens"] += usage.output_tokens
                     self.usage_by_model[model]["calls"] += 1
                     # Per-call tier-aware cost: prompt_token_count = input_tokens
-                    from primr.config.models import PrimrModels
 
                     try:
                         call_cost = PrimrModels.calculate_cost(
@@ -544,7 +544,6 @@ class AIClient:
         Returns:
             Dict with usage statistics and estimated cost
         """
-        from primr.config.models import PrimrModels
 
         if self.usage_by_model:
             total_cost = 0.0

@@ -167,7 +167,7 @@ def llm(
     require_model_calls_allowed("LLM generation")
     if retries is not None and retries < 0:
         raise ValueError("retries must be zero or greater")
-    model_name = model or _get_model_for_type(model_type)
+    model_name = PrimrModels.require_model_available(model or _get_model_for_type(model_type))
     config = PrimrModels.get_model_config(model_name)
     if config is not None and config.provider == "xai":
         # Utility-tier dispatch: caller asked for a Flash-class task and the

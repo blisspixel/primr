@@ -9,6 +9,7 @@ get/init helpers, and the CostTracker pricing math.
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 
 import pytest
 
@@ -360,3 +361,13 @@ def test_module_has_asyncio_loop_compatibility():
             return get_async_correlation_id()
 
     assert asyncio.run(_check()) == "smoke"
+
+
+def test_default_pricing_tracks_scheduled_rates_and_keeps_legacy_accounting():
+    from primr.utils.telemetry import _build_default_pricing
+
+    before = _build_default_pricing(date(2026, 11, 30))
+    after = _build_default_pricing(date(2026, 12, 1))
+    assert before["gemini-4-argon"] == (2.0, 10.0)
+    assert after["gemini-4-argon"] == (4.0, 20.0)
+    assert before["gemini-1.5-pro"] == after["gemini-1.5-pro"] == (1.25, 5.0)

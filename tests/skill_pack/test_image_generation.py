@@ -1,14 +1,48 @@
 from __future__ import annotations
 
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from primr.skill_pack.image_generation import (
     MAX_PROVIDER_IMAGE_BYTES,
+    GeminiImageProvider,
+    ImageRequest,
     _fetch_provider_image_url,
     generate_icons,
 )
+
+
+@pytest.mark.parametrize("override", [None, "gemini-3-pro-image"])
+def test_gemini_image_uses_supported_default_or_explicit_model(monkeypatch, override):
+    from PIL import Image
+
+    monkeypatch.delenv("AI_IMAGE_MODEL", raising=False)
+    if override:
+        monkeypatch.setenv("AI_IMAGE_MODEL", override)
+    image = Image.new("RGB", (4, 4), "navy")
+    client = MagicMock()
+    client.models.generate_content.return_value = SimpleNamespace(
+        parts=[SimpleNamespace(as_image=lambda: image)]
+    )
+    with patch("primr.ai.llm._get_client", return_value=client):
+        rendered = GeminiImageProvider().generate(ImageRequest("ExampleCo", "Simple icon", 32, 32))
+    assert rendered.startswith(b"\x89PNG")
+    assert client.models.generate_content.call_args.kwargs["model"] == (
+        override or "gemini-nano-banana-2.1"
+    )
+
+
+@pytest.mark.parametrize(
+    "override",
+    ["gemini-3-pro-image-preview", "gemini-3.1-flash-image-preview", "gemini-3-flash-preview"],
+)
+def test_gemini_image_rejects_retired_unknown_or_nonimage_route_before_sdk(monkeypatch, override):
+    monkeypatch.setenv("AI_IMAGE_MODEL", override)
+    with patch("primr.ai.llm._get_client") as client_factory, pytest.raises(ValueError):
+        GeminiImageProvider().generate(ImageRequest("ExampleCo", "Simple icon", 32, 32))
+    client_factory.assert_not_called()
 
 
 def test_fetch_provider_image_url_blocks_unsafe_initial_url() -> None:

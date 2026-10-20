@@ -855,6 +855,7 @@ src/primr/
 ├── config/                  # Environment, settings, models, sections, eval profiles
 │   ├── model_config.py      # Shared model metadata, pricing, and provider retirement checks
 │   ├── model_registry.py    # Direct-provider registrations; re-exports ModelConfig
+│   ├── gemini_models.py     # Direct Gemini catalog, history, and dated prices/retirements
 │   └── openrouter_models.py # OpenRouter registrations and published route retirements
 ├── utils/                   # Shared async, I/O, security, console, and logging seams
 │   └── errors/             # Typed error hierarchy and retry helpers

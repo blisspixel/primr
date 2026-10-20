@@ -150,7 +150,7 @@ class GeminiImageProvider(ImageGenerationProvider):
 
     Reference: https://ai.google.dev/gemini-api/docs/image-generation
 
-    Uses `client.models.generate_content(model='gemini-3.1-flash-image-preview',
+    Uses the configured current image model with `client.models.generate_content(
     config=GenerateContentConfig(response_modalities=['TEXT','IMAGE'], ...))`.
     Image bytes are extracted from response.parts via part.as_image() (PIL
     Image), saved to PNG bytes, then resized client-side.
@@ -166,7 +166,14 @@ class GeminiImageProvider(ImageGenerationProvider):
 
     def generate(self, request: ImageRequest) -> bytes:
         from primr.ai.llm import _get_client  # type: ignore[attr-defined]
+        from primr.config.models import ModelRegistry, ModelType, PrimrModels
 
+        model = PrimrModels.get_model_for_type(ModelType.IMAGE)
+        if model not in {
+            ModelRegistry.GEMINI_NANO_BANANA_2_1.name,
+            ModelRegistry.GEMINI_3_PRO_IMAGE_STABLE.name,
+        }:
+            raise ValueError("AI_IMAGE_MODEL must select a registered Gemini image model")
         client = _get_client()
         prompt = self._build_prompt(request)
 
@@ -188,7 +195,7 @@ class GeminiImageProvider(ImageGenerationProvider):
             ) from exc
 
         response = client.models.generate_content(
-            model="gemini-3.1-flash-image-preview",
+            model=model,
             contents=prompt,
             config=config,
         )

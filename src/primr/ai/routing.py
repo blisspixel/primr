@@ -230,12 +230,12 @@ def pick_model_for_role(role: Role | str) -> str:
         if field is not None:
             override_model = getattr(recipe, field, None)
             if override_model:
-                return override_model
+                return PrimrModels.require_model_available(override_model)
         # Also check the recipe's extra dict for forward-compat role names
         if recipe.extra:
             extra_model = recipe.extra.get(role.value)
             if extra_model:
-                return extra_model
+                return PrimrModels.require_model_available(extra_model)
 
     # 2. Default routing — provider-aware fallback chain (v1.24.0 + v1.24.x)
     #
@@ -274,10 +274,12 @@ def pick_model_for_role(role: Role | str) -> str:
     )
 
     if role is Role.UTILITY:
-        return _pick_utility_model(has_openrouter, prefer_openrouter)
-    if role is Role.WRITING:
-        return _pick_writing_model(has_openrouter, prefer_openrouter)
-    return _pick_reasoning_model(has_openrouter, prefer_openrouter)
+        selected = _pick_utility_model(has_openrouter, prefer_openrouter)
+    elif role is Role.WRITING:
+        selected = _pick_writing_model(has_openrouter, prefer_openrouter)
+    else:
+        selected = _pick_reasoning_model(has_openrouter, prefer_openrouter)
+    return PrimrModels.require_model_available(selected)
 
 
 def _pick_utility_model(has_openrouter: bool, prefer_openrouter: bool) -> str:

@@ -542,7 +542,7 @@ class TestGeminiProviderChat:
 
         provider.chat(
             [{"role": "user", "content": "x"}],
-            model="gemini-3-pro-preview",
+            model="gemini-3.1-pro-preview",
             thinking_level="low",
         )
 

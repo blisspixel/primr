@@ -266,8 +266,8 @@ class TestCurrentGeminiCandidates:
         assert config is not None
         assert config.cost_per_1m_input_tokens_cached == 0.03
 
-    def test_gemini_37_is_current_but_not_production_default(self) -> None:
-        assert PrimrModels.is_latest_model("gemini-3.7-flash")
+    def test_gemini_38_is_current_but_not_production_default(self) -> None:
+        assert PrimrModels.is_latest_model("gemini-3.8-flash")
         assert PrimrModels.PRO_MODEL == "gemini-3.1-pro-preview"
 
     @pytest.mark.parametrize("model", ["gemini-3.6-flash", "gemini-3.7-flash"])
