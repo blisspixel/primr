@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reject authored Python replacement fields across maintained interpreters,
   including newer f-string syntax that Python 3.11 cannot parse.
+- Preserve claim evidence labels in Word reports without adding risk dots or
+  assigning whole-report confidence from citation totals. Compatibility
+  formatters accept only explicit Confirmed, Reported, Estimated, and Hypothesis
+  labels. Recommendation priorities use words in navy, and muted text uses
+  contrast-tested #6B6B6B.
+
 - Keep keyless startup and estimate requests free of setup prompts. Show a
   short home screen with the prep path first, and a static ANSI wordmark only
   at home or on explicit banner requests.

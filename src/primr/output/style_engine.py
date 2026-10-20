@@ -24,7 +24,7 @@ class StyleEngine:
     SECONDARY_COLOR = RGBColor(0, 82, 147)  # Medium blue - section headings
     ACCENT_COLOR = RGBColor(0, 120, 174)  # Light blue - sub-headings
     TEXT_COLOR = RGBColor(51, 51, 51)  # Dark gray - body text
-    MUTED_COLOR = RGBColor(128, 128, 128)  # Gray - captions, metadata
+    MUTED_COLOR = RGBColor(107, 107, 107)  # Gray - captions, metadata
     HIGHLIGHT_BG = RGBColor(240, 248, 255)  # Alice blue - callout backgrounds
     TABLE_HEADER_BG = RGBColor(0, 51, 102)  # Navy - table headers
     TABLE_ALT_ROW = RGBColor(245, 247, 250)  # Light gray-blue - alternating rows
@@ -278,15 +278,18 @@ class DualCodingEnhancer:
     }
 
     PRIORITY_INDICATORS = {
-        "high": "●",
-        "medium": "◐",
-        "low": "○",
+        "high": "[HIGH]",
+        "medium": "[MED]",
+        "low": "[LOW]",
     }
 
+    # Legacy formatter entry points accept only explicit claim evidence labels.
+    # Citation totals and generic high/medium/low scores cannot supply labels.
     CONFIDENCE_INDICATORS = {
-        "high": "●●●",  # Multiple sources, recent data
-        "medium": "●●○",  # Single source or older data
-        "low": "●○○",  # Inference or limited data
+        "confirmed": "Confirmed",
+        "reported": "Reported",
+        "estimated": "Estimated",
+        "hypothesis": "Hypothesis",
     }
 
     # Unicode block characters for sparklines
@@ -330,12 +333,14 @@ class DualCodingEnhancer:
 
         Args:
             text: The text content
-            confidence: Confidence level ('high', 'medium', 'low')
+            confidence: Explicit evidence label supplied with the claim
 
         Returns:
             Text with confidence indicator
         """
-        indicator = self.CONFIDENCE_INDICATORS.get(confidence.lower(), "")
+        if any(f"({label}".casefold() in text.casefold() for label in self.CONFIDENCE_INDICATORS):
+            return text
+        indicator = self.CONFIDENCE_INDICATORS.get(confidence.casefold(), "")
         if indicator:
             return f"{text} ({indicator})"
         return text

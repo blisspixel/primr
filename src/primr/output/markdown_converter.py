@@ -22,6 +22,8 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
+from primr.output.style_engine import StyleEngine
+
 
 def sanitize_text(text: str) -> str:
     """
@@ -382,6 +384,7 @@ def setup_document_styles(doc: Document) -> None:
     normal = styles["Normal"]
     normal.font.name = "Calibri"
     normal.font.size = Pt(11)
+    normal.font.color.rgb = StyleEngine.TEXT_COLOR
     normal.paragraph_format.space_after = Pt(8)
     normal.paragraph_format.line_spacing = 1.15
 
@@ -394,12 +397,21 @@ def setup_document_styles(doc: Document) -> None:
         ("Heading 4", 11, True, 6, 2),  # Minor headings
     ]
 
+    heading_colors = {
+        "Heading 1": StyleEngine.PRIMARY_COLOR,
+        "Heading 2": StyleEngine.SECONDARY_COLOR,
+        "Heading 3": StyleEngine.ACCENT_COLOR,
+        "Heading 4": StyleEngine.TEXT_COLOR,
+    }
+    styles["Title"].font.color.rgb = StyleEngine.PRIMARY_COLOR
+    styles["Subtitle"].font.color.rgb = StyleEngine.MUTED_COLOR
     for style_name, size, bold, before, after in heading_configs:
         if style_name in styles:
             style = styles[style_name]
             style.font.name = "Calibri"
             style.font.size = Pt(size)
             style.font.bold = bold
+            style.font.color.rgb = heading_colors[style_name]
             style.paragraph_format.space_before = Pt(before)
             style.paragraph_format.space_after = Pt(after)
 

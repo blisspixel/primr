@@ -7,6 +7,8 @@ Task 15: Final integration and testing
 import os
 import tempfile
 
+import pytest
+
 from primr.output.document_builder import DocumentBuilder
 from primr.output.markdown_parser import ArtifactDetector
 from primr.output.output_utils import (
@@ -399,65 +401,19 @@ class TestUXChecklist:
 
 
 # =============================================================================
-# CITATION-BASED CONFIDENCE TESTS
+# CLAIM EVIDENCE LABELS
 # =============================================================================
 
 
-class TestCitationConfidence:
-    """Tests for citation-based confidence indicators."""
-
-    def test_high_confidence_with_many_citations(self):
-        """High confidence when 10+ citations provided."""
-        citations = [{"title": f"Source {i}", "url": f"https://source{i}.com"} for i in range(12)]
-
-        builder = DocumentBuilder(
-            company_name="Test Corp", section_results=SAMPLE_SECTIONS, citations=citations
-        )
-
-        assert builder._citation_count == 12
-        assert builder._overall_confidence == "high"
-        assert "High confidence" in builder._get_confidence_description()
-
-    def test_medium_confidence_with_some_citations(self):
-        """Medium confidence when 3-9 citations provided."""
-        citations = [{"title": f"Source {i}", "url": f"https://source{i}.com"} for i in range(5)]
-
-        builder = DocumentBuilder(
-            company_name="Test Corp", section_results=SAMPLE_SECTIONS, citations=citations
-        )
-
-        assert builder._citation_count == 5
-        assert builder._overall_confidence == "medium"
-        assert "Medium confidence" in builder._get_confidence_description()
-
-    def test_low_confidence_with_few_citations(self):
-        """Low confidence when 0-2 citations provided."""
-        citations = [{"title": "Source 1", "url": "https://source1.com"}]
-
-        builder = DocumentBuilder(
-            company_name="Test Corp", section_results=SAMPLE_SECTIONS, citations=citations
-        )
-
-        assert builder._citation_count == 1
-        assert builder._overall_confidence == "low"
-        assert "Limited sources" in builder._get_confidence_description()
-
-    def test_no_citations_is_low_confidence(self):
-        """No citations results in low confidence."""
-        builder = DocumentBuilder(
-            company_name="Test Corp", section_results=SAMPLE_SECTIONS, citations=[]
-        )
-
-        assert builder._citation_count == 0
-        assert builder._overall_confidence == "low"
-
-    def test_confidence_description_includes_count(self):
-        """Confidence description includes citation count."""
-        citations = [{"title": f"Source {i}", "url": f"https://source{i}.com"} for i in range(7)]
-
-        builder = DocumentBuilder(
-            company_name="Test Corp", section_results=SAMPLE_SECTIONS, citations=citations
-        )
-
-        description = builder._get_confidence_description()
-        assert "7" in description  # Should mention the count
+@pytest.mark.parametrize("count", [0, 1, 5, 12])
+def test_source_counts_never_invent_report_confidence(count):
+    citations = [
+        {"title": f"Source {i}", "url": f"https://source{i}.example"} for i in range(count)
+    ]
+    builder = DocumentBuilder("ExampleCo", SAMPLE_SECTIONS, citations=citations)
+    document = builder.build()
+    text = "\n".join(p.text for p in document.paragraphs)
+    assert "Data Confidence:" not in text
+    assert "High confidence" not in text
+    assert "Medium confidence" not in text
+    assert "●●" not in text

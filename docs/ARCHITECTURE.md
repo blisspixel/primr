@@ -356,6 +356,16 @@ including the existing zero-token local endpoint probe. A dummy local auth token
 is request compatibility, not configuration or readiness evidence. Key states
 and diagnostic details wrap at the terminal width after secret redaction.
 
+Word report presentation preserves claim evidence labels without translating
+source counts or risk categories into confidence. The legacy confidence
+formatters accept only explicit Confirmed, Reported, Estimated, or Hypothesis
+labels; generic high/medium/low scores produce no marks. Recommendation priority
+uses words in navy. The palette is checked using the
+[W3C relative-luminance contrast formula](https://www.w3.org/TR/WCAG22/#dfn-contrast-ratio)
+with a 4.5:1 floor for normal text on each actual report background, including
+muted metadata on white and alice-blue callouts. Tests inspect saved Word text
+and explicit run/background colors as well as inherited palette pairs.
+
 The fast-mode orchestrator (`perform_fast_research`) is decomposed into
 per-stage modules (roadmap #23; see
 [`design/23-orchestrator-refactor-map.md`](design/23-orchestrator-refactor-map.md)

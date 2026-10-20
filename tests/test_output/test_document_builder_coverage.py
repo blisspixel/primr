@@ -35,30 +35,6 @@ def test_process_citations_handles_none_and_nonstring():
 
 
 # --------------------------------------------------------------------------- #
-# confidence calculation
-# --------------------------------------------------------------------------- #
-def test_calculate_overall_confidence_levels():
-    builder = DocumentBuilder("Acme", {})
-    builder._citation_count = 12
-    assert builder._calculate_overall_confidence() == "high"
-    builder._citation_count = 5
-    assert builder._calculate_overall_confidence() == "medium"
-    builder._citation_count = 1
-    assert builder._calculate_overall_confidence() == "low"
-
-
-def test_get_confidence_description():
-    builder = DocumentBuilder("Acme", {})
-    builder._citation_count = 12
-    builder._overall_confidence = "high"
-    assert "High confidence" in builder._get_confidence_description()
-    builder._overall_confidence = "low"
-    assert "Limited sources" in builder._get_confidence_description()
-    builder._overall_confidence = "weird"
-    assert builder._get_confidence_description() == "Unknown"
-
-
-# --------------------------------------------------------------------------- #
 # build() — full document
 # --------------------------------------------------------------------------- #
 def test_build_full_document():
