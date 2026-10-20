@@ -72,7 +72,16 @@ Source: `docs/images/primr-demo-terminal.html`. Requires Playwright Chromium
 `main` is the only long-lived branch. Review dependency updates together when
 they share a resolver constraint, merge through a passing pull request, and
 delete the completed feature branches. Scheduled pip-audit and Trivy checks
-remain active; automatic dependency-fix PRs are disabled by repository policy.
+remain active. Grouped weekly update PRs cover uv, GitHub Actions, and container
+base images, with separate groups for security fixes. Major updates stay separate
+for deliberate compatibility review. There is no automatic merge policy.
+
+Treat update PRs as proposals. Review the upstream changes, apply the accepted
+changes on a maintainer-authored feature branch, regenerate both exports below,
+and run the affected compatibility and security gates. Link and close the
+original proposal once the maintainer PR lands. Preserve maintainer authorship
+without bot coauthor trailers; do not merge the proposal branch itself. This
+keeps review automation separate from the default branch's commit authorship.
 
 After changing the dependency lock with uv 0.11.33, regenerate both checked-in
 container exports before running the release gate:

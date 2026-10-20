@@ -132,54 +132,11 @@ still crosses Primr's estimate, approval, scope, and runtime budget gates.
 - Chat logs and reports are persisted locally; protect `logs/` and working dirs
   with normal filesystem permissions.
 
-## Supported Versions
+## Supported Versions and Vulnerability Reporting
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.39.x  | Yes                |
-| < 1.39  | No                 |
-
-Requires Python 3.12+ (3.10/3.11 are past or nearing end-of-life).
-
-## Reporting a Vulnerability
-
-If you discover a security vulnerability in Primr, please report it responsibly.
-
-**Do NOT open a public GitHub issue for security vulnerabilities.**
-
-### How to Report
-
-1. Report security vulnerabilities privately through [GitHub vulnerability reporting](https://github.com/blisspixel/primr/security/advisories/new).
-2. Include:
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Any suggested fixes (optional)
-
-### What to Expect
-
-- Acknowledgment within 48 hours
-- Status update within 7 days
-- Fix timeline depends on severity:
-  - Critical: 24-48 hours
-  - High: 7 days
-  - Medium: 30 days
-  - Low: Next release
-
-### Scope
-
-Security issues we care about:
-- SSRF vulnerabilities
-- Authentication/authorization bypasses
-- Injection attacks (SQL, command, template)
-- Path traversal
-- Sensitive data exposure
-- Denial of service
-
-Out of scope:
-- Rate limiting effectiveness (configurable by deployment)
-- Issues requiring physical access
-- Social engineering
+The root [Security Policy](https://github.com/blisspixel/primr/blob/main/SECURITY.md) is the canonical source for supported
+versions, private vulnerability reporting, response timelines, and disclosure
+scope. This document owns the detailed threat model and security controls.
 
 ## Security Measures
 

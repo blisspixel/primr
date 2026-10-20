@@ -11,6 +11,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
+import yaml
 from packaging.requirements import Requirement
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -145,7 +146,7 @@ def test_transitive_security_constraints_and_locked_versions(
     assert all(version in specifier for version in versions)
 
 
-def test_dependency_audits_run_on_a_schedule_without_bot_authored_prs() -> None:
+def test_scheduled_audits_and_grouped_dependency_proposals() -> None:
     workflow = WORKFLOW_DIR / "dependency-audit.yml"
 
     assert workflow.is_file()
@@ -155,7 +156,27 @@ def test_dependency_audits_run_on_a_schedule_without_bot_authored_prs() -> None:
     assert "uv sync --locked --all-extras" in text
     assert "uv run --no-sync pip-audit" in text
     assert "aquasecurity/trivy-action@" in text
-    assert not (ROOT / ".github" / "dependabot.yml").exists()
+    updates = yaml.safe_load((ROOT / ".github" / "dependabot.yml").read_text())
+    assert updates["version"] == 2
+    assert {entry["package-ecosystem"] for entry in updates["updates"]} == {
+        "uv",
+        "github-actions",
+        "docker",
+    }
+    for entry in updates["updates"]:
+        assert entry["open-pull-requests-limit"] <= 2
+        assert entry["schedule"]["interval"] == "weekly"
+        groups = list(entry["groups"].values())
+        assert any(group.get("applies-to") == "security-updates" for group in groups)
+        version_groups = [
+            group
+            for group in groups
+            if group.get("applies-to", "version-updates") == "version-updates"
+        ]
+        assert version_groups
+        assert all(set(group["update-types"]) <= {"minor", "patch"} for group in version_groups)
+    docker = next(entry for entry in updates["updates"] if entry["package-ecosystem"] == "docker")
+    assert set(docker["directories"]) == {"/deploy", "/openclaw"}
 
 
 def test_setup_uv_actions_pin_the_export_tool_version() -> None:

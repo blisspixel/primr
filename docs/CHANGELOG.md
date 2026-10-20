@@ -82,6 +82,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   typed result and HTTP callback contract. The fan-out injects its SSRF-safe
   transport explicitly; standalone adapters use the same canonical HTTP seam.
 
+- Enable bounded, grouped dependency-update proposals for Python, Actions, and
+  container images while retaining maintainer review, commit authorship, and all
+  security gates. Surface supported versions and private disclosure details in
+  the root security policy. Allow a manual Scorecard refresh after CI settles.
+
 - Register Gemini 4 Argon with synchronous output limits, current pricing, and
   the December 1 price change. Report reasoning and writing defaults remain
   evaluation-gated. The current-model view excludes superseded aliases and

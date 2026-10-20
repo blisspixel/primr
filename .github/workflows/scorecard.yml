@@ -7,6 +7,7 @@ name: Scorecard supply-chain security
 # the repository, not individual PRs.
 
 on:
+  workflow_dispatch:
   # Re-score when branch-protection / ruleset configuration changes.
   branch_protection_rule:
   schedule:
