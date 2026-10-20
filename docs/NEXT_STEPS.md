@@ -1,6 +1,6 @@
 # Next Steps
 
-Released baseline: **v1.39.19**
+Released baseline: **v1.39.20**
 
 Next implementation candidate: **v1.40.0**
 
@@ -37,13 +37,14 @@ product.
 
 ## Current executable card
 
-v1.39.19 is the released baseline. It ships the OpenRouter utility default
-`google/gemini-3.1-flash-lite`, redirect requests that follow each `urljoin`
-Location after the existing scheme, credential, and private-network checks,
-prep completeness that stays partial until current first-party pages are
-captured, and the section-writer ownership move. It also rejects retired OpenRouter
-Gemini 2.5 routes at their provider deadline and honors configured utility and
-reasoning routes. These maintenance fixes do not advance the quality gate.
+v1.39.20 is the released baseline. It retains provider-specific model retirement
+and explicit spend gates, raises the MCP session-resource security floor,
+supports maintained Python 3.11-3.15, and updates the direct Gemini catalog.
+Keyless startup, diagnostics, streams, collection signatures, and Word evidence
+labels now follow the interface rules. Research stages have typed ownership
+boundaries and an acyclic first-party import graph. Dependency proposals remain
+reviewed and maintainer-authored. These maintenance changes do not advance the
+report-quality or backend-promotion gate.
 
 ### v1.40.0 candidate: epistemic and analyst-quality readiness
 
@@ -52,7 +53,7 @@ independently validated evaluators, before any hard report-quality gate or
 hybrid-routing promotion.
 
 **Why this is next:** the version ladder already places quality claims after
-that corpus. Operator polish through v1.39.19 is the released baseline.
+that corpus. Operator polish through v1.39.20 is the released baseline.
 
 **Exit criteria:**
 
@@ -64,12 +65,12 @@ that corpus. Operator polish through v1.39.19 is the released baseline.
 paid evaluation, a deterministic prose-quality gate, a lone LLM judge, memory,
 and a new public command.
 
-**Implementation status (2026-10-11):** the section stage receives typed writer
-and coherence callbacks from the existing coordinator. Its back edge is removed
-and the exact core-cycle gate is tightened to 10 members without adding a
-production module. The candidate remains unreleased; verification, CI, and the
-release protocol below still govern shipping. Other stage back edges remain
-outside this card.
+**Implementation status (2026-10-20):** the maintenance ownership work is
+complete: section, trust, and strategy stages receive explicit callbacks, the
+legacy section pipeline has one canonical owner, and the first-party import
+cycle baseline is empty. The v1.40 quality candidate remains unreleased; corpus
+completeness, independent evaluator validation, and a recorded gate decision
+remain pending.
 
 ## Follow-through after ownership repair
 
@@ -148,7 +149,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.19
+## Version gates after v1.39.20
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.

@@ -7,25 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.20] - 2026-10-20
+
 ### Security
 
 - Require certifi 2026.10.19 or newer in published package metadata and the
   locked source/container environments. This removes the affected emSign root
   from certifi's bundle (GHSA-6q48-6c7w-9gw2) without changing custom CA or TLS
   verification behavior. Rebuild container images to consume the refreshed bundle.
-
-### Changed
-
-- End prep and provider-backed research with one factual collection signature,
-  and repeat those recorded counts beneath the Word title. Missing metadata stays
-  unknown, archived and public captures stay separate from current first-party
-  pages, and only identity-linked hiring postings count. The terminal wraps at
-  its actual width; unusable bundles remain visibly incomplete. JSON is unchanged.
-- `primr render --evidence-bundle PATH` verifies the explicit prep bundle before
-  adding its collection counts. Verified older bundles retain support through
-  their bound captured text. Standalone rendering never guesses provenance.
-
-### Security
 
 - Require MCP SDK 2.2.0 or newer and update the locked SDK and container export.
   Legacy HTTP sessions now use upstream capacity limits, idle expiry, and
@@ -79,6 +68,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer end with a contradictory host-synthesis handoff.
 
 ### Changed
+
+- Cancel superseded PR validation while retaining independent CI and CodeQL
+  results for every main commit and scheduled scan.
+
+- End prep and provider-backed research with one factual collection signature,
+  and repeat those recorded counts beneath the Word title. Missing metadata stays
+  unknown, archived and public captures stay separate from current first-party
+  pages, and only identity-linked hiring postings count. The terminal wraps at
+  its actual width; unusable bundles remain visibly incomplete. JSON is unchanged.
+- `primr render --evidence-bundle PATH` verifies the explicit prep bundle before
+  adding its collection counts. Verified older bundles retain support through
+  their bound captured text. Standalone rendering never guesses provenance.
 
 - Give evaluation profile contracts, declarative candidates, and registration
   their own configuration boundaries. Routing and the legacy Gemini helper use
