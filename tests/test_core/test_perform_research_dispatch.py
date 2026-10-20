@@ -321,7 +321,8 @@ class TestModeDispatch:
         _run()
         kwargs = seams["fast"].call_args.kwargs
         assert kwargs["write_txt"] is True
-        assert kwargs["diagnostics_dir"] is None
+        assert kwargs["diagnostics_dir"] == seams["folder"] / "_diagnostics"
+        assert kwargs["diagnostics_dir"].is_dir()
 
     def test_scrape_only_dispatch(self, seams):
         result = _run(mode="scrape-only")
