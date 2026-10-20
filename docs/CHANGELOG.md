@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Require MCP SDK 2.2.0 or newer and update the locked SDK and container export.
+  Legacy HTTP sessions now use upstream capacity limits, idle expiry, and
+  closed-session reclamation, addressing CVE-2026-59951 while preserving
+  modern request-scoped and legacy initialized clients.
+
+### Fixed
+
+- Frozen calibration evidence binds only to its recorded URL. Case-sensitive
+  paths, query values, and unrecorded trailing-slash aliases cannot substitute
+  another resource's text. Exact empty captures still prevent live fetching.
+- Unusable prep bundles retain their specific recovery instruction and no
+  longer end with a contradictory host-synthesis handoff.
+
 ### Changed
 
 - **Label-calibration gate.** The candidate `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` value is now a report-clustered Wilson lower bound at 95 percent confidence, recorded as `bound_method`, `confidence`, and `bound`. Calibration can judge frozen `scraped_content.txt` captures, sends the judge claim text with the confidence label removed, draws a seeded sample, and records each judge verdict. An explicit abstain does not count as untraceable. A human-confirmed `honestly_empty_confirmed` report with no Confirmed claims does not block the floor. The operator sets that boolean on the pack selection report; Primr does not infer it.

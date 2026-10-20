@@ -124,6 +124,7 @@ def test_prep_reports_partial_bundle_and_limitations(tmp_path, monkeypatch, caps
     assert "--skip-scrape-validation" not in output
     assert "Reason: First-party collection was refused (HTTP 403)." in output
     assert "Next step:" in output
+    assert "Next: give the bundle" not in output
     assert "--max-pages" in output
     assert "Coverage notes:" in output
     assert "First-party collection was refused (HTTP 403)." in output

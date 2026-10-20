@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock, patch
 
+import anyio
 import httpx
 import pytest
 
@@ -65,6 +66,126 @@ def _payload(response):
             next(line[6:] for line in response.text.splitlines() if line.startswith("data: "))
         )
     return response.json()
+
+
+async def _initialize_legacy(client, **header_overrides):
+    return await client.post(
+        "/mcp/",
+        json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-11-25",
+                "capabilities": {},
+                "clientInfo": {"name": "test-client", "version": "1"},
+            },
+        },
+        headers={"Accept": "application/json, text/event-stream", **header_overrides},
+    )
+
+
+@pytest.mark.asyncio
+async def test_legacy_session_capacity_and_delete_reclamation(tmp_path, monkeypatch):
+    from mcp.server import streamable_http_manager as sdk
+
+    manager_type = sdk.StreamableHTTPSessionManager
+
+    def bounded_manager(**kwargs):
+        manager = manager_type(**kwargs)
+        assert manager.max_sessions == 10_000
+        assert manager.session_idle_timeout == 1800
+        manager.max_sessions = 1
+        return manager
+
+    monkeypatch.setattr(sdk, "StreamableHTTPSessionManager", bounded_manager)
+    app = await _app(tmp_path, require_auth=False)
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
+        ) as client,
+    ):
+        first = await _initialize_legacy(client)
+        assert first.status_code == 200
+        blocked = await _initialize_legacy(client)
+        assert blocked.status_code == 503
+        headers = {
+            "Accept": "application/json, text/event-stream",
+            "Mcp-Session-Id": first.headers["mcp-session-id"],
+            "MCP-Protocol-Version": "2025-11-25",
+        }
+        deleted = await client.delete("/mcp/", headers=headers)
+        assert deleted.status_code == 200
+        stale = await client.post(
+            "/mcp/", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, headers=headers
+        )
+        assert stale.status_code == 404
+        replacement = await _initialize_legacy(client)
+        assert replacement.status_code == 200
+        assert replacement.headers["mcp-session-id"] != first.headers["mcp-session-id"]
+
+
+@pytest.mark.asyncio
+async def test_refused_legacy_open_does_not_consume_capacity(tmp_path, monkeypatch):
+    from mcp.server import streamable_http_manager as sdk
+
+    manager_type = sdk.StreamableHTTPSessionManager
+
+    def bounded_manager(**kwargs):
+        return manager_type(**kwargs, max_sessions=1)
+
+    monkeypatch.setattr(sdk, "StreamableHTTPSessionManager", bounded_manager)
+    app = await _app(tmp_path, require_auth=False)
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
+        ) as client,
+    ):
+        for _ in range(3):
+            refused = await _initialize_legacy(client, Accept="text/plain")
+            assert refused.status_code == 406
+        initialized = await _initialize_legacy(client)
+        assert initialized.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_idle_legacy_session_expires_and_releases_capacity(tmp_path, monkeypatch):
+    from mcp.server import streamable_http_manager as sdk
+
+    manager_type = sdk.StreamableHTTPSessionManager
+    managers = []
+
+    def bounded_manager(**kwargs):
+        manager = manager_type(**kwargs, max_sessions=1, session_idle_timeout=0.05)
+        managers.append(manager)
+        return manager
+
+    monkeypatch.setattr(sdk, "StreamableHTTPSessionManager", bounded_manager)
+    app = await _app(tmp_path, require_auth=False)
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
+        ) as client,
+    ):
+        first = await _initialize_legacy(client)
+        assert first.status_code == 200
+        with anyio.fail_after(2):
+            while managers[0]._server_instances:
+                await anyio.sleep(0.01)
+        stale = await client.post(
+            "/mcp/",
+            json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+            headers={
+                "Accept": "application/json, text/event-stream",
+                "Mcp-Session-Id": first.headers["mcp-session-id"],
+                "MCP-Protocol-Version": "2025-11-25",
+            },
+        )
+        assert stale.status_code == 404
+        assert (await _initialize_legacy(client)).status_code == 200
 
 
 @pytest.mark.asyncio
