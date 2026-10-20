@@ -15,6 +15,7 @@ from docx.shared import Inches, Pt
 
 from primr.output.chapter_config import CHAPTER_CONFIG
 from primr.output.citation_processor import CitationProcessor, CitationStyle, SourceCitation
+from primr.output.collection_coverage import CollectionCoverage, add_docx_coverage
 from primr.output.content_pattern_detector import ContentPatternDetector
 from primr.output.executive_summary_generator import ExecutiveSummaryGenerator
 from primr.output.markdown_parser import MarkdownParser
@@ -42,6 +43,7 @@ class DocumentBuilder:
         section_results: dict[str, str],
         citations: list[dict[str, str]] | None = None,
         citation_style: CitationStyle = CitationStyle.NUMBERED,
+        coverage: CollectionCoverage | None = None,
     ):
         """
         Initialize DocumentBuilder.
@@ -52,6 +54,7 @@ class DocumentBuilder:
             citations: Optional list of citation dicts with 'text', 'url', 'title' keys
             citation_style: Citation formatting style (NUMBERED, INLINE, SIDECAR)
         """
+        self.coverage = coverage
         self.company_name = company_name
         self.sections = section_results
         self.citations = citations or []
@@ -174,6 +177,9 @@ class DocumentBuilder:
         # Company name (large, centered)
         title = self.document.add_heading(self.company_name, level=0)
         title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
+        if self.coverage is not None:
+            add_docx_coverage(self.document, self.coverage)
 
         # Subtitle
         subtitle = self.document.add_paragraph()

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- End prep and provider-backed research with one factual collection signature,
+  and repeat those recorded counts beneath the Word title. Missing metadata stays
+  unknown, archived and public captures stay separate from current first-party
+  pages, and only identity-linked hiring postings count. The terminal wraps at
+  its actual width; unusable bundles remain visibly incomplete. JSON is unchanged.
+- `primr render --evidence-bundle PATH` verifies the explicit prep bundle before
+  adding its collection counts. Standalone rendering never guesses provenance.
+
 ### Security
 
 - Require MCP SDK 2.2.0 or newer and update the locked SDK and container export.

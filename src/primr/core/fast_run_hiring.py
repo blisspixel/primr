@@ -102,6 +102,12 @@ def collect_hiring_block(
             source=hiring_signals.source if hiring_signals else "skipped",
         )
 
+    try:
+        from primr.core.collection_coverage import record_run_collection
+
+        record_run_collection(folder_path, website, scraped_data)
+    except (OSError, ValueError) as exc:
+        logger.warning("Collection inventory could not be recorded: %s", exc)
     return hiring_block
 
 

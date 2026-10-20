@@ -39,6 +39,9 @@ def _create_parser() -> argparse.ArgumentParser:
         default=None,
         help="Write artifacts here instead of beside the source file.",
     )
+    parser.add_argument(
+        "--evidence-bundle", help="Verified prep bundle supplying collection counts."
+    )
     return parser
 
 
@@ -67,6 +70,16 @@ def run_render(args: list[str] | None) -> int:
 
     markdown_text = canonicalize_final_markdown(markdown_text)
 
+    coverage = None
+    if parsed.evidence_bundle:
+        from primr.core.collection_coverage import load_prep_coverage
+
+        try:
+            coverage = load_prep_coverage(parsed.evidence_bundle)
+        except (OSError, ValueError) as exc:
+            console.error(f"Cannot verify collection coverage: {exc}")
+            return 1
+
     dest_dir = Path(parsed.output_dir) if parsed.output_dir else source.parent
     try:
         dest_dir.mkdir(parents=True, exist_ok=True)
@@ -88,6 +101,7 @@ def run_render(args: list[str] | None) -> int:
             output_path=docx_path,
             title=title,
             subtitle=parsed.subtitle,
+            coverage=coverage,
         )
     except Exception as exc:
         console.error(f"DOCX conversion failed: {exc}")
