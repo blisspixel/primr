@@ -27,9 +27,21 @@ def mock_settings():
     settings = Mock()
     settings.api.gemini_key = "test-api-key"
     settings.ai.flash_model = "gemini-3-flash-preview"
-    settings.ai.pro_model = "gemini-3-pro-preview"
+    settings.ai.pro_model = "gemini-3.1-pro-preview"
     settings.ai.max_retries = 3
     return settings
+
+
+@pytest.mark.asyncio
+async def test_retired_report_model_stops_before_async_initialization(mock_settings, monkeypatch):
+    mock_settings.ai.pro_model = "gemini-3-pro-preview"
+    monkeypatch.setattr("primr.ai.async_client.get_settings", lambda: mock_settings)
+    client = AsyncAIClient(api_key="fake-key-for-ci-tests")
+    initialize = Mock()
+    monkeypatch.setattr(client, "_ensure_initialized", initialize)
+    with pytest.raises(ValueError, match=r"gemini-3\.1-pro-preview"):
+        await client.generate("control", model_type="report")
+    initialize.assert_not_called()
 
 
 @pytest.fixture
@@ -202,7 +214,7 @@ class TestAsyncAIClient:
         mock_get_settings.return_value = mock_settings
 
         client = AsyncAIClient()
-        assert client._get_model("report") == "gemini-3-pro-preview"
+        assert client._get_model("report") == "gemini-3.1-pro-preview"
 
     @patch("primr.ai.async_client.get_settings")
     def test_get_model_unknown_defaults_to_research(self, mock_get_settings, mock_settings):

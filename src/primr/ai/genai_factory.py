@@ -43,6 +43,8 @@ def accepts_sampling_parameters(model: str) -> bool:
     """
     normalized = model.lower()
     unsupported_prefixes = (
+        "gemini-4-",
+        "gemini-nano-banana-",
         "gemini-3.8-",
         "gemini-3.5-flash-lite",
         "gemini-3.6-",
@@ -54,6 +56,8 @@ def accepts_sampling_parameters(model: str) -> bool:
 def supported_thinking_levels(model: str) -> tuple[str, ...]:
     """Return the published thinking-level contract for a Gemini model."""
     normalized = model.lower()
+    if normalized.startswith("gemini-nano-banana-2.1"):
+        return ("minimal", "medium", "high")
     all_levels = ("minimal", "low", "medium", "high")
     if normalized.startswith(
         (
@@ -67,7 +71,7 @@ def supported_thinking_levels(model: str) -> tuple[str, ...]:
         return all_levels
     if normalized.startswith("gemini-3-pro"):
         return ("low", "high")
-    if normalized.startswith(("gemini-3.7-", "gemini-3.1-pro", "gemini-2.5-")):
+    if normalized.startswith(("gemini-4-", "gemini-3.7-", "gemini-3.1-pro", "gemini-2.5-")):
         return ("low", "medium", "high")
     return ("low", "high")
 

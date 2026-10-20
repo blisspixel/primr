@@ -51,6 +51,8 @@ class TestModelCapabilities:
     @pytest.mark.parametrize(
         ("model", "expected"),
         [
+            ("gemini-4-argon", ("low", "medium", "high")),
+            ("gemini-nano-banana-2.1", ("minimal", "medium", "high")),
             ("gemini-3.7-flash", ("low", "medium", "high")),
             ("gemini-3.6-flash", ("minimal", "low", "medium", "high")),
             ("gemini-3.5-flash-lite", ("minimal", "low", "medium", "high")),
@@ -66,6 +68,7 @@ class TestModelCapabilities:
     @pytest.mark.parametrize(
         ("model", "expected"),
         [
+            ("gemini-4-argon", False),
             ("gemini-3.5-flash-lite", False),
             ("gemini-3.6-flash", False),
             ("gemini-3.7-flash", False),

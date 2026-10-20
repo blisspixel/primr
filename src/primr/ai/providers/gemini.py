@@ -41,6 +41,7 @@ from primr.ai.providers.base import (
     ProviderUnavailableError,
     QuotaExhaustedError,
 )
+from primr.config.models import PrimrModels
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("ai.providers.gemini")
@@ -257,6 +258,7 @@ class GeminiProvider(Provider):
         from primr.utils.model_policy import require_model_calls_allowed
 
         require_model_calls_allowed("gemini chat")
+        PrimrModels.require_model_available(model)
         client = self._get_client()
         system_instruction, contents = self._split_messages(messages)
         if not contents:
@@ -386,6 +388,7 @@ class GeminiProvider(Provider):
         stale training knowledge). Returns ``None`` on an empty body. Usage is
         recorded through the same accounting seam as a normal call.
         """
+        PrimrModels.require_model_available(model)
         client = self._get_client()
         config_kwargs: dict[str, Any] = {
             "max_output_tokens": max_tokens,

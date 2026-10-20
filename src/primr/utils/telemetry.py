@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Generator
+    from datetime import date
 
 logger = logging.getLogger(__name__)
 
@@ -754,13 +755,13 @@ def is_otel_available() -> bool:
 # =============================================================================
 
 
-def _build_default_pricing() -> dict[str, tuple[float, float]]:
-    """Build pricing table from ModelRegistry, plus legacy model entries."""
+def _build_default_pricing(pricing_date: date | None = None) -> dict[str, tuple[float, float]]:
+    """Build date-effective registry prices, retaining historical model entries."""
     from primr.config.models import PrimrModels
 
     pricing: dict[str, tuple[float, float]] = {}
-    for name, config in PrimrModels.ALL_MODELS.items():
-        pricing[name] = (config.cost_per_1m_input_tokens, config.cost_per_1m_output_tokens)
+    for name in PrimrModels.ALL_MODELS:
+        pricing[name] = PrimrModels.get_price(name, pricing_date)
     # Legacy entries for older model names (property tests rely on these)
     pricing.setdefault("gemini-1.5-pro", (1.25, 5.00))
     pricing.setdefault("gemini-1.5-flash", (0.075, 0.30))

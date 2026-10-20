@@ -54,6 +54,16 @@ def mock_settings():
 
 
 class TestAIClient:
+    def test_retired_report_model_stops_before_sdk_request(
+        self, mock_genai_client, mock_settings, monkeypatch
+    ):
+        mock_settings.ai.pro_model = "gemini-3-pro-preview"
+        monkeypatch.setattr("primr.ai.client.get_settings", lambda: mock_settings)
+        client = AIClient(api_key="fake-key-for-ci-tests")
+        with pytest.raises(ValueError, match=r"gemini-3\.1-pro-preview"):
+            client.generate("control", model_type="report")
+        mock_genai_client.models.generate_content.assert_not_called()
+
     """Tests for AIClient class."""
 
     def test_init_with_settings(self, mock_genai_client, mock_settings):

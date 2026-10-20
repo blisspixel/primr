@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reject authored Python replacement fields across maintained interpreters,
   including newer f-string syntax that Python 3.11 cannot parse.
+- Reject retired direct Gemini Pro and image previews during selection and
+  before requests, with the provider's replacement named. Keep historical model
+  identities and costs, active Flash Preview, and prior-user-only Gemini 2.5
+  routes. Direct Google and OpenRouter retirement policies remain separate.
+- Remote Gemini icons use current Nano Banana 2.1, with an explicit
+  `AI_IMAGE_MODEL` override for supported Gemini image models.
 
 - Frozen calibration evidence binds only to its recorded URL. Case-sensitive
   paths, query values, and unrecorded trailing-slash aliases cannot substitute
@@ -26,6 +32,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer end with a contradictory host-synthesis handoff.
 
 ### Changed
+
+- Register Gemini 4 Argon with synchronous output limits, current pricing, and
+  the December 1 price change. Report reasoning and writing defaults remain
+  evaluation-gated. The current-model view excludes superseded aliases and
+  restricted legacy models while preserving their accounting records.
+- Price the currently verified Gemini aliases through their canonical models
+  from the verification date, including scheduled rates and caching. Preserve
+  the requested route identity and earlier dated catalog prices; no unannounced
+  alias cutover date is invented. Telemetry uses the same dated pricing facade.
+- Move direct Gemini catalog data into its owning module so the registry and
+  selection facade do not grow into larger files.
 
 - Support maintained Python 3.11 through 3.15 and use stable 3.15 for development,
   release builds, containers, and primary platform CI. Refresh pinned Actions

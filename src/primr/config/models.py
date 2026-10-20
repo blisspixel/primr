@@ -1,132 +1,12 @@
-"""
-Centralized Model Configuration for Primr
-==========================================
+"""Model selection, historical lookup, and cost estimation.
 
-THIS IS THE SINGLE SOURCE OF TRUTH FOR ALL AI MODELS.
-UPDATE HERE TO CHANGE MODELS GLOBALLY.
+Catalog facts live in model_registry and its provider-owned data modules.
+Registration makes a model selectable; it does not promote a production
+reasoning or writing default. Routing owns role and environment selection.
 
-Last audited: August 13, 2026, checked against
-current provider docs (developers.openai.com, ai.google.dev, docs.x.ai) and the
-Anthropic model catalog. Re-audit before each major eval — see ROADMAP "Model
-Adaptability".
-
-KEY CHANGES (August 13, 2026 audit):
-- OpenAI GPT-5.6 Sol/Terra/Luna are registered as eval-gated candidates at
-  current prices and >272K long-context rates. Production routing is unchanged.
-- OpenAI long-context pricing is limited to the documented 1.05M-context
-  models at >272K input. GPT-5.4 mini/nano remain flat-priced 400K models.
-- Gemini: gemini-2.5-pro is 1M ctx (the 2M figure belongs to the unreleased 3.5
-  Pro). October 13 correction: the direct Developer API has no announced
-  2.5 shutdown date but limits access to prior users. OpenRouter and Vertex
-  retire their named 2.5 endpoints on October 20; Primr has no Vertex route.
-  Deep Research slug refreshed to deep-research-preview-04-2026; cached-input
-  rates filled in for the 3.x/2.5 entries.
-- Anthropic: claude-haiku-3-5 retired Feb 19, 2026 (404) — marked deprecated.
-  Sonnet 5 is the balanced default; Opus 4.7+/Sonnet 5/Fable-5 reject
-  temperature, current effort values include max/xhigh, and adaptive-thinking
-  tiers reject manual thinking budgets (handled in ai/providers/anthropic.py).
-- xAI Grok 4.3 reasoning is NOT always-on — reasoning_effort has four levels
-  (none/low/medium/high, default low); published output cap is unverified.
-- Grok 4.6 registered as an available, eval-gated candidate. Hybrid remains on
-  4.3 and MAX remains pinned to 4.5 until a bounded evaluation supports a
-  promotion. Grok 4.3, 4.5, and 4.6 use published >=200k pricing tiers.
-
-AVAILABLE MODELS (August 2026):
--------------------------------
-xAI / GROK:
-  grok-4.6                   - Current flagship, $2/$6 (+ tier >=200k), 500k ctx,
-                               $0.50 cached. Registered candidate, not routed by default.
-  grok-4.5                   - Previous flagship, $2/$6 (+ tier >=200k), 500k ctx,
-                               $0.30 cached. Current MAX pin pending evaluation.
-  grok-4.3                   - Default hybrid reasoning, $1.25/$2.50 (+ tier ≥200k),
-                               1M ctx, $0.20 cached
-  grok-4.20-non-reasoning    - Bulk writing replacement after 4.1 retirement
-  grok-4.1-fast-*            - DEPRECATED, retired May 15, 2026
-
-GOOGLE / GEMINI:
-  gemini-3.7-flash           - Current GA workhorse, $0.75/$3.75 through 2026, 1M ctx.
-                               AVAILABLE evaluation candidate; production routing unchanged.
-  gemini-3.6-flash           - GA Jul 21, 2026, same introductory through-2026 pricing.
-                               AVAILABLE evaluation candidate; production routing unchanged.
-  gemini-3.5-flash           - GA May 19, 2026, $1.50/$9.00 + $0.15 cached, 1M ctx, 65k out.
-                               AVAILABLE; superseded as the Pro-tier candidate by 3.6 Flash.
-  gemini-3.5-flash-lite      - NEW (GA Jul 21, 2026), $0.30/$2.50, 1M ctx, 65k out.
-                               Successor to 3.1 Flash-Lite; beats 3 Flash on benchmarks.
-                               AVAILABLE writing/utility candidate (eval-gated; dearer output
-                               than 3.1 Flash-Lite). 3.5 Pro still partner-testing (not GA);
-                               Flash Cyber is a restricted dual-use pilot (not applicable).
-  gemini-3.1-pro-preview     - PRO default, $2/$12 (<=200k) | $4/$18 (>200k), 1M ctx, 65k out
-  gemini-3.1-flash-lite      - $0.25/$1.50, 1M ctx, 65k out
-                               Leading writing-tier candidate for v1.24.0 sub-$1 default
-  gemini-3-flash-preview     - $0.50/$3.00, 1M ctx, 65k out
-  gemini-3-pro-preview       - DEPRECATED Mar 9, 2026 (replaced by 3.1 Pro)
-  gemini-2.5-flash-lite      - Prior Developer API users only, $0.10/$0.40
-  gemini-2.5-flash           - Prior Developer API users only, $0.30/$2.50, 1M ctx
-  gemini-2.5-pro             - Prior Developer API users only, $1.25/$10, 1M ctx
-  deep-research-preview-04-2026 - Autonomous 12+ page research reports
-
-OPENAI:
-  gpt-5.6 / gpt-5.6-sol     - Current frontier, $5.00/$30.00 + $0.50 cached, 1.05M ctx
-  gpt-5.6-terra             - Balanced, $2.00/$12.00 + $0.20 cached, 1.05M ctx
-  gpt-5.6-luna              - Low cost, $0.20/$1.20 + $0.02 cached, 1.05M ctx
-  gpt-5.5                    - Flagship, $5.00/$30.00 + $0.50 cached, 1M ctx
-  gpt-5.4                    - Affordable flagship, $2.50/$15.00 + $0.25 cached, 1.05M ctx
-  gpt-5.4-mini               - Utility candidate, $0.75/$4.50, 400k ctx
-  gpt-5.4-nano               - Ultra-cheap, $0.20/$1.25, 400k ctx, 128k out cap
-  o4-mini                    - Reasoning, $1.10/$4.40, alternative to Grok 4.3
-  GPT-5.6, 5.5, and 5.4 1.05M models: 2x input / 1.5x output above 272K input.
-
-ANTHROPIC:
-  claude-opus-4-8            - Most capable (GA May 28, 2026), $5.00/$25.00 + $0.50 cached,
-                               1M ctx, 128k out. Drop-in over 4.7 (identical pricing).
-  claude-sonnet-5            - Balance, $3.00/$15.00 + $0.30 cached estimate,
-                               1M ctx, 128k out. Actual launch pricing is
-                               $2/$10 through Aug 31, 2026, then returns to
-                               Sonnet 4.6 pricing per Anthropic.
-  claude-sonnet-4-6          - Previous balance tier, $3.00/$15.00 + $0.30 cached,
-                               1M ctx, 64k out. Registered for explicit back-compat.
-  claude-haiku-4-5           - Utility candidate, $1.00/$5.00 + $0.10 cached, 200k ctx
-  claude-haiku-3-5           - Cheaper utility option, $0.80/$4.00 + $0.08 cached, 200k ctx
-
-OLLAMA (zero marginal cost):
-  qwen3-coder:30b, qwen2.5:32b, deepseek-r1:32b, qwen3:7b — 24GB VRAM compatible
-
-WHEN TO USE EACH (post-v1.24.0 eval-driven defaults will refine these):
------------------------------------------------------------------------
-- UTILITY tier (scraping summaries, link selection, QA): Gemini 3 Flash or Flash-Lite
-- WRITING tier (bulk section generation): Gemini 3.1 Flash-Lite (cheapest sub-$1 candidate)
-- REASONING tier (gap analysis, workbook, cross-validation): Grok 4.3 with cache
-- MAX Grok tier (`--grok-tier max`): Grok 4.5 (evaluated pin; higher cost)
-- PREMIUM tier (Deep Research): Gemini Deep Research Agent
-
-KEY CHANGES (August 2026 refresh):
-- Grok 4.6 (`grok-4.6`) registered from the August 12 official release with
-  exact short/long-context and cached-input rates. It is not a default or MAX
-  route until the bounded promotion evaluation passes.
-- Grok 4.5 (`grok-4.5`) REGISTERED from docs.x.ai. Used only for GrokTier.MAX.
-  Hybrid/fast defaults stay on 4.3 so dry-run cost claims remain honest.
-- Grok 4.3 long-context surcharge (≥200k) filled from current xAI pricing table.
-
-KEY CHANGES (May 30, 2026 refresh):
-- Claude Opus 4.7 -> 4.8 (`claude-opus-4-8`, GA May 28). Identical pricing; the
-  canonical Anthropic flagship slug swapped repo-wide (registry, fallback chain,
-  routing tests). Historical CHANGELOG references to 4.7 left intact.
-- Gemini 3.5 Flash (`gemini-3.5-flash`, GA May 19) REGISTERED as available, not
-  yet a default tier. Stronger than 3.1 Pro at lower cost ($1.50/$9 vs $2/$12) —
-  a Pro-tier replacement candidate, NOT a sub-$1 writing-tier swap. Default
-  repoint is eval-gated. Gemini 3.5 Pro (June) + Omni (weeks) not yet on the API.
-- xAI Grok 4.3 was the hybrid flagship; Grok Build 0.1 is coding-specialized and
-  not a research default. OpenAI GPT-5.5 remains latest OpenAI flagship.
-
-KEY CHANGES SINCE v1.22.0:
-- Grok 4.1 line retired May 15, 2026 — `deprecated=True` on legacy entries
-- Grok 4.3 high-tier (>200K) placeholder REMOVED (xAI publishes no such tier)
-- Every gpt-5.x price updated (May 2026 audit found Feb registry prices stale)
-- Gemini 3.1 Flash-Lite added (Mar 2026 release, primary writing-tier candidate)
-- Gemini 3 Pro Preview marked deprecated (replaced by 3.1 Pro)
-- Gemini 2.5 Flash-Lite registered as ModelConfig (was only in module docstring)
-- o4-mini added as Grok 4.3 reasoning alternative
-- Haiku 3.5 added as alternate utility-tier candidate
+Historical configurations remain available for cost accounting after a route
+retires. Request paths call ModelConfig.require_available before model egress;
+pricing queries can still evaluate historical usage and scheduled rates.
 """
 
 import os
@@ -135,6 +15,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from math import isfinite
 
+from primr.config.gemini_models import GEMINI_ALIASES_VERIFIED_ON, GEMINI_MODEL_ALIASES
 from primr.config.model_registry import (
     DEFAULT_FLASH_MODEL,
     DEFAULT_PRO_MODEL,
@@ -333,7 +214,7 @@ class PrimrModels:
     ANALYSIS_MODEL = PRO_MODEL  # Complex analysis, reasoning
 
     # --- IMAGE MODEL ---
-    IMAGE_MODEL = ModelRegistry.GEMINI_3_PRO_IMAGE.name
+    IMAGE_MODEL = ModelRegistry.GEMINI_NANO_BANANA_2_1.name
 
     # =========================================================================
     # LEGACY ALIASES - For backward compatibility only
@@ -367,6 +248,9 @@ class PrimrModels:
     # Model registry for lookups
     ALL_MODELS = {
         # Google / Gemini
+        ModelRegistry.GEMINI_4_ARGON.name: ModelRegistry.GEMINI_4_ARGON,
+        ModelRegistry.GEMINI_NANO_BANANA_2_1.name: ModelRegistry.GEMINI_NANO_BANANA_2_1,
+        ModelRegistry.GEMINI_3_PRO_IMAGE_STABLE.name: ModelRegistry.GEMINI_3_PRO_IMAGE_STABLE,
         ModelRegistry.GEMINI_3_8_FLASH.name: ModelRegistry.GEMINI_3_8_FLASH,
         ModelRegistry.GEMINI_3_7_FLASH.name: ModelRegistry.GEMINI_3_7_FLASH,
         ModelRegistry.GEMINI_3_6_FLASH.name: ModelRegistry.GEMINI_3_6_FLASH,
@@ -437,10 +321,10 @@ class PrimrModels:
             ModelType.QA: cls.QA_MODEL,
             ModelType.SECTION_WRITING: cls.SECTION_WRITING_MODEL,
             ModelType.ANALYSIS: cls.ANALYSIS_MODEL,
-            ModelType.IMAGE: cls.IMAGE_MODEL,
+            ModelType.IMAGE: os.getenv("AI_IMAGE_MODEL", cls.IMAGE_MODEL),
             ModelType.DEEP_RESEARCH: cls.DEEP_RESEARCH_AGENT,
         }
-        return type_mapping.get(model_type, cls.FLASH_MODEL)
+        return cls.require_model_available(type_mapping.get(model_type, cls.FLASH_MODEL))
 
     @classmethod
     def get_grok_models(cls, tier: GrokTier) -> tuple[str, str]:
@@ -477,6 +361,28 @@ class PrimrModels:
         return cls._resolve_config(model_name)
 
     @classmethod
+    def _resolve_pricing_config(
+        cls, model_name: str, pricing_date: date | None = None
+    ) -> ModelConfig | None:
+        """Use verified current alias prices without rewriting older records.
+
+        Google does not publish an alias cutover date. Earlier dated accounting
+        retains its historical catalog rates; do not invent a backdated change.
+        The requested route identity remains unchanged.
+        """
+        if (pricing_date or date.today()) >= GEMINI_ALIASES_VERIFIED_ON:
+            model_name = GEMINI_MODEL_ALIASES.get(model_name, model_name)
+        return cls._resolve_config(model_name)
+
+    @classmethod
+    def require_model_available(cls, model_name: str) -> str:
+        """Validate a new selection or request without removing historical data."""
+        config = cls.get_model_config(model_name)
+        if config is not None:
+            config.require_available()
+        return model_name
+
+    @classmethod
     def get_fallback_models(cls, model_name: str) -> list[str]:
         """Get fallback models for a given model. Returns empty - we fail fast."""
         return cls.FALLBACK_MODELS.get(model_name, [])
@@ -488,22 +394,22 @@ class PrimrModels:
             ModelRegistry.OPENAI_GPT_5_6_SOL.name,
             ModelRegistry.OPENAI_GPT_5_6_TERRA.name,
             ModelRegistry.OPENAI_GPT_5_6_LUNA.name,
-            ModelRegistry.GEMINI_3_7_FLASH.name,
+            ModelRegistry.GEMINI_4_ARGON.name,
+            ModelRegistry.GEMINI_3_8_FLASH.name,
+            ModelRegistry.GEMINI_3_5_FLASH_LITE.name,
             ModelRegistry.GEMINI_3_1_PRO.name,
             ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS.name,
-            ModelRegistry.GEMINI_3_PRO.name,
             ModelRegistry.GEMINI_3_FLASH.name,
-            ModelRegistry.GEMINI_3_PRO_IMAGE.name,
+            ModelRegistry.GEMINI_3_PRO_IMAGE_STABLE.name,
+            ModelRegistry.GEMINI_NANO_BANANA_2_1.name,
             ModelRegistry.DEEP_RESEARCH_AGENT,
-            ModelRegistry.GEMINI_2_5_PRO.name,
-            ModelRegistry.GEMINI_2_5_FLASH.name,
         }
         return model_name in latest_models
 
     @classmethod
     def get_price(cls, model_name: str, pricing_date: date | None = None) -> tuple[float, float]:
         """Look up (input_price, output_price) per 1M tokens from ALL_MODELS."""
-        config = cls._resolve_config(model_name)
+        config = cls._resolve_pricing_config(model_name, pricing_date)
         if config is None:
             raise KeyError(f"Unknown model: {model_name}")
         input_rate, output_rate, _ = config.standard_rates(pricing_date)
@@ -552,7 +458,7 @@ class PrimrModels:
         and output counts. It is zero for flat-priced models and for standard
         tier calls.
         """
-        config = cls._resolve_config(model_name)
+        config = cls._resolve_pricing_config(model_name, pricing_date)
         if config is None:
             raise KeyError(f"Unknown model: {model_name}")
 

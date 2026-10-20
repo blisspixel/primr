@@ -58,6 +58,7 @@ from primr.ai.error_policy import (
     is_daily_quota_exhausted,
     is_timeout_error,
 )
+from primr.config.models import PrimrModels
 from primr.config.settings import get_settings
 from primr.utils.errors import AIError, calculate_retry_delay, is_rate_limit_error
 from primr.utils.logging_config import get_logger
@@ -223,9 +224,8 @@ class AsyncAIClient:
         Raises:
             AIError: If all retries fail
         """
+        model = PrimrModels.require_model_available(self._get_model(model_type))
         self._ensure_initialized()
-
-        model = self._get_model(model_type)
         allowed_thinking_levels = supported_thinking_levels(model)
         if thinking_level not in allowed_thinking_levels:
             raise ValueError(
