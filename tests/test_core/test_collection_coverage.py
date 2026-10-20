@@ -151,7 +151,7 @@ def test_completion_signature_precedes_next_and_never_pollutes_json(tmp_path, ca
     else:
         assert output.count("coverage  ") == 1
         assert output.index("coverage  ") < output.index("Next:")
-        assert "1 first-party pages" in output
+        assert "1 first-party page" in output
 
 
 def test_render_refuses_a_missing_explicit_bundle_before_writing_artifacts(tmp_path):

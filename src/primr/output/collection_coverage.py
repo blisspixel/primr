@@ -73,17 +73,21 @@ class CollectionCoverage:
     def description(self) -> str:
         if self.usable is False:
             count = self.pages_captured if self.pages_captured is not None else "unknown"
-            pages = f"{count} pages captured (bundle not usable)"
+            noun = "page" if self.pages_captured == 1 else "pages"
+            pages = f"{count} {noun} captured (bundle not usable)"
         elif self.pages_captured == 0:
             pages = "0 pages captured"
         elif self.first_party_pages is not None:
-            pages = f"{self.first_party_pages} first-party pages"
+            noun = "page" if self.first_party_pages == 1 else "pages"
+            pages = f"{self.first_party_pages} first-party {noun}"
             if self.pages_captured is not None:
                 other = self.pages_captured - self.first_party_pages
                 if other:
-                    pages += f", {other} other captured pages"
+                    noun = "page" if other == 1 else "pages"
+                    pages += f", {other} other captured {noun}"
         elif self.pages_captured is not None:
-            pages = f"{self.pages_captured} pages captured"
+            noun = "page" if self.pages_captured == 1 else "pages"
+            pages = f"{self.pages_captured} {noun} captured"
         else:
             pages = "collection counts not recorded"
         if self.blocked_pages is not None:
@@ -91,7 +95,8 @@ class CollectionCoverage:
         if self.redirect_loops is not None:
             pages += f", {self.redirect_loops} redirect {'loop' if self.redirect_loops == 1 else 'loops'}"
         if self.hiring_postings is not None:
-            pages += f"; hiring: {self.hiring_postings} linked postings"
+            noun = "posting" if self.hiring_postings == 1 else "postings"
+            pages += f"; hiring: {self.hiring_postings} linked {noun}"
         return pages
 
 
