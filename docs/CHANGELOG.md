@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reject authored Python replacement fields across maintained interpreters,
+  including newer f-string syntax that Python 3.11 cannot parse.
+
 - Frozen calibration evidence binds only to its recorded URL. Case-sensitive
   paths, query values, and unrecorded trailing-slash aliases cannot substitute
   another resource's text. Exact empty captures still prevent live fetching.

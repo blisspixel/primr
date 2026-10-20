@@ -1702,3 +1702,14 @@ def test_author_role_skills_requires_exactly_one_verifier(monkeypatch, skill_nam
             recon_evidence="Snowflake account: acme.snowflakecomputing.com",
             hiring_evidence="Data Engineer with dbt/Snowflake",
         )
+
+
+@pytest.mark.parametrize("prefix", ["f", "F", "fr", "rf"])
+def test_authored_replacement_fields_fail_closed_across_python_grammars(prefix):
+    # Replacement fields can dispatch arbitrary __format__ methods even when
+    # no call is visible. PEP 701 syntax must also fail closed on Python 3.11.
+    assert scan_authored_executable_instructions(f'{prefix}"{{value}}"') is not None
+    assert (
+        scan_authored_executable_instructions(f'{prefix}"{{(getattr\n\n(obj, key))}}"') is not None
+    )
+    assert scan_authored_executable_instructions(f'{prefix}"literal {{{{braces}}}}"') is None
