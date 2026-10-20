@@ -19,63 +19,20 @@ import re
 import socket
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
 from xml.etree.ElementTree import ParseError
 
 import defusedxml.ElementTree as DefusedET
 from defusedxml.common import DefusedXmlException
 
+from primr.data.fallback_http import http_get as _http_get
+from primr.data.fallback_types import FallbackPage as FallbackPage
 from primr.data.first_party_pdf import fetch_first_party_pdf_content
 from primr.data.first_party_structured_data import fetch_structured_data_content
 from primr.data.first_party_url import same_site as _same_site
 from primr.data.wikipedia_identity import find_verified_wikipedia_title
 
 logger = logging.getLogger(__name__)
-# =============================================================================
-# Shared HTTP helper
-# =============================================================================
-
-
-def _http_get(
-    url: str,
-    timeout: float = 15.0,
-    headers: dict | None = None,
-    params: dict | None = None,
-) -> tuple[int | None, bytes | None, str | None]:
-    """SSRF-safe GET. Returns ``(status, body, final_url)``.
-
-    Delegates to the shared ``safe_http.safe_http_get`` seam, which validates
-    the initial URL AND every redirect hop through the central SSRF guard before
-    connecting (not just the final URL). The fallback fan-out builds URLs from
-    arbitrary subdomains of a user-supplied host and merges the raw response
-    into scrape artifacts, so a redirect into internal infrastructure must be
-    rejected before it is fetched.
-    """
-    from primr.data.safe_http import safe_http_get
-
-    return safe_http_get(
-        url, timeout=timeout, headers=headers, params=params, log_prefix="fallback"
-    )
-
-
-# =============================================================================
-# Result types
-# =============================================================================
-
-
-@dataclass
-class FallbackPage:
-    """A page of content recovered from a fallback source."""
-
-    url: str
-    source: str  # "subdomain" | "feed" | "first_party_pdf" | "structured_data" | ...
-    content: str  # extracted plain text
-    raw_html: bytes | None = None
-    title: str | None = None
-    metadata: dict = field(default_factory=dict)
-
-
 # =============================================================================
 # Subdomain probing
 # =============================================================================
@@ -1001,8 +958,12 @@ def gather_fallback_content(
         futures = {
             pool.submit(fetch_subdomain_content, base_host): "subdomain",
             pool.submit(fetch_feed_content, base_host): "feed",
-            pool.submit(fetch_first_party_pdf_content, base_host): "first_party_pdf",
-            pool.submit(fetch_structured_data_content, base_host): "structured_data",
+            pool.submit(
+                fetch_first_party_pdf_content, base_host, http_get=_http_get
+            ): "first_party_pdf",
+            pool.submit(
+                fetch_structured_data_content, base_host, http_get=_http_get
+            ): "structured_data",
             pool.submit(fetch_edgar_content, company_name): "edgar",
             pool.submit(fetch_wikipedia_content, company_name, website=website): "wikipedia",
         }

@@ -35,6 +35,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   labels. Recommendation priorities use words in navy, and muted text uses
   contrast-tested #6B6B6B.
 
+- Remove research-stage back imports through typed trust and strategy callbacks
+  and one canonical owner for the existing legacy section pipeline. Public
+  compatibility exports remain lazy; scrape gates, progress, explicit folders,
+  and existing callback seams are retained. The first-party import graph is now
+  acyclic and cannot grow a new cycle without failing CI.
+
+- Return a structured error if a hypothesis disappears while applying an update.
+  Complete ranked-link comparisons without changing stable tie ordering or
+  record equality, and accept custom awaitables at the sync boundary.
+- Remove unused transport publication state, duplicate scrape-cache allocation,
+  unused telemetry imports, and unused generic declarations. MCP cost-cap
+  enforcement remains enabled by default on every transport.
+
 - Keep keyless startup and estimate requests free of setup prompts. Show a
   short home screen with the prep path first, and a static ANSI wordmark only
   at home or on explicit banner requests.
@@ -59,6 +72,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer end with a contradictory host-synthesis handoff.
 
 ### Changed
+
+- Give evaluation profile contracts, declarative candidates, and registration
+  their own configuration boundaries. Routing and the legacy Gemini helper use
+  the shared provider cache without importing the evaluation runner or each
+  other. Preserve the public evaluation imports and per-run recipe overrides.
+
+- Remove the fallback-source import cycle by giving recovery adapters a shared
+  typed result and HTTP callback contract. The fan-out injects its SSRF-safe
+  transport explicitly; standalone adapters use the same canonical HTTP seam.
 
 - Register Gemini 4 Argon with synchronous output limits, current pricing, and
   the December 1 price change. Report reasoning and writing defaults remain

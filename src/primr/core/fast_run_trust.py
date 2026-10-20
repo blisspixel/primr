@@ -23,6 +23,7 @@ from primr.core.fast_mode_helpers import (
     _compute_fast_report_qa_metrics,
     _enforce_fast_section_quality_guards,
 )
+from primr.core.fast_run_contracts import ReportTransform
 from primr.core.report_cleanup import _clean_fast_report_output, compute_repair_report
 from primr.core.strategy_artifacts import _normalize_fast_citations
 from primr.qa.label_calibration import label_citations_trust_row
@@ -139,16 +140,11 @@ def polish_and_gate_fast_report(
     grok_writing: str,
     folder_path: str,
     unresolved_contradictions: int,
+    polish_report: ReportTransform,
+    repair_citations: ReportTransform,
 ) -> FastTrustResult:
     """Polish the fast-mode report for trust and compute its QA gate."""
-    # Lazy import: research_agent imports this module, so the LLM-backed
-    # polish/repair helpers (which stay there until their own extraction)
-    # must be resolved at call time to avoid a circular import.
     from primr.ai import stage_routing
-    from primr.core.research_agent import (
-        _polish_fast_report_for_trust,
-        _repair_fast_report_citation_integrity,
-    )
 
     writing_model = grok_writing
     route: StageModelRoute | None = None
@@ -184,7 +180,7 @@ def polish_and_gate_fast_report(
 
     # Trust polish is a low-cost editorial pass to improve evidence discipline.
     if not skip_llm_polish:
-        report_content = _polish_fast_report_for_trust(
+        report_content = polish_report(
             company_label,
             website,
             report_content,
@@ -219,7 +215,7 @@ def polish_and_gate_fast_report(
     if not skip_llm_polish and (
         qa_metrics["citations_used"] == 0 or qa_metrics["citations_defined"] == 0
     ):
-        repaired_report = _repair_fast_report_citation_integrity(
+        repaired_report = repair_citations(
             company_label,
             website,
             report_content,

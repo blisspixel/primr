@@ -51,10 +51,6 @@ def seams(monkeypatch, tmp_path):
             }
         ),
     }
-    monkeypatch.setattr("primr.core.research_agent._polish_fast_report_for_trust", mocks["polish"])
-    monkeypatch.setattr(
-        "primr.core.research_agent._repair_fast_report_citation_integrity", mocks["repair"]
-    )
     monkeypatch.setattr("primr.core.fast_run_trust._clean_fast_report_output", mocks["clean"])
     monkeypatch.setattr("primr.core.fast_run_trust._normalize_fast_citations", mocks["normalize"])
     monkeypatch.setattr(
@@ -90,6 +86,8 @@ def seams(monkeypatch, tmp_path):
 
     def call(**overrides) -> FastTrustResult:
         defaults = {
+            "polish_report": mocks["polish"],
+            "repair_citations": mocks["repair"],
             "company_label": "AcmeCo",
             "website": "https://acme.example",
             "report_content": "## Section\nbody",

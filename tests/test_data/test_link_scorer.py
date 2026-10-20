@@ -4,6 +4,8 @@ Tests for the link scorer module.
 Tests link scoring, categorization, and filtering.
 """
 
+import pytest
+
 from primr.data.link_scorer import (
     HIGH_VALUE_PATTERNS,
     LOW_VALUE_PATTERNS,
@@ -434,3 +436,25 @@ class TestPatterns:
         low_scored = scorer.score_link(low_link)
 
         assert high_scored.score > low_scored.score
+
+
+def test_rank_comparisons_preserve_ties_and_record_identity():
+    first = ScoredLink(url="first", text="", score=0.5)
+    second = ScoredLink(url="second", text="", score=0.5)
+    higher = ScoredLink(url="higher", text="", score=0.9)
+    assert first != second
+    assert sorted([second, higher, first]) == [higher, second, first]
+    assert not first < second
+    assert not first > second
+    assert not first <= second
+    assert not first >= second
+    assert first <= first
+    assert first >= first
+    assert higher <= first
+    assert first >= higher
+
+
+@pytest.mark.parametrize("method", ["__lt__", "__gt__", "__le__", "__ge__"])
+def test_rank_comparisons_decline_unrelated_types(method):
+    link = ScoredLink(url="first", text="", score=0.5)
+    assert getattr(link, method)(object()) is NotImplemented

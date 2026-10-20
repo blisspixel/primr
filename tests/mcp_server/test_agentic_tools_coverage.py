@@ -289,3 +289,23 @@ class TestSaveHypothesis:
         data = _text(result)
         assert data["error"] is True
         assert data["error_type"] == "save_hypothesis_failed"
+
+
+@pytest.mark.asyncio
+async def test_hypothesis_disappearing_during_update_returns_structured_error(
+    mcp_server_stub, monkeypatch
+):
+    from primr.agentic.memory import ResearchMemory
+
+    arguments = {"company": "ExampleCo", "hypothesis_id": "h_race", "claim": "A hypothesis"}
+    created = await handle_agentic_tool("save_hypothesis", arguments, mcp_server_stub)
+    assert _text(created)["action"] == "created"
+    monkeypatch.setattr(ResearchMemory, "update_hypothesis", lambda *args: False)
+    result = await handle_agentic_tool(
+        "save_hypothesis",
+        {**arguments, "confidence": "validated", "evidence": "New evidence"},
+        mcp_server_stub,
+    )
+    data = _text(result)
+    assert data["error"] is True
+    assert data["error_type"] == "hypothesis_update_failed"

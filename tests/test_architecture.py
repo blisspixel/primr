@@ -56,14 +56,14 @@ NEW_FILE_MAX_LINES = 1000
 FILE_LINE_CEILINGS: dict[str, int] = {
     # research_agent.py and cli.py remain below their committed-main baselines.
     # These ceilings track the current measured sizes and may only shrink.
-    "core/research_agent.py": 4256,
+    "core/research_agent.py": 3983,
     "core/cli.py": 2439,
     "ai/deep_research.py": 3812,
     "data/scraping/browsers.py": 1833,
     "data/hiring_signals.py": 1571,
-    "core/model_eval.py": 1828,
-    "data/scrape.py": 1778,
-    "data/fallback_sources.py": 1065,
+    "core/model_eval.py": 1638,
+    "data/scrape.py": 1776,
+    "data/fallback_sources.py": 1026,
     # cli_batch_runtime.py received extracted batch-runtime code during the
     # cli.py decomposition; pinned here now that it exceeds the new-file cap.
     "core/cli_batch_runtime.py": 1042,
@@ -97,6 +97,9 @@ INTENTIONAL_TINY_MODULES: dict[str, str] = {
     "core/cli_prep.py": "legacy prep-command import compatibility surface",
     "core/cli_help.py": "backward-compatible CLI help import surface",
     "core/strategy_enrichment_contract.py": "strategy review and repair framing policy",
+    "data/fallback_http.py": "SSRF-safe fallback HTTP adapter over the shared transport",
+    "data/fallback_types.py": "fallback result and HTTP callback protocol boundary",
+    "mcp_server/cost_caps.py": "transport-independent cost-cap enforcement policy",
     "mcp_server/cloud_detect.py": "cloud-runtime adapter",
     "mcp_server/qa_operations.py": "shared QA operation boundary",
     "mcp_server/resource_summary_utils.py": "compact resource-summary policy",
@@ -138,38 +141,7 @@ def test_no_empty_non_package_modules():
     assert not empty, "Remove empty non-package modules:\n" + "\n".join(empty)
 
 
-EXPECTED_IMPORT_CYCLES = {
-    frozenset(
-        {
-            "primr",
-            "primr.core.cli",
-            "primr.core.cli_dispatch",
-            "primr.core.cli_doctor",
-            "primr.core.cli_update",
-            "primr.core.deep_research_runner",
-            "primr.core.fast_run_strategy",
-            "primr.core.fast_run_trust",
-            "primr.core.research_agent",
-            "primr.core.research_orchestrator",
-        }
-    ),
-    frozenset(
-        {
-            "primr.ai.llm",
-            "primr.ai.routing",
-            "primr.config.eval_profiles",
-            "primr.core.model_eval",
-            "primr.utils.cost_estimator",
-        }
-    ),
-    frozenset(
-        {
-            "primr.data.fallback_sources",
-            "primr.data.first_party_pdf",
-            "primr.data.first_party_structured_data",
-        }
-    ),
-}
+EXPECTED_IMPORT_CYCLES: set[frozenset[str]] = set()
 
 
 def _module_name(path: Path) -> str:
@@ -274,6 +246,10 @@ def test_first_party_import_cycles_match_burndown_baseline():
         ("primr.utils", "primr.utils.security"),
         ("primr.utils.security", "primr.utils"),
         ("primr.core.cli_init", "primr.core.cli_doctor"),
+        ("primr.data.fallback_sources", "primr.data.first_party_pdf"),
+        ("primr.data.first_party_pdf", "primr.data.fallback_sources"),
+        ("primr.data.fallback_sources", "primr.data.first_party_structured_data"),
+        ("primr.data.first_party_structured_data", "primr.data.fallback_sources"),
         ("primr.core.cli_doctor", "primr.core.cli_init"),
         ("primr.core.cli_errors", "primr.core.cli_update"),
         ("primr.core.cli_update", "primr.core.cli_errors"),
@@ -293,6 +269,10 @@ def test_first_party_import_cycles_match_burndown_baseline():
         ("primr.core.research_agent", "primr.core.fast_run_validation"),
         ("primr.core.fast_run_sections", "primr.core.research_agent"),
         ("primr.core.research_agent", "primr.core.fast_run_sections"),
+        ("primr.core.legacy_research", "primr.core.research_orchestrator"),
+        ("primr.core.research_orchestrator", "primr.core.legacy_research"),
+        ("primr.core.fast_run_trust", "primr.core.research_agent"),
+        ("primr.core.fast_run_strategy", "primr.core.research_agent"),
         ("primr.core.refine", "primr.core.research_agent"),
         ("primr.core.research_agent", "primr.core.refine"),
     ],

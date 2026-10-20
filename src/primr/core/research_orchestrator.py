@@ -262,10 +262,9 @@ class ResearchOrchestrator:
         """
         Run research using the structured pipeline.
 
-        This delegates to the existing research_agent.py workflow.
+        This delegates to the canonical legacy section pipeline.
         """
-        # Import here to avoid circular imports
-        from primr.core.research_agent import run_research
+        from primr.core.legacy_research import run_research
 
         # Note: run_research is synchronous, so we run it in executor
         # Pass the progress callback so updates display during execution

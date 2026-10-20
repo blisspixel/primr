@@ -360,7 +360,6 @@ class ConsoleProtocol(Protocol):
 # =============================================================================
 
 T = TypeVar("T")
-E = TypeVar("E", bound=Exception)
 
 
 @dataclass

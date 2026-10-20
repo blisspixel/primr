@@ -317,7 +317,7 @@ class TestRunStructuredResearch:
         cfg = ResearchConfig()
 
         with patch(
-            "primr.core.research_agent.run_research",
+            "primr.core.legacy_research.run_research",
             return_value={"company_overview": "data"},
         ) as mock_run:
             result = await orch._run_structured_research(
@@ -335,7 +335,7 @@ class TestRunStructuredResearch:
         orch = ResearchOrchestrator()
         cfg = ResearchConfig()
 
-        with patch("primr.core.research_agent.run_research", return_value={}):
+        with patch("primr.core.legacy_research.run_research", return_value={}):
             result = await orch._run_structured_research("Acme Corp", None, cfg, None)
 
         assert result.success is False
@@ -347,7 +347,7 @@ class TestRunStructuredResearch:
         cfg = ResearchConfig()
 
         with patch(
-            "primr.core.research_agent.run_research",
+            "primr.core.legacy_research.run_research",
             return_value={"x": "y"},
         ) as mock_run:
             await orch._run_structured_research("Acme Corp", None, cfg, None)

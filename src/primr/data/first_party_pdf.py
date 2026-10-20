@@ -5,17 +5,16 @@ from __future__ import annotations
 import html
 import logging
 import re
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
+from primr.data.fallback_http import http_get as _default_http_get
+from primr.data.fallback_types import FallbackPage, HttpGet
 from primr.data.first_party_url import same_site
 
 logger = logging.getLogger(__name__)
-
-HttpGet = Callable[..., tuple[int | None, bytes | None, str | None]]
 
 _HTML_MAX_BYTES = 1_000_000
 _PDF_MAX_BYTES = 8 * 1024 * 1024
@@ -222,14 +221,12 @@ def fetch_first_party_pdf_content(
     max_pages: int = _DEFAULT_MAX_PAGES,
     max_landing_pages: int = _DEFAULT_MAX_LANDING_PAGES,
     max_pdf_candidates: int = _DEFAULT_MAX_PDF_CANDIDATES,
-) -> list[Any]:
+) -> list[FallbackPage]:
     """Return fallback-page objects for first-party PDFs."""
-
-    from primr.data.fallback_sources import FallbackPage, _http_get
 
     pages = fetch_first_party_pdf_pages(
         base_host,
-        http_get=http_get or _http_get,
+        http_get=http_get or _default_http_get,
         per_request_timeout=per_request_timeout,
         max_pages=max_pages,
         max_landing_pages=max_landing_pages,

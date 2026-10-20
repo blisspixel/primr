@@ -282,17 +282,11 @@ def llm(
     return result.text
 
 
-_gemini_provider: "object | None" = None  # forward decl, set by _get_gemini_provider
-
-
 def _get_gemini_provider():
-    """Lazy singleton for the GeminiProvider used by ``llm()``."""
-    from primr.ai.providers.gemini import GeminiProvider
+    """Use the shared provider cache while preserving the legacy call seam."""
+    from primr.ai.providers.registry import get_registered_provider_for_model
 
-    global _gemini_provider
-    if _gemini_provider is None:
-        _gemini_provider = GeminiProvider()
-    return _gemini_provider
+    return get_registered_provider_for_model(PrimrModels.FLASH_MODEL)
 
 
 def get_llm_provider_usage_by_model() -> dict[str, dict[str, int]]:

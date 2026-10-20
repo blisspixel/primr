@@ -11,8 +11,6 @@ warnings.filterwarnings("ignore", message=".*found in sys.modules.*", category=R
 # These imports ensure existing code that imports from research_agent.py continues to work.
 # New code should import directly from the specialized modules.
 
-# From cli module
-# From ai_strategy module
 from primr.core.ai_strategy import (
     CloudVendor,
     Platform,
@@ -23,10 +21,6 @@ from primr.core.ai_strategy_runtime import (
 from primr.core.ai_strategy_runtime import (
     generate_ai_strategy_section as _generate_ai_strategy_section_impl,
 )
-
-# Backward-compatible re-export: the CLI entry point lives in cli.py, but
-# ``primr.__main__`` and external callers import ``main`` from this module.
-from primr.core.cli import main as main
 
 # From deep_research_runner module
 from primr.core.deep_research_runner import (
@@ -41,6 +35,7 @@ from primr.core.fast_mode_helpers import (
     _parse_batch_sections as _parse_batch_sections,
 )
 from primr.core.fast_run_collection import collect_research_data
+from primr.core.fast_run_contracts import StrategyServices
 from primr.core.fast_run_gaps import deepen_research
 from primr.core.fast_run_hiring import collect_fenced_hiring_block, collect_hiring_block
 from primr.core.fast_run_sections import write_report_sections
@@ -49,6 +44,19 @@ from primr.core.fast_run_trust import polish_and_gate_fast_report
 from primr.core.fast_run_validation import cross_validate_and_enrich
 from primr.core.fast_run_workbook import build_day1_hypothesis_tree, generate_analysis_workbook
 from primr.core.insights_assembly import build_combined_insights, build_external_sources_raw
+from primr.core.legacy_research import (
+    LegacyServices,
+    _validate_scrape_quality,
+)
+from primr.core.legacy_research import (
+    generate_initial_overview as _legacy_overview,
+)
+from primr.core.legacy_research import (
+    research_section as _legacy_section,
+)
+from primr.core.legacy_research import (
+    run_research as _legacy_run,
+)
 from primr.core.platform_mapper import restore_strategy_platforms
 from primr.core.recon_context import validated_recon_domain as _extract_domain
 from primr.core.report_cleanup import (
@@ -229,6 +237,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+main: Callable[[list[str] | None], int]
+
 if TYPE_CHECKING:
     from primr.core.research_framing import ResearchFraming
     from primr.output.final_artifact import GeneratedSection
@@ -239,17 +249,13 @@ from primr.ai.llm import llm
 from primr.ai.routing import Role, pick_model_for_role
 from primr.ai.summarize import summarize_scraped_content
 from primr.config.config import (
-    GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT,
     LOGS_DIR,
     MAX_EXTERNAL_SEARCH_QUERIES,
     MAX_EXTERNAL_SOURCES,
-    MIN_SCRAPED_CHARS,
-    MIN_SCRAPED_PAGES,
     OUTPUT_DIR,
     WORKING_DIR,
 )
 from primr.config.env import load_primr_env
-from primr.config.sections_config import SECTION_KEY_MAP
 from primr.core import deep_run_summary
 
 
@@ -330,23 +336,6 @@ def format_tier_stats(tier_stats: dict) -> str:
         display_name = TIER_DISPLAY_NAMES.get(tier, tier)
         parts.append(f"{count} {display_name}")
     return ", ".join(parts)
-
-
-def _validate_scrape_quality(
-    corpus: dict[str, str],
-    *,
-    min_pages: int = MIN_SCRAPED_PAGES,
-    min_chars: int = MIN_SCRAPED_CHARS,
-) -> tuple[bool, str]:
-    """Check whether scraped website content is sufficient for reliable analysis."""
-    pages = len(corpus)
-    chars = sum(len(c or "") for c in corpus.values())
-    ok = pages >= min_pages and chars >= min_chars
-    reason = (
-        f"Scrape quality too low ({pages} pages, {chars:,} chars; "
-        f"requires >= {min_pages} pages and >= {min_chars:,} chars)"
-    )
-    return ok, reason
 
 
 def select_links_with_llm(
@@ -564,127 +553,51 @@ def validate_context_files(file_paths: list) -> tuple:
     return valid_files, invalid_files, warnings
 
 
-def generate_initial_overview(company_name, website, industry, folder_path):
-    overview_prompt = generate_prompt(
-        "initial_company_overview",
-        company_name=company_name,
-        company_website=website or "N/A",
-        industry=industry,
-        detailed_products_services="N/A",
-        unique_selling_proposition="N/A",
-        mission_vision="N/A",
-        company_history="N/A",
-        key_achievements="N/A",
-        target_audience="N/A",
-        financial_overview="N/A",
-        business_drivers_and_kpis="N/A",
-        business_outcomes="N/A",
-        scraped_website_summary="N/A",
+def __getattr__(name: str) -> Callable[[list[str] | None], int]:
+    """Resolve the legacy CLI export only when a caller explicitly requests it."""
+    if name == "main":
+        import importlib
+
+        return importlib.import_module("primr.cli_entry").main
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _legacy_services() -> LegacyServices:
+    return LegacyServices(
+        prompt=generate_prompt,
+        model=llm,
+        fetch=fetch_web_content,
+        summarize=summarize_scraped_content,
+        external_queries=generate_external_search_queries,
+        queries=generate_search_queries,
+        search=search_web,
+        grade=grade_report,
+        save=save_section_output,
+        folder=create_working_folder,
+        validate=_validate_scrape_quality,
+        prompts=PROMPTS,
     )
-    overview = llm(overview_prompt, model_type="report")
 
-    overview_file = os.path.join(folder_path, f"{company_name}_Draft_Overview.txt")
-    with open(overview_file, "w", encoding="utf-8") as f:
-        f.write(overview)
 
-    return overview
+def generate_initial_overview(company_name, website, industry, folder_path):
+    return _legacy_overview(
+        company_name, website, industry, folder_path, services=_legacy_services()
+    )
 
 
 def research_section(
     section_name, company_name, website, industry, folder_path, overview, summarized_insights
 ):
-    section_key = SECTION_KEY_MAP.get(section_name)
-
-    if not section_key or section_key not in PROMPTS:
-        return ""
-
-    if section_name in ["Company Name", "Website", "Industry"]:
-        value = (
-            company_name
-            if section_name == "Company Name"
-            else website
-            if section_name == "Website"
-            else industry
-        )
-        save_section_output(folder_path, section_key, value or "N/A")
-        return value
-
-    prompt_data = {
-        "company_name": company_name,
-        "company_website": website or "N/A",
-        "industry": industry or "N/A",
-        "detailed_products_services": summarized_insights or "N/A",
-        "unique_selling_proposition": "N/A",
-        "mission_vision": "N/A",
-        "company_history": "N/A",
-        "key_achievements": "N/A",
-        "target_audience": "N/A",
-        "financial_overview": "N/A",
-        "business_drivers_and_kpis": "N/A",
-        "potential_business_outcomes": "N/A",
-        "industry_insights": "N/A",
-        "potential_business_drivers": "N/A",
-        "primary_apps_sources_of_data": "N/A",
-        "main_types_of_users": "N/A",
-        "board_of_directors_concerns": "N/A",
-        "potential_business_value": "N/A",
-        "strategic_recommendations": "N/A",
-        "scraped_website_summary": summarized_insights or "N/A",
-        "value_theory": overview,
-    }
-
-    try:
-        ai_prompt = generate_prompt(section_key, **prompt_data)
-    except KeyError:
-        return ""
-
-    ai_input = f"""
-## Company: {company_name}
-## Website: {website or "N/A"}
-## Industry: {industry or "N/A"}
-## Section: {section_name}
-
-{ai_prompt}
-
-## Context
-{overview}
-
-## Scraped Insights
-{summarized_insights}
-"""
-
-    ai_response = llm(ai_input, model_type="report")
-
-    if section_name not in ["Company Name", "Website", "Industry"]:
-        try:
-            score, needs_research, feedback = grade_report(
-                ai_response, section_name, company_name, website, overview, summarized_insights
-            )
-
-            if (
-                needs_research
-                and score is not None
-                and score < GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT
-            ):
-                queries = generate_search_queries(company_name, website, section_name, ai_response)
-                for query in queries[:2]:
-                    results = search_web(query, company_name, website)
-                    if results:
-                        formatted = "\n".join(
-                            f"- [{r.get('title', 'Source')}]({r.get('url', '')}): {r.get('snippet', '')}"
-                            for r in results[:5]
-                        )
-                        ai_input += f"\n\n## Additional Research\n{formatted}"
-                        ai_response = llm(ai_input, model_type="report")
-                        break
-        except Exception as e:
-            logger.warning(f"Grading/refinement failed for section '{section_name}': {e}")
-
-    if not ai_response or len(ai_response.strip()) < 50:
-        ai_response = f"No detailed {section_name} information available for {company_name}."
-
-    save_section_output(folder_path, section_key, ai_response)
-    return ai_response
+    return _legacy_section(
+        section_name,
+        company_name,
+        website,
+        industry,
+        folder_path,
+        overview,
+        summarized_insights,
+        services=_legacy_services(),
+    )
 
 
 def run_research(
@@ -693,213 +606,17 @@ def run_research(
     on_progress: Callable[[str], None] | None = None,
     fail_on_low_scrape: bool = True,
     folder_path: str | None = None,
-) -> dict | None:
-    """
-    Run structured research and return section results.
-
-    This is the entry point used by ResearchOrchestrator for structured mode.
-
-    Args:
-        company_name: Name of the company
-        website: Company website URL
-        on_progress: Optional callback for progress updates (message: str)
-
-    Returns:
-        Dict mapping section_key to content, or None if scraping/quality
-        gates fail before any sections are produced.
-    """
-    import time as time_module
-
-    def progress(msg: str) -> None:
-        """Send progress update via callback or console."""
-        if on_progress:
-            on_progress(msg)
-        else:
-            console.info(msg)
-
-    def format_time(seconds: float) -> str:
-        """Format seconds into readable time string."""
-        if seconds < 60:
-            return f"{int(seconds)}s"
-        return f"{int(seconds // 60)}m {int(seconds % 60)}s"
-
-    folder_path = folder_path or create_working_folder(company_name, website)
-    progress(f"> Working folder: {folder_path}")
-
-    # Scrape website - saves raw scrapes incrementally to _raw_scrapes folder
-    # fetch_web_content already shows completion message, no need to duplicate
-    scraped_data = (
-        fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path)
-        if website
-        else {}
+) -> dict[str, str] | None:
+    return _legacy_run(
+        company_name,
+        website,
+        on_progress,
+        fail_on_low_scrape,
+        folder_path,
+        services=_legacy_services(),
+        overview_fn=generate_initial_overview,
+        section_fn=research_section,
     )
-
-    # Abort if website was provided but nothing could be scraped
-    if website and not scraped_data:
-        console.fail("Could not scrape any pages from the website - site may be blocking")
-        console.muted("  The site may be rate-limiting after a recent scrape.")
-        console.muted('  Try: primr "Company" url --mode deep  (skips site scraping)')
-        return None
-
-    if website and fail_on_low_scrape:
-        quality_ok, quality_reason = _validate_scrape_quality(scraped_data)
-        if not quality_ok:
-            console.fail(quality_reason)
-            console.muted("  Re-run with --skip-scrape-validation to continue anyway")
-            return None
-
-    # External research - with LLM validation to ensure correct company
-    # This prevents including content from similarly-named but unrelated companies
-    # (e.g., a SaaS vendor and an unrelated services firm that share the same trade name)
-    progress("Searching for external sources...")
-
-    external_data = {}
-    total_search_results = 0
-    if website:
-        from primr.data.scrape import scrape_external_sources_validated
-        from primr.data.search_utils import search_web
-
-        # Generate targeted search queries using LLM
-        progress("Generating search strategy...")
-        external_queries = generate_external_search_queries(
-            company_name,
-            website,
-            max_queries=MAX_EXTERNAL_SEARCH_QUERIES,
-        )
-
-        # Keep hardcoded queries as reliable fallbacks at the end
-        fallback_queries = [
-            "news OR press release OR announcement",
-            "funding OR acquisition OR partnership",
-        ]
-        all_queries = list(external_queries)
-        for fallback in fallback_queries:
-            if len(all_queries) >= MAX_EXTERNAL_SEARCH_QUERIES:
-                break
-            if fallback not in all_queries:
-                all_queries.append(fallback)
-
-        max_external_sources = MAX_EXTERNAL_SOURCES
-
-        for query in all_queries:
-            if len(external_data) >= max_external_sources:
-                break
-
-            results = search_web(query, company_name, website)
-            if results:
-                total_search_results += len(results)
-                progress(f"  Found {len(results)} results for '{query[:40]}...'")
-                filtered = [
-                    r for r in results[:5] if web_url_is_external(r.get("url", ""), website)
-                ]
-                remaining_slots = max_external_sources - len(external_data)
-                progress(f"  Validating {len(filtered)} external articles...")
-                scraped = scrape_external_sources_validated(
-                    filtered,
-                    company_name=company_name,
-                    website=website,
-                    max_sources=min(2, remaining_slots),
-                    working_folder=folder_path,
-                )
-                external_data.update(scraped)
-
-    progress(
-        f"+ {len(external_data)} external sources validated (from {total_search_results} search results)"
-    )
-
-    all_scraped = {**scraped_data, **external_data}
-    from primr.output.working_brief import emit_after_structured_scrape as _emit_wb
-
-    _emit_wb(company_name, website, folder_path, scraped_data, external_data, progress)
-
-    # Save raw scraped URLs to working folder for debugging
-    urls_file = os.path.join(folder_path, "_scraped_urls.txt")
-    with open(urls_file, "w", encoding="utf-8") as f:
-        f.write(f"# Scraped URLs for {company_name}\n")
-        f.write(f"# Website: {website}\n")
-        f.write(f"# Total: {len(all_scraped)} pages\n\n")
-        f.write("## Website Pages:\n")
-        for url in scraped_data:
-            f.write(f"  {url}\n")
-        f.write(f"\n## External Sources ({len(external_data)}):\n")
-        for url in external_data:
-            f.write(f"  {url}\n")
-
-    # Summarize content
-    progress("Summarizing content...")
-    summarized = summarize_scraped_content(company_name, website, all_scraped, folder_path)
-    if not summarized.strip():
-        summarized = "No insights extracted."
-    progress("+ Content summarized")
-
-    # Industry identification
-    progress("Identifying industry...")
-    industry_prompt = generate_prompt(
-        "industry",
-        company_name=company_name,
-        company_website=website or "N/A",
-        scraped_insights=summarized,
-    )
-    industry = llm(industry_prompt, model_type="research").strip() or "Unknown"
-    progress(f"+ Industry: {industry}")
-
-    # Overview
-    progress("Generating overview...")
-    overview = generate_initial_overview(company_name, website, industry, folder_path)
-    progress("+ Overview complete")
-
-    # Research all sections
-    sections = [
-        "Company Name",
-        "Website",
-        "Industry",
-        "Detailed Products/Services",
-        "Unique Selling Proposition (USP)",
-        "Mission & Vision",
-        "Company History",
-        "Key Achievements",
-        "Target Audience",
-        "Financial Overview",
-        "Potential Business Drivers & KPIs",
-        "Industry Insights",
-        "Potential Business Drivers",
-        "Primary Apps or Sources of Data",
-        "Main Types of Users",
-        "Board of Directors Concerns",
-        "Potential Business Value",
-        "Strategic Recommendations",
-    ]
-
-    # Count non-trivial sections for progress
-    analysis_sections = [s for s in sections if s not in ["Company Name", "Website", "Industry"]]
-    total_analysis = len(analysis_sections)
-
-    sections_start = time_module.time()
-    progress(f"Analyzing {total_analysis} report sections...")
-    section_results = {}
-    analysis_idx = 0
-
-    for section in sections:
-        section_key = SECTION_KEY_MAP.get(section)
-        if section_key:
-            # Show progress for non-trivial sections (clean format, no timing per step)
-            if section not in ["Company Name", "Website", "Industry"]:
-                analysis_idx += 1
-                progress(f"  [{analysis_idx}/{total_analysis}] {section}")
-
-            content = research_section(
-                section, company_name, website, industry, folder_path, overview, summarized
-            )
-            if content:
-                section_results[section_key] = content
-
-    # Final timing for sections
-    progress(
-        f"+ {total_analysis} sections complete ({format_time(time_module.time() - sections_start)})"
-    )
-
-    console.progress_done()
-    return section_results
 
 
 def perform_scrape_only(
@@ -2326,6 +2043,8 @@ def perform_fast_research(
             grok_writing=grok_writing,
             folder_path=folder_path,
             unresolved_contradictions=unresolved_contradictions,
+            polish_report=_polish_fast_report_for_trust,
+            repair_citations=_repair_fast_report_citation_integrity,
         )
         report_content = _trust.report_content
         qa_metrics = _trust.qa_metrics
@@ -2362,6 +2081,14 @@ def perform_fast_research(
 
         # Phase 6: Strategy Generation (core/fast_run_strategy.py)
         _strategy_result = run_strategy_phase(
+            services=StrategyServices(
+                _build_ai_strategy_prompt,
+                _build_strategy_prompt_from_yaml,
+                _compute_session_llm_cost,
+                _enrich_strategy_content,
+                _prepare_strategy_for_output,
+                _save_strategy_output,
+            ),
             has_strategies=has_strategies,
             ai_strategy=ai_strategy,
             platforms=platforms,
@@ -4253,4 +3980,4 @@ def run_doctor():
 
 
 if __name__ == "__main__":
-    main()
+    __getattr__("main")(None)

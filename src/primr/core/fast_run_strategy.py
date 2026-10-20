@@ -6,8 +6,8 @@ multi-strategy run stops generating once the ceiling is reached), the per-vendor
 AI strategy closure with its parallel dispatch, and the YAML-defined strategy
 loop (customer_experience, security, data_fabric, skills, ...).
 
-The LLM-prompt/enrich/output helpers stay in research_agent (lazy-imported)
-until their own extraction, mirroring the Batch A/B pattern.
+The composition root supplies prompt, enrichment, and output callbacks through
+a typed contract; the stage never imports its orchestrator.
 
 Side effects preserved from the original: phase banner/completion, strategy
 QA console lines, run-budget warning, per-strategy artifact writes via
@@ -22,6 +22,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from primr.core.fast_run_contracts import StrategyServices
 from primr.core.strategy_context import read_stable_vendor_context_block
 from primr.core.strategy_outcome import (
     StrategyOutcome,
@@ -111,6 +112,7 @@ class StrategyPhaseResult:
 
 def run_strategy_phase(
     *,
+    services: StrategyServices,
     has_strategies: bool,
     ai_strategy: bool,
     platforms: list[str] | None,
@@ -133,17 +135,6 @@ def run_strategy_phase(
     base_report_complete: bool = True,
 ) -> StrategyPhaseResult:
     """Generate strategy documents only after the base report is complete."""
-    # Lazy import: research_agent imports this module, so the prompt-build,
-    # enrichment, and output helpers (which stay there until their own
-    # extraction) must be resolved at call time to avoid a circular import.
-    from primr.core.research_agent import (
-        _build_ai_strategy_prompt,
-        _build_strategy_prompt_from_yaml,
-        _compute_session_llm_cost,
-        _enrich_strategy_content,
-        _prepare_strategy_for_output,
-        _save_strategy_output,
-    )
 
     strategy_paths: dict[str, str] = {}
     strategy_trust_stats: list[tuple[str, list[tuple[str, str]]]] = []
@@ -180,7 +171,7 @@ def run_strategy_phase(
 
     def observed_fast_spend() -> float:
         refresh_tasks_started = refresh_tracker.snapshot().started_count
-        return _compute_session_llm_cost() + refresh_tasks_started * vendor_refresh_cost
+        return services.session_cost() + refresh_tasks_started * vendor_refresh_cost
 
     # --budget checkpoint: skip strategy generation (the most expensive optional
     # stage) when actual spend has already reached the --budget ceiling.
@@ -347,7 +338,7 @@ def run_strategy_phase(
                 outcome_tracker.mark_skipped(target)
                 return None
 
-            strategy_prompt = _build_ai_strategy_prompt(
+            strategy_prompt = services.build_ai_prompt(
                 company_label, vendor, discovery_notes_content
             )
 
@@ -423,7 +414,7 @@ def run_strategy_phase(
 
                 # Enrich: cross-validate → evidence search → polish
                 try:
-                    strategy_content = _enrich_strategy_content(
+                    strategy_content = services.enrich(
                         strategy_content,
                         company_label,
                         vendor,
@@ -443,15 +434,13 @@ def run_strategy_phase(
                         error=str(enrich_err),
                     )
 
-                strategy_content, strategy_qa, rejected_strategy_sources = (
-                    _prepare_strategy_for_output(
-                        strategy_content,
-                        company_label,
-                        vendor,
-                        "AI Strategy",
-                        list(validated_source_urls),
-                        model=writing_model,
-                    )
+                strategy_content, strategy_qa, rejected_strategy_sources = services.prepare(
+                    strategy_content,
+                    company_label,
+                    vendor,
+                    "AI Strategy",
+                    list(validated_source_urls),
+                    model=writing_model,
                 )
                 qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
                 console.info(
@@ -488,7 +477,7 @@ def run_strategy_phase(
                     )
                 )
 
-                strategy_path = _save_strategy_output(
+                strategy_path = services.save(
                     strategy_content,
                     company_label,
                     vendor,
@@ -585,7 +574,7 @@ def run_strategy_phase(
             if not file_label:
                 file_label = stype.replace(" ", "_")
 
-            strategy_prompt = _build_strategy_prompt_from_yaml(
+            strategy_prompt = services.build_yaml_prompt(
                 strategy_config, company_label, discovery_notes_content
             )
 
@@ -647,7 +636,7 @@ def run_strategy_phase(
                 # Enrich: cross-validate → evidence search → polish
                 # Use strategy display name (e.g. "Customer Experience") not "agnostic"
                 try:
-                    strategy_content = _enrich_strategy_content(
+                    strategy_content = services.enrich(
                         strategy_content,
                         company_label,
                         display_name_strat,
@@ -667,15 +656,13 @@ def run_strategy_phase(
                         error=str(enrich_err),
                     )
 
-                strategy_content, strategy_qa, rejected_strategy_sources = (
-                    _prepare_strategy_for_output(
-                        strategy_content,
-                        company_label,
-                        display_name_strat,
-                        display_name_strat,
-                        list(validated_source_urls),
-                        model=writing_model,
-                    )
+                strategy_content, strategy_qa, rejected_strategy_sources = services.prepare(
+                    strategy_content,
+                    company_label,
+                    display_name_strat,
+                    display_name_strat,
+                    list(validated_source_urls),
+                    model=writing_model,
                 )
                 qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
                 console.info(
@@ -712,7 +699,7 @@ def run_strategy_phase(
                     )
                 )
 
-                strategy_path = _save_strategy_output(
+                strategy_path = services.save(
                     strategy_content,
                     company_label,
                     "agnostic",

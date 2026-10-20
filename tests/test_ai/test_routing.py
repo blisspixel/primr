@@ -530,3 +530,16 @@ class TestGetProviderForModel:
     def test_unknown_model_raises_keyerror(self) -> None:
         with pytest.raises(KeyError):
             get_provider_for_model("definitely-not-a-real-model")
+
+
+def test_legacy_gemini_and_router_share_one_registered_provider(monkeypatch):
+    import importlib
+
+    from primr.ai.providers import registry
+    from primr.config.models import PrimrModels
+
+    legacy = importlib.import_module("primr.ai.llm")
+    monkeypatch.setattr(registry, "_PROVIDER_INSTANCES", {})
+    routed = get_provider_for_model(PrimrModels.FLASH_MODEL)
+    assert legacy._get_gemini_provider() is routed
+    assert registry.get_registered_provider_for_model(PrimrModels.PRO_MODEL) is routed

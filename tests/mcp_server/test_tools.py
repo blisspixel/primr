@@ -382,10 +382,7 @@ class TestCostCaps:
 
     @pytest.mark.asyncio
     async def test_research_company_requires_cap_by_default_on_stdio(self, server, monkeypatch):
-        from primr.mcp_server.cost_caps import set_active_transport
-
         monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
-        set_active_transport("stdio")
 
         result = await call_tool_handler(
             server,

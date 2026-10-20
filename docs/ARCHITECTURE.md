@@ -366,6 +366,32 @@ with a 4.5:1 floor for normal text on each actual report background, including
 muted metadata on white and alice-blue callouts. Tests inspect saved Word text
 and explicit run/background colors as well as inherited palette pairs.
 
+The MCP cost-cap policy reads only its explicit enforcement override; server
+construction and serving do not publish process-global transport policy. The
+legacy scrape facade re-exports the canonical cache type and delegates cache
+operations to the orchestrator instead of allocating an unused second cache.
+Ranked links compare descending scores while retaining record equality and
+stable input order for distinct tied records. All comparison methods decline
+unrelated types. The sync bridge awaits through a coroutine wrapper so its
+Awaitable contract works on every maintained interpreter.
+
+Fallback recovery composition owns fan-out and injects its HTTP callback into
+PDF and structured-data adapters. Their shared FallbackPage result and HttpGet
+protocol live in a leaf contract module; the default HTTP adapter delegates to
+the existing per-hop validated, IP-pinned safe HTTP transport. Recovery adapters
+never import their composition root. The legacy FallbackPage and HTTP import
+surfaces remain compatible, and the import-cycle baseline removes the retired
+three-module component. Fresh-process tests cover both adapter import orders.
+
+Evaluation recipes and profile slots are immutable configuration contracts.
+The declarative candidate catalog imports only those contracts; the registry
+loads candidates and protects built-in profiles without loading model_eval,
+cost estimation, or model execution. The evaluation runner re-exports the same
+objects and registration functions for compatibility. Routing's recipe type
+references the leaf contract. Google dispatch and the legacy llm provider seam
+share the provider registry cache, so neither imports the other's dispatch
+module. Fresh-process tests verify catalog isolation and shared provider identity.
+
 The fast-mode orchestrator (`perform_fast_research`) is decomposed into
 per-stage modules (roadmap #23; see
 [`design/23-orchestrator-refactor-map.md`](design/23-orchestrator-refactor-map.md)
@@ -1451,3 +1477,21 @@ router are `fast.scrape_summary`, `fast.source_relevance`, and
 - Subagents for scraping, analysis, writing, and QA
 - Hook system for governance (cost limits, quality gates)
 - Research memory that persists and evolves
+
+### Acyclic research composition
+
+All first-party Python import components are now acyclic, enforced by an empty
+cycle baseline. Fast trust and strategy stages receive typed callbacks from the
+research composition root; they never resolve helpers by importing that root.
+`core.legacy_research` owns the existing section pipeline, including its scrape
+quality gates, explicit working-folder binding, validated external collection,
+progress, and section persistence. The orchestrator calls that same owner;
+public research-agent functions remain thin compatibility facades that supply
+their existing callback seams. The separate typed structured workflow retains
+its existing public interface.
+
+The historical `research_agent.main` and package-level `perform_research` exports
+resolve lazily on explicit attribute access. Importing research stages does not
+initialize the operational CLI. These compatibility exports retain the exact
+function identities of their owners, with fresh-interpreter checks protecting
+the startup boundary.

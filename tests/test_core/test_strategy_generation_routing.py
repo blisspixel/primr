@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from primr.ai.capability_routing import InferenceProfile
 from primr.ai.stage_routing import StageModelRoute
+from primr.core.fast_run_contracts import StrategyServices
 from primr.core.fast_run_strategy import run_strategy_phase
 
 
@@ -49,9 +50,11 @@ def test_strategy_phase_skips_when_writing_route_unavailable(monkeypatch, tmp_pa
         called["failover"] = True
         raise AssertionError("strategy LLM must not run when route is unavailable")
 
-    monkeypatch.setattr("primr.pipeline.llm_failover.call_with_failover", boom)
+    monkeypatch.setattr("primr.core.fast_run_strategy.call_with_failover", boom)
+    monkeypatch.setattr("primr.utils.run_budget.get_run_budget", lambda: None)
 
     result = run_strategy_phase(
+        services=StrategyServices(boom, boom, lambda: 0.0, boom, boom, boom),
         has_strategies=True,
         ai_strategy=True,
         platforms=["azure"],
