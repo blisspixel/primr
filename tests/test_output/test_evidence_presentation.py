@@ -131,3 +131,17 @@ def test_saved_document_has_accessible_explicit_text_colors():
                                 )
                         break
                 assert _contrast(rgb, background) >= 4.5, (value, background)
+
+
+def test_standalone_markdown_renderer_uses_the_accessible_report_palette(tmp_path):
+    from primr.output.markdown_converter import markdown_to_docx
+
+    target = tmp_path / "ExampleCo.docx"
+    markdown_to_docx(
+        "# ExampleCo\n\n## Evidence\n\n### Details\n\n#### Next step\n\nRead the source.", target
+    )
+    document = Document(target)
+    for name in ("Normal", "Title", "Subtitle", "Heading 1", "Heading 2", "Heading 3", "Heading 4"):
+        rgb = document.styles[name].font.color.rgb
+        assert rgb is not None, name
+        assert _contrast(tuple(rgb), (255, 255, 255)) >= 4.5, name
