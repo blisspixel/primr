@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reject authored Python replacement fields across maintained interpreters,
+  including newer f-string syntax that Python 3.11 cannot parse.
+
 - Frozen calibration evidence binds only to its recorded URL. Case-sensitive
   paths, query values, and unrecorded trailing-slash aliases cannot substitute
   another resource's text. Exact empty captures still prevent live fetching.
@@ -23,6 +26,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer end with a contradictory host-synthesis handoff.
 
 ### Changed
+
+- Support maintained Python 3.11 through 3.15 and use stable 3.15 for development,
+  release builds, containers, and primary platform CI. Refresh pinned Actions
+  and the native dependencies needed for 3.15 wheels. Keep the isolated,
+  hash-pinned Atheris engine on its supported 3.13 interpreter.
+- Restore sync browser collection on 3.15 with verified greenlet 3.5.6 or newer,
+  retaining fail-closed behavior for unverified runtimes. Skill-pack cleanup uses
+  the error handler supported across the full maintained Python matrix.
+- Verify native offline browser rendering separately from unit tests on the
+  primary platform lanes. Type-check both the maintained floor and newest stable
+  runtime, and refresh audit tooling for Python 3.15 compatibility.
+- Require the current DDGS search client, removing the old Brotli dependency
+  that required a compiler when installing or building containers on Python 3.15.
 
 - **Label-calibration gate.** The candidate `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` value is now a report-clustered Wilson lower bound at 95 percent confidence, recorded as `bound_method`, `confidence`, and `bound`. Calibration can judge frozen `scraped_content.txt` captures, sends the judge claim text with the confidence label removed, draws a seeded sample, and records each judge verdict. An explicit abstain does not count as untraceable. A human-confirmed `honestly_empty_confirmed` report with no Confirmed claims does not block the floor. The operator sets that boolean on the pack selection report; Primr does not infer it.
 

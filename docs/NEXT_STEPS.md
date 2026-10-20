@@ -110,22 +110,15 @@ Remaining promotion gate:
 The Primr ceiling is per run. An OpenRouter account or key spending limit is a
 separate defense-in-depth control and does not replace Primr approval.
 
-### Python 3.15 readiness
+### Maintained Python support
 
-The exact preview interpreter runs as a hard Linux CI lane. Unsafe synchronous
-Playwright, Patchright, and Playwright-backed vision tiers fail closed while
-safe collection fallbacks remain available.
-
-Promotion to stable support requires all of the following:
-
-1. An official final Python 3.15 release is available.
-2. Locked dependencies install on each claimed platform, including Windows.
-3. Browser-backed tiers pass without native crashes.
-4. The full test matrix passes and package classifiers, installation guidance,
-   and CI move together.
-
-Until those gates pass, Python 3.12 through 3.14 remain the stable support
-matrix and Python 3.15 remains an explicitly limited preview.
+The maintenance lane covers Python 3.11 through 3.15, with newest stable 3.15
+for development, release tooling, containers, and primary platform checks.
+Native dependencies must install across the claimed matrix. Browser sync
+runtime checks retain a fail-closed boundary for unverified greenlet builds;
+3.15 needs greenlet 3.5.6 or newer. The isolated native fuzz engine remains on
+its hash-pinned CPython 3.13 wheel, with its own audit. These runtime changes do
+not promote a provider or report-quality gate.
 
 ### Documentation integrity
 

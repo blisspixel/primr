@@ -121,7 +121,9 @@ def installer(request, tmp_path):
         else:
             # Functions stand in for native commands, leaving the real PowerShell
             # parser, script control flow, and argument expansion under test.
-            names = sorted({*available, "python3.14", "python3.13", "python3.12"})
+            names = sorted(
+                {*available, "python3.15", "python3.14", "python3.13", "python3.12", "python3.11"}
+            )
             definitions = []
             for name in names:
                 definitions.append(
@@ -161,7 +163,7 @@ def installer(request, tmp_path):
 def test_uv_needs_no_system_python_and_wins_over_unused_pipx(installer, listing):
     result, calls, _ = installer(tools=("uv", "pipx"), listing=listing)
     assert result.returncode == 0, result.stderr
-    assert ["uv", "tool", "install", "--upgrade", "--python", "3.14", "primr"] in calls
+    assert ["uv", "tool", "install", "--upgrade", "--python", "3.15", "primr"] in calls
     assert not any(call[0].startswith("python") for call in calls)
     assert "uv tool update-shell" in result.stdout
 
@@ -182,7 +184,7 @@ def test_checkout_remains_editable_with_quoted_path(installer, manager, installe
 def test_pipx_avoids_preview_default_and_misleading_versioned_shim(installer):
     result, calls, _ = installer(
         tools=("pipx",),
-        versions={"python3.14": "3.15", "python3.13": "3.13", "python3": "3.15"},
+        versions={"python3.14": "3.16", "python3.13": "3.13", "python3": "3.16"},
     )
     assert result.returncode == 0, result.stderr
     install = next(call for call in calls if call[:2] == ["pipx", "install"])
@@ -192,7 +194,7 @@ def test_pipx_avoids_preview_default_and_misleading_versioned_shim(installer):
 
 def test_supported_python_selected_with_preview_launcher_default(installer, request):
     result, calls, _ = installer(
-        tools=("pipx", "py"), versions={"python3.14": "3.14", "python": "3.15"}
+        tools=("pipx", "py"), versions={"python3.14": "3.14", "python": "3.16"}
     )
     assert result.returncode == 0, result.stderr
     install = next(call for call in calls if call[:2] == ["pipx", "install"])
@@ -201,7 +203,7 @@ def test_supported_python_selected_with_preview_launcher_default(installer, requ
         assert any(call[:2] == ["py", "-3.14"] for call in calls)
 
 
-@pytest.mark.parametrize("version", ["3.12", "3.13", "3.14"])
+@pytest.mark.parametrize("version", ["3.11", "3.12", "3.13", "3.14", "3.15"])
 def test_each_stable_python_is_supported(installer, version):
     result, calls, _ = installer(tools=("pipx",), versions={"python3": version})
     assert result.returncode == 0, result.stderr
@@ -220,9 +222,9 @@ def test_existing_pipx_install_is_recreated_with_supported_python(installer):
 
 
 def test_preview_only_python_fails_with_actionable_guidance(installer):
-    result, calls, _ = installer(tools=("pipx",), versions={"python3": "3.15"})
+    result, calls, _ = installer(tools=("pipx",), versions={"python3": "3.16"})
     assert result.returncode != 0
-    assert "Python 3.12 through 3.14" in result.stdout
+    assert "Python 3.11 through 3.15" in result.stdout
     assert "Install uv" in result.stdout
     assert not any("install" in call or "reinstall" in call for call in calls)
 

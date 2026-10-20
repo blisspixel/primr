@@ -387,6 +387,12 @@ def _looks_like_executable_code(fragment: str) -> bool:
         return False
     if contains_non_python_executable_fragment(candidate):
         return True
+    # Authored instructions may be consumed by a newer interpreter than the
+    # scanner. Python 3.11 cannot parse PEP 701 replacement fields, including
+    # multiline calls, so do not let its SyntaxError classify them as prose.
+    # Even a bare replacement field invokes Python's formatting protocol.
+    if re.match(r"(?i)^(?:f|fr|rf)[\"']", candidate) and "{" in candidate.replace("{{", ""):
+        return True
     try:
         tree = ast.parse(candidate, mode="exec")
     except (SyntaxError, ValueError, MemoryError):

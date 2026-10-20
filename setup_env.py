@@ -6,7 +6,7 @@ Primr Setup - Interactive setup wizard
 # Postpone annotation evaluation so PEP 604 unions (e.g. `str | None`) used in
 # this module's function signatures don't raise TypeError at definition time on
 # Python < 3.10 — otherwise the script crashes during import, before its own
-# friendly "need 3.12+" version check can run.
+# friendly "need 3.11+" version check can run.
 from __future__ import annotations
 
 import os
@@ -42,10 +42,10 @@ console = Console(legacy_windows=False) if RICH else None
 
 
 def find_best_python():
-    """Find the best Python interpreter (3.12+) on the system."""
+    """Find the best Python interpreter (3.11+) on the system."""
     # Check current interpreter first
     v = sys.version_info
-    if (v.major, v.minor) >= (3, 12):
+    if (v.major, v.minor) >= (3, 11):
         return sys.executable
 
     # On Windows, try py launcher
@@ -54,7 +54,7 @@ def find_best_python():
             # Check what versions are available
             result = subprocess.run(["py", "-0"], capture_output=True, text=True, timeout=5)
 
-            # Parse output to find 3.12+
+            # Parse output to find 3.11+
             for line in result.stdout.split("\n"):
                 if "-3." in line:
                     # Extract version like "-3.13-64"
@@ -64,7 +64,7 @@ def find_best_python():
                             version_str = part.replace("-", "").split("-")[0]
                             try:
                                 minor = int(version_str.split(".")[1])
-                                if minor >= 12:
+                                if minor >= 11:
                                     # Found a good version, get its path
                                     py_result = subprocess.run(
                                         ["py", part, "-c", "import sys; print(sys.executable)"],
@@ -80,7 +80,7 @@ def find_best_python():
             pass
 
     # Try common names
-    for cmd in ["python3.14", "python3.13", "python3.12", "python3"]:
+    for cmd in ["python3.15", "python3.14", "python3.13", "python3.12", "python3.11", "python3"]:
         try:
             result = subprocess.run([cmd, "--version"], capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
@@ -89,7 +89,7 @@ def find_best_python():
                 if "Python 3." in version_line:
                     version_str = version_line.split()[1]
                     minor = int(version_str.split(".")[1])
-                    if minor >= 12:
+                    if minor >= 11:
                         # Get full path
                         path_result = subprocess.run(
                             [cmd, "-c", "import sys; print(sys.executable)"],
@@ -428,23 +428,23 @@ def _print_rich_header():
 
 def _print_python_install_guidance():
     console.print()
-    console.print("  [yellow]Python 3.12 or newer is required[/yellow]")
+    console.print("  [yellow]Python 3.11 or newer is required[/yellow]")
     console.print()
     console.print("  [cyan]Download from:[/cyan] https://www.python.org/downloads/")
     console.print()
     console.print("  [dim]Or use a version manager:[/dim]")
-    console.print("  [dim]• Windows: winget install Python.Python.3.13[/dim]")
-    console.print("  [dim]• macOS: brew install python@3.13[/dim]")
-    console.print("  [dim]• Linux: pyenv install 3.13[/dim]")
+    console.print("  [dim]• Windows: winget install Python.Python.3.15[/dim]")
+    console.print("  [dim]• macOS: brew install python@3.15[/dim]")
+    console.print("  [dim]• Linux: pyenv install 3.15[/dim]")
     console.print()
     console.print("  [dim]After installing, try:[/dim]")
-    console.print("  [cyan]• Windows: py -3.13 setup_env.py[/cyan]")
-    console.print("  [cyan]• macOS/Linux: python3.13 setup_env.py[/cyan]")
+    console.print("  [cyan]• Windows: py -3.15 setup_env.py[/cyan]")
+    console.print("  [cyan]• macOS/Linux: python3.15 setup_env.py[/cyan]")
     console.print()
 
 
 def _restart_with_python_or_exit(better_python):
-    console.print(f"  [green]✓[/green] Found Python 3.12+ at: [cyan]{better_python}[/cyan]")
+    console.print(f"  [green]✓[/green] Found Python 3.11+ at: [cyan]{better_python}[/cyan]")
     console.print()
     console.print("  [yellow]Restarting with correct Python...[/yellow]")
     console.print()
@@ -462,13 +462,13 @@ def _ensure_supported_python_or_exit():
     v = sys.version_info
     current_python = sys.executable
 
-    if (v.major, v.minor) >= (3, 12):
+    if (v.major, v.minor) >= (3, 11):
         console.print(f"  [green]✓[/green] Python {v.major}.{v.minor}")
         return
 
     console.print(f"  [red]✗[/red] Python {v.major}.{v.minor} [dim]({current_python})[/dim]")
     console.print()
-    console.print("  [yellow]Looking for Python 3.12+...[/yellow]")
+    console.print("  [yellow]Looking for Python 3.11+...[/yellow]")
 
     better_python = find_best_python()
     if better_python:
@@ -716,17 +716,17 @@ def main_basic():
     print("\nPrimr Setup\n")
 
     v = sys.version_info
-    if (v.major, v.minor) < (3, 12):
-        print(f"  x Python {v.major}.{v.minor} (need 3.12+)")
+    if (v.major, v.minor) < (3, 11):
+        print(f"  x Python {v.major}.{v.minor} (need 3.11+)")
         print()
-        print("  Python 3.12 or newer is required")
+        print("  Python 3.11 or newer is required")
         print()
         print("  Download from: https://www.python.org/downloads/")
         print()
         print("  Or use a version manager:")
-        print("  • Windows: winget install Python.Python.3.13")
-        print("  • macOS: brew install python@3.13")
-        print("  • Linux: pyenv install 3.13")
+        print("  • Windows: winget install Python.Python.3.15")
+        print("  • macOS: brew install python@3.15")
+        print("  • Linux: pyenv install 3.15")
         print()
         sys.exit(1)
     print(f"  + Python {v.major}.{v.minor}")

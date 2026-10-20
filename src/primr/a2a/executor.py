@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.types import TaskState
 from a2a.utils import new_agent_text_message
-from typing_extensions import override  # noqa: UP035 - mypy resolves override here, not typing
+from typing_extensions import override
 
 from primr.a2a.authz import (
     A2ASkillAuthorizationDecision,

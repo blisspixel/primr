@@ -8,9 +8,9 @@ import sys
 from .models import Attempt, ErrorType, ScrapeResult
 
 SYNC_BROWSER_UNAVAILABLE_REASON = (
-    "Playwright and Patchright sync browser tiers are disabled on Python 3.15 "
-    "until upstream greenlet compatibility is verified; use Python 3.12 through 3.14 "
-    "for browser-complete runs"
+    "Playwright and Patchright sync browser tiers require Python 3.11 through 3.15; "
+    "Python 3.15 also requires greenlet 3.5.6 or newer. Update Primr's dependencies "
+    "before using browser-backed collection."
 )
 
 
@@ -18,7 +18,16 @@ def sync_browser_runtime_supported(version: tuple[int, int] | None = None) -> bo
     """Return whether Playwright's greenlet-backed sync API is safe to start."""
 
     runtime = version if version is not None else (sys.version_info.major, sys.version_info.minor)
-    return runtime < (3, 15)
+    if not (3, 11) <= runtime <= (3, 15):
+        return False
+    if runtime < (3, 15):
+        return True
+    try:
+        import greenlet
+
+        return tuple(int(part) for part in greenlet.__version__.split(".")) >= (3, 5, 6)
+    except (ImportError, ValueError):
+        return False
 
 
 def resolve_browser_headless(headless: bool | None) -> bool:
