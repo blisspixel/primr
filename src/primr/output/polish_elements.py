@@ -17,6 +17,8 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor
 
+from primr.output.style_engine import DualCodingEnhancer, StyleEngine
+
 
 @dataclass
 class OneLinerSummary:
@@ -176,14 +178,10 @@ class StrategicRecommendationFormatter:
     """
     Formats recommendations with priority indicators.
 
-    Adds High/Medium/Low priority with color coding.
+    Adds priority words in the report's navy ink.
     """
 
-    PRIORITY_COLORS = {
-        "high": RGBColor(0xC0, 0x39, 0x2B),  # Red
-        "medium": RGBColor(0xF3, 0x9C, 0x12),  # Orange
-        "low": RGBColor(0x27, 0xAE, 0x60),  # Green
-    }
+    PRIORITY_COLORS = dict.fromkeys(("high", "medium", "low"), StyleEngine.PRIMARY_COLOR)
 
     PRIORITY_INDICATORS = {
         "high": "[HIGH]",
@@ -349,39 +347,23 @@ class FinancialDashboard:
 
 
 class DataConfidenceIndicator:
-    """
-    Adds confidence levels to key claims.
+    """Compatibility formatter for explicit claim evidence labels.
 
-    High = multiple sources (3 dots)
-    Medium = single source (2 dots)
-    Low = inference (1 dot)
+    Generic confidence scores no longer produce marks. Report builders preserve
+    labels already carried by a claim and never infer them from citation totals.
     """
 
-    INDICATORS = {
-        "high": "●●●",
-        "medium": "●●○",
-        "low": "●○○",
-    }
-
-    COLORS = {
-        "high": RGBColor(0x27, 0xAE, 0x60),  # Green
-        "medium": RGBColor(0xF3, 0x9C, 0x12),  # Orange
-        "low": RGBColor(0xC0, 0x39, 0x2B),  # Red
-    }
+    INDICATORS = DualCodingEnhancer.CONFIDENCE_INDICATORS
+    COLORS = dict.fromkeys(INDICATORS, StyleEngine.TEXT_COLOR)
 
     def get_indicator(self, level: str) -> str:
-        """Get the confidence indicator string."""
-        return self.INDICATORS.get(level, self.INDICATORS["medium"])
+        """Return an explicit evidence label, or no indicator for legacy scores."""
+        return self.INDICATORS.get(level.casefold(), "")
 
     def format_with_confidence(self, text: str, level: str) -> str:
-        """Format text with confidence indicator."""
-        indicator = self.get_indicator(level)
-        return f"{text} {indicator}"
+        """Preserve existing labels and append only an explicit evidence label."""
+        return DualCodingEnhancer().add_confidence_indicator(text, level)
 
     def add_to_paragraph(self, paragraph: Any, text: str, level: str) -> None:
-        """Add text with confidence indicator to paragraph."""
-        paragraph.add_run(text + " ")
-
-        indicator_run = paragraph.add_run(self.get_indicator(level))
-        indicator_run.font.color.rgb = self.COLORS.get(level, self.COLORS["medium"])
-        indicator_run.font.size = Pt(10)
+        """Add claim text with its explicitly supplied evidence label in words."""
+        paragraph.add_run(self.format_with_confidence(text, level))

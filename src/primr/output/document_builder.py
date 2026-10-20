@@ -20,7 +20,6 @@ from primr.output.executive_summary_generator import ExecutiveSummaryGenerator
 from primr.output.markdown_parser import MarkdownParser
 from primr.output.models import CompanySnapshot, ContentBlock, DocumentMetadata
 from primr.output.polish_elements import (
-    DataConfidenceIndicator,
     DocumentDisclaimer,
     FinancialDashboard,
     KeyImplicationsBox,
@@ -74,11 +73,6 @@ class DocumentBuilder:
 
         # Polish elements
         self.disclaimer = DocumentDisclaimer()
-        self.confidence_indicator = DataConfidenceIndicator()
-
-        # Calculate overall confidence based on citation count
-        self._citation_count = len(self.citations) + self.citation_processor.citation_count
-        self._overall_confidence = self._calculate_overall_confidence()
 
     def _process_citations(self) -> None:
         """Process all section content through citation processor."""
@@ -110,33 +104,6 @@ class DocumentBuilder:
         self._add_sources_appendix()
         self._add_headers_footers()
         return self.document
-
-    def _calculate_overall_confidence(self) -> str:
-        """
-        Calculate overall report confidence based on citation count.
-
-        High: 10+ citations (well-sourced)
-        Medium: 3-9 citations (adequately sourced)
-        Low: 0-2 citations (limited sources)
-
-        Returns:
-            Confidence level string ('high', 'medium', 'low')
-        """
-        if self._citation_count >= 10:
-            return "high"
-        elif self._citation_count >= 3:
-            return "medium"
-        else:
-            return "low"
-
-    def _get_confidence_description(self) -> str:
-        """Get human-readable confidence description."""
-        descriptions = {
-            "high": f"High confidence ({self._citation_count} sources)",
-            "medium": f"Medium confidence ({self._citation_count} sources)",
-            "low": f"Limited sources ({self._citation_count} citations)",
-        }
-        return descriptions.get(self._overall_confidence, "Unknown")
 
     def _add_headers_footers(self) -> None:
         """
@@ -328,7 +295,7 @@ class DocumentBuilder:
         - THE BOTTOM LINE (F-Zone 1)
         - DATA CONFIDENCE indicator (based on citation count)
         - KEY INSIGHTS with trend indicators
-        - WATCH OUTS with confidence indicators
+        - WATCH OUTS preserving claim evidence labels
         """
         summary_gen = ExecutiveSummaryGenerator(self.sections)
         exec_summary = summary_gen.generate()
@@ -336,13 +303,6 @@ class DocumentBuilder:
         # Main heading
         self.document.add_heading("Executive Summary", level=1)
 
-        # DATA CONFIDENCE indicator (based on citation count)
-        if self._citation_count > 0:
-            confidence_para = self.document.add_paragraph()
-            confidence_para.add_run("Data Confidence: ")
-            self.confidence_indicator.add_to_paragraph(
-                confidence_para, self._get_confidence_description(), self._overall_confidence
-            )
         # THE BOTTOM LINE
         if exec_summary.narrative:
             self.document.add_heading("The Bottom Line", level=2)
@@ -362,8 +322,7 @@ class DocumentBuilder:
             self.document.add_heading("Watch Outs", level=2)
             for risk in exec_summary.risk_factors:
                 para = self.document.add_paragraph(style="List Bullet")
-                # Add confidence indicator using DataConfidenceIndicator
-                self.confidence_indicator.add_to_paragraph(para, risk, "medium")
+                para.add_run(risk)
 
         self.document.add_page_break()
 
