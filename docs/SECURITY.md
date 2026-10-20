@@ -205,7 +205,8 @@ those personal or private facts. Do not invent an application identifier,
 publish an unearned badge, or transfer GitHub credentials to a certification
 service to remove a dashboard warning.
 
-If the optional badge finding is accepted, record that decision against this
-evidence and keep the technical controls active. Revisit it when a maintainer
-chooses to complete the external application. This assessment does not claim
-that the project has completed or passed that application.
+**Disposition (2026-10-20): accepted administrative finding.** The missing
+external self-certification is documented against the evidence above; the
+technical security controls remain active. Revisit this decision when a
+maintainer supplies the required attestations and completes the application.
+This assessment does not claim that the project has completed or passed it.
