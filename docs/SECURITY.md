@@ -180,6 +180,13 @@ We appreciate responsible disclosure and will acknowledge security researchers w
 
 ## External supply-chain signals and certification
 
+Maintain host and base-image CA stores independently of Python dependencies.
+The certifi security floor protects clients that use its bundle; native/system
+trust stores, user-supplied CA bundles, and pip's vendored trust bundle have
+separate owners and update paths. Rebuild images after dependency or base-image
+trust updates. Do not disable certificate verification to work around trust
+failures.
+
 Scorecard findings describe repository practices; their count is not a count of
 exploitable vulnerabilities. Address technical findings in their owning code or
 workflow, rerun the analyzer on the default branch, and retain the resulting

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Require certifi 2026.10.19 or newer in published package metadata and the
+  locked source/container environments. This removes the affected emSign root
+  from certifi's bundle (GHSA-6q48-6c7w-9gw2) without changing custom CA or TLS
+  verification behavior. Rebuild container images to consume the refreshed bundle.
+
 ### Changed
 
 - End prep and provider-backed research with one factual collection signature,

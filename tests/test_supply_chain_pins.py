@@ -103,6 +103,7 @@ def test_pillow_security_floor_excludes_known_vulnerable_release() -> None:
         (None, "httpx2", "2.10.0", "2.12.0"),
         (None, "httpx2", "2.11.0", "2.12.0"),
         (None, "urllib3", "2.7.0", "2.8.0"),
+        (None, "certifi", "2026.5.20", "2026.10.19"),
         ("docs", "mkdocs-material", "9.7.6", "9.7.7"),
     ],
 )
@@ -119,6 +120,10 @@ def test_dependency_security_floors_exclude_affected_versions(
 
     assert vulnerable not in requirement.specifier
     assert patched in requirement.specifier
+    lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
+    versions = [entry["version"] for entry in lock["package"] if entry["name"] == package]
+    assert versions, f"{package} must remain in the existing dependency graph"
+    assert all(version in requirement.specifier for version in versions)
 
 
 @pytest.mark.parametrize(
