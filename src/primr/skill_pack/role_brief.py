@@ -9,8 +9,14 @@ planning and authoring already consume.
 from __future__ import annotations
 
 import logging
+import tempfile
 from pathlib import Path
 
+from primr.core.trusted_report import (
+    ReportSnapshotError,
+    stable_report_snapshot,
+    validate_trusted_report,
+)
 from primr.utils.content_sanitizer import sanitize_for_llm
 
 logger = logging.getLogger(__name__)
@@ -43,7 +49,7 @@ def attach_role_brief_evidence(
         ValueError: when the role brief is empty or too large to safely ingest.
         OSError: when the file cannot be read or written.
     """
-    source_path = Path(role_brief_path).expanduser().resolve()
+    source_path = Path(role_brief_path).expanduser().absolute()
     if not source_path.is_file():
         raise FileNotFoundError(f"--from-jd path does not exist or is not a file: {source_path}")
 
@@ -53,7 +59,15 @@ def attach_role_brief_evidence(
             f"--from-jd file is too large ({size} bytes). Limit is {MAX_ROLE_BRIEF_BYTES} bytes."
         )
 
-    raw = source_path.read_text(encoding="utf-8", errors="replace").strip()
+    try:
+        report = validate_trusted_report(source_path, max_bytes=MAX_ROLE_BRIEF_BYTES)
+        with (
+            tempfile.TemporaryDirectory(prefix="primr-role-brief-") as directory,
+            stable_report_snapshot(report, directory) as snapshot,
+        ):
+            raw = snapshot.read_text(encoding="utf-8", errors="replace").strip()
+    except ReportSnapshotError as exc:
+        raise ValueError("Role brief must be a stable, regular, non-linked file") from exc
     if not raw:
         raise ValueError(f"--from-jd file is empty: {source_path}")
 

@@ -13,6 +13,7 @@ from primr.mcp_server.approval_tokens import (
     enforce_approval_token,
     strategy_approval_args,
 )
+from primr.mcp_server.artifact_auth import register_generated_artifacts, validate_artifact_input
 from primr.mcp_server.research_policy import coerce_budget_usd, enforce_cost_cap
 from primr.mcp_server.server_context import MCPServerContext
 from primr.mcp_server.strategy_responses import (
@@ -54,7 +55,7 @@ async def handle_generate_strategy(
     if cost_cap_error is not None:
         return _text(cost_cap_error)
 
-    path_result = mcp_server.path_validator.validate(report_path)
+    path_result = validate_artifact_input(mcp_server, report_path)
     if not path_result.valid:
         return _text(
             {
@@ -103,12 +104,25 @@ async def handle_generate_strategy(
         if budget_usd is not None and budget_usd > 0:
             set_run_budget(budget_usd)
             budget_active = True
-        return await run_strategy_tool(
+        response = await run_strategy_tool(
             strategy_runner,
             trusted_report=trusted_report,
             strategy_type=strategy_type,
             platform=platform,
         )
+        payload = json.loads(response[0].text)
+        if payload.get("success"):
+            from pathlib import Path
+
+            output = Path(payload["output_path"])
+            generated = [output]
+            generated.extend(
+                sibling
+                for suffix in (".docx", ".txt")
+                if (sibling := output.with_suffix(suffix)).is_file()
+            )
+            register_generated_artifacts(mcp_server, generated)
+        return response
     finally:
         if budget_active:
             clear_run_budget()

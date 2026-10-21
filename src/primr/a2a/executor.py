@@ -48,6 +48,7 @@ from primr.mcp_server.approval_tokens import (
     issue_approval_token,
     research_approval_args,
 )
+from primr.mcp_server.artifact_auth import validate_artifact_destination, validate_artifact_input
 from primr.mcp_server.doctor_status import get_doctor_status
 from primr.mcp_server.job_responses import on_disk_artifacts_available
 from primr.mcp_server.platforms import normalize_platform
@@ -381,10 +382,7 @@ class PrimrAgentExecutor(AgentExecutor):
             platform = "agnostic"
 
         if destination is not None:
-            dest_result = self._mcp.path_validator.validate(
-                str(destination),
-                _a2a_client_id(self._mcp),
-            )
+            dest_result = validate_artifact_destination(self._mcp, str(destination))
             if not dest_result.valid:
                 payload = {
                     "error": True,
@@ -709,8 +707,19 @@ class PrimrAgentExecutor(AgentExecutor):
                 )
                 return {"error": True, "error_type": "missing_report_path"}
 
+        path_result = validate_artifact_input(self._mcp, report_path)
+        if not path_result.valid or path_result.resolved_path is None:
+            payload = {
+                "error": True,
+                "error_type": path_result.error_type,
+                "message": path_result.error_message,
+            }
+            await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload)))
+            return payload
         try:
-            qa_result = await run_qa_analysis(report_path)
+            qa_result = await run_qa_analysis(
+                str(path_result.resolved_path), allowed_roots=self._mcp.path_validator.allowed_roots
+            )
             await event_queue.enqueue_event(
                 new_agent_text_message(json.dumps(qa_result, indent=2, default=str))
             )

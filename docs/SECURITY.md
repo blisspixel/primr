@@ -101,6 +101,17 @@ still crosses Primr's estimate, approval, scope, and runtime budget gates.
   `primr://output/report/by_job/{job_id}` with ownership checks, explicit
   `report` scope for authenticated HTTP callers, and
   `content_mode` / `artifact_type` / `max_chars` output negotiation.
+  Remote QA, standalone strategies, and skill-pack file inputs also require
+  `report` scope and the current job's exact artifact ownership. Directory
+  reuse is limited to that job's dedicated directory; shared root ancestors
+  and historical files without a retained owner record are rejected. Explicit
+  remote destinations must be in an owned job directory; skill-pack calls that
+  omit a destination receive a fresh server-selected directory. Local stdio
+  and the trusted loopback A2A context retain contained operator file reuse.
+  QA, nested skill-pack evidence, role briefs, and saved plans use bounded
+  regular-file snapshots before parsing or provider processing. MCP roots
+  follow the report configuration even when a source checkout is launched
+  from a different working directory.
   `check_jobs`, `primr://output/latest`, and
   `primr://output/by_job/{job_id}` omit report bodies or previews for all
   authenticated HTTP callers, even when they hold `report`; A2A `check_jobs`

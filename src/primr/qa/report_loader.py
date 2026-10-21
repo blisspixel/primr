@@ -91,7 +91,9 @@ class ReportLoader:
 
         return clean
 
-    def load_report_from_path(self, report_path: Path) -> ReportContent | None:
+    def load_report_from_path(
+        self, report_path: Path, *, display_path: Path | None = None
+    ) -> ReportContent | None:
         """
         Load report content from specific path.
 
@@ -124,7 +126,8 @@ class ReportLoader:
                 return None
 
             # Extract company name from filename
-            company_name = self._extract_company_name(report_path.name)
+            identity_path = display_path if display_path is not None else report_path
+            company_name = self._extract_company_name(identity_path.name)
 
             # Parse sections
             sections = self._parse_sections(content)
@@ -133,7 +136,7 @@ class ReportLoader:
             citations = self._extract_citations(content)
 
             # Create metadata
-            metadata = self._extract_metadata(report_path, company_name)
+            metadata = self._extract_metadata(identity_path, company_name)
 
             return ReportContent(
                 company_name=company_name,
@@ -141,7 +144,7 @@ class ReportLoader:
                 sections=sections,
                 citations=citations,
                 metadata=metadata,
-                file_path=report_path,
+                file_path=identity_path,
             )
 
         except Exception as e:
@@ -220,7 +223,7 @@ class ReportLoader:
     def _extract_company_name(self, filename: str) -> str:
         """Extract company name from filename."""
         # Remove file extension
-        name = filename.replace(".txt", "").replace(".docx", "").replace(".pdf", "")
+        name = Path(filename).stem
 
         # Remove common suffixes
         suffixes = ["_Company_Overview", "_Strategic_Overview", "_AI_Strategy"]

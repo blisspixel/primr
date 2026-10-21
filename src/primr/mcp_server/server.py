@@ -21,6 +21,7 @@ from mcp.server import Server
 from mcp.server.caching import CacheHint
 from mcp.server.stdio import stdio_server
 
+from primr.config.config import OUTPUT_DIR, PROJECT_ROOT, WORKING_DIR
 from primr.mcp_server.audit_log import MCPAuditLog
 from primr.mcp_server.job_process import LocalJobSupervisor
 from primr.mcp_server.job_process_types import await_task_uninterruptibly
@@ -117,7 +118,9 @@ class PrimrMCPServer:
         # (e.g. skill packs authored from `working/<run>` evidence) must be
         # allowed alongside the deliverable roots, while still blocking
         # traversal / symlinks / system dirs / arbitrary server paths.
-        self.path_validator = PathValidator(allowed_roots=["output", "logs", "working"])
+        self.path_validator = PathValidator(
+            allowed_roots=[OUTPUT_DIR, str(PROJECT_ROOT / "logs"), WORKING_DIR]
+        )
         self.url_validator = URLValidator()
         self.rate_limiter = RateLimiter()
 
