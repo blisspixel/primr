@@ -38,7 +38,13 @@ def _owned_artifacts(
     job = server.job_store.get_active() or server.job_store.get_latest_terminal()
     if job is None or not caller_owns_job_resource(server, job, caller_client_id(server)):
         return None, [], []
-    files = [Path(path).absolute() for path in job.output_paths or [] if isinstance(path, str)]
+    files: list[Path] = []
+    for path in job.output_paths or []:
+        if not isinstance(path, str):
+            continue
+        result = server.path_validator.validate(str(Path(path).absolute()))
+        if result.valid and result.resolved_path is not None:
+            files.append(result.resolved_path)
     roots: set[Path] = set()
     for artifact in files:
         # A UUID job directory is a dedicated boundary. A shared output root

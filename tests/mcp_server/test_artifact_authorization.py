@@ -67,6 +67,33 @@ def test_owned_artifact_still_requires_report_scope(artifacts):
     assert validate_artifact_input(server, str(report)).valid
 
 
+@pytest.mark.parametrize("trusted", [False, True])
+def test_owned_artifact_alias_uses_the_same_path_validation(
+    artifacts, tmp_path, monkeypatch, trusted
+):
+    from primr.utils import fs_safety
+
+    server, report = artifacts
+    alias = tmp_path / "alias"
+    try:
+        alias.symlink_to(report.parent.parent, target_is_directory=True)
+    except OSError:
+        pytest.skip("Symlinks unavailable")
+    # Model the existing Darwin root-alias exception without changing the
+    # platform-wide symlink policy or relying on a particular temp root.
+    original = fs_safety._is_trusted_darwin_root_alias
+    monkeypatch.setattr(
+        "primr.utils.fs_safety._is_trusted_darwin_root_alias",
+        lambda path, metadata: (trusted and path == alias) or original(path, metadata),
+    )
+    job = server.job_store.get_latest_terminal()
+    job.output_paths = [str(alias / report.parent.name / report.name)]
+    server.job_store.update(job)
+    assert validate_artifact_input(server, str(report)).valid == trusted
+    assert validate_artifact_input(server, str(report.parent), directory=True).valid == trusted
+    assert validate_artifact_destination(server, str(report.parent)).valid == trusted
+
+
 def test_directory_authority_does_not_include_shared_root_or_unknown_files(artifacts):
     server, report = artifacts
     assert validate_artifact_input(server, str(report.parent), directory=True).valid

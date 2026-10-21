@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Serialize QA's actual component scores, preserve report identity during
   snapshotting, and run synchronous QA work outside the controller event loop.
+- Canonicalize retained artifact paths through the same validator as caller
+  inputs so trusted macOS temporary-directory aliases preserve ownership.
 - Keep cloud job company names positional, reject reserved commands, validate
   vendor options, and pass supported public research modes to the CLI. Resolve
   local runner output through the parsed artifact store, including escaped file
