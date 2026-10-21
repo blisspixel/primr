@@ -89,9 +89,11 @@ def test_owned_artifact_alias_uses_the_same_path_validation(
     job = server.job_store.get_latest_terminal()
     job.output_paths = [str(alias / report.parent.name / report.name)]
     server.job_store.update(job)
-    assert validate_artifact_input(server, str(report)).valid == trusted
-    assert validate_artifact_input(server, str(report.parent), directory=True).valid == trusted
-    assert validate_artifact_destination(server, str(report.parent)).valid == trusted
+    # Trusting a POSIX root alias never exempts Windows reparse attributes.
+    admitted = trusted and os.name != "nt"
+    assert validate_artifact_input(server, str(report)).valid == admitted
+    assert validate_artifact_input(server, str(report.parent), directory=True).valid == admitted
+    assert validate_artifact_destination(server, str(report.parent)).valid == admitted
 
 
 def test_directory_authority_does_not_include_shared_root_or_unknown_files(artifacts):
