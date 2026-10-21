@@ -130,13 +130,14 @@ def _install_limits() -> Any:
         # Darwin counts existing runtime/shared-library mappings and rejects
         # a limit below them. Bound subsequent allocation, before PDF loading.
         memory_limit += int(psutil.Process().memory_info().vms)
-    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-    for inherited in (soft, hard):
-        if inherited != resource.RLIM_INFINITY:
-            memory_limit = min(memory_limit, inherited)
-    resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
-    cpu_seconds = math.ceil(PDF_TIMEOUT_SECONDS)
-    resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
+    for kind, limit in (
+        (resource.RLIMIT_AS, memory_limit),
+        (resource.RLIMIT_CPU, math.ceil(PDF_TIMEOUT_SECONDS)),
+    ):
+        for inherited in resource.getrlimit(kind):
+            if inherited != resource.RLIM_INFINITY:
+                limit = min(limit, inherited)
+        resource.setrlimit(kind, (limit, limit))
     return None
 
 
