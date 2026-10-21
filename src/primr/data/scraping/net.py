@@ -5,6 +5,7 @@ Provides consistent request handling, headers, and timeouts.
 """
 
 import logging
+import time
 from collections.abc import Mapping
 from urllib.parse import urljoin
 
@@ -38,7 +39,7 @@ def get_default_headers(profile: HttpHeaderProfile | None = None) -> dict:
         "User-Agent": profile.user_agent,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": profile.accept_language,
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Encoding": "gzip, deflate, identity",
         "Connection": "keep-alive",
         "Upgrade-Insecure-Requests": "1",
     }
@@ -68,6 +69,8 @@ def make_request(
     allow_redirects: bool = True,
     profile: HttpHeaderProfile | None = None,
     cookies: dict | None = None,
+    max_body_bytes: int = 8 * 1024 * 1024,
+    max_total_body_bytes: int | None = None,
 ) -> requests.Response:
     """
     Make an HTTP request with consistent headers and timeouts.
@@ -98,7 +101,10 @@ def make_request(
         default_headers.update(headers)
 
     current_url = url
-    with create_pinned_session() as session:
+    deadline = time.monotonic() + timeout
+    with create_pinned_session(
+        max_body_bytes=max_body_bytes, max_total_body_bytes=max_total_body_bytes
+    ) as session:
         for redirect_count in range(_MAX_REDIRECTS + 1):
             # The first hop keeps historical normalization. Later hops request
             # the Location target from urljoin exactly; normalization is only
@@ -110,11 +116,14 @@ def make_request(
             if not is_valid:
                 raise ValueError(f"Invalid URL: {error}")
 
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise requests.Timeout("HTTP redirect deadline exceeded")
             response = session.request(
                 method=method,
                 url=request_url,
                 headers=default_headers,
-                timeout=timeout,
+                timeout=min(timeout, remaining),
                 allow_redirects=False,
                 cookies=cookies,
             )

@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Literal, TypeVar
 
-from primr.mcp_server.windows_job import WindowsJobObject
+from primr.utils.windows_job import WindowsJobObject
 
 _T = TypeVar("_T")
 

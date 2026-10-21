@@ -21,7 +21,7 @@ from .browser_egress import (
     plan_browser_egress,
 )
 from .browser_proxy import BrowserEgressProxy
-from .chromium_config import BROWSER_LAUNCH_ARGS
+from .chromium_config import BROWSER_LAUNCH_ARGS, browser_launch_options
 from .config import (
     DEFAULT_TIMEOUT_DRISSION,
     DEFAULT_TIMEOUT_DRISSION_STEALTH,
@@ -112,7 +112,7 @@ class SharedBrowser:
             pw = sync_playwright().start()
             try:
                 browser = pw.chromium.launch(
-                    headless=headless,
+                    **browser_launch_options(headless),
                     args=BROWSER_LAUNCH_ARGS,
                 )
             except Exception:
@@ -439,7 +439,7 @@ class PlaywrightSession(BrowserSession):
 
                 self._playwright = sync_playwright().start()
                 self._browser = self._playwright.chromium.launch(
-                    headless=self._headless,
+                    **browser_launch_options(self._headless),
                     args=self._launch_args,
                 )
                 self._owns_browser = True
@@ -1029,7 +1029,7 @@ def _scrape_with_playwright_impl(
 
                 _fresh_pw = sync_playwright().start()
                 browser = _fresh_pw.chromium.launch(
-                    headless=headless,
+                    **browser_launch_options(headless),
                     args=launch_args,
                 )
                 _using_shared = False
@@ -1041,7 +1041,7 @@ def _scrape_with_playwright_impl(
 
             _fresh_pw = sync_playwright().start()
             browser = _fresh_pw.chromium.launch(
-                headless=headless,
+                **browser_launch_options(headless),
                 args=launch_args,
             )
 

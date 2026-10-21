@@ -69,7 +69,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     "core/cli_batch_runtime.py": 1042,
     "agentic/hooks.py": 1010,
     "data/scraping/orchestrator.py": 1064,
-    "data/scraping/structured_content.py": 1067,
+    "data/scraping/structured_content.py": 1023,
 }
 
 

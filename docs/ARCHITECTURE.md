@@ -910,6 +910,7 @@ src/primr/
 │   ├── gemini_models.py     # Direct Gemini catalog, history, and dated prices/retirements
 │   └── openrouter_models.py # OpenRouter registrations and published route retirements
 ├── utils/                   # Shared async, I/O, security, console, and logging seams
+│   ├── windows_job.py      # Owned Windows process trees and native memory limits
 │   └── errors/             # Typed error hierarchy and retry helpers
 │
 ├── mcp_server/              # MCP tools, resources, jobs, approval, and audit policy
@@ -921,7 +922,6 @@ src/primr/
 │   ├── worker_protocol.py  # Strict versioned JSONL lifecycle contract
 │   ├── worker_process_control.py # Cross-platform tree signaling
 │   ├── worker_terminal_policy.py # Exit and terminal-state compatibility
-│   ├── windows_job.py      # Kill-on-close Windows process-tree ownership
 │   ├── job_terminal_manifest.py # Atomic worker-exit audit manifest
 │   ├── job_tools.py        # Cancellation authorization and response
 │   ├── qa_operations.py    # Transport-neutral existing-report QA

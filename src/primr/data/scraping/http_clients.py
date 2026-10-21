@@ -11,6 +11,8 @@ from collections.abc import Mapping
 from ipaddress import ip_address
 from urllib.parse import urljoin, urlparse
 
+from primr.data.http_body import DEFAULT_MAX_BODY_BYTES, BoundedHTTPTransport, read_bounded_chunks
+
 from .config import (
     DEFAULT_TIMEOUT_CURL_CFFI,
     DEFAULT_TIMEOUT_HTTPX,
@@ -24,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 _REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 _MAX_REDIRECTS = 10
+_CURL_WRITEFUNC_ERROR = 0xFFFFFFFF  # libcurl sentinel; short writes are ignored by curl_cffi
 
 
 def _follow_redirect_target(redirect_url: str) -> tuple[bool, str, str | None]:
@@ -214,6 +217,7 @@ def scrape_with_requests(
 
     url = normalized_url
     start_time = time.time()
+    deadline = time.monotonic() + timeout
     tier_name = "requests"
 
     if profile is None:
@@ -225,10 +229,13 @@ def scrape_with_requests(
         current_url = url
         with create_pinned_session() as session:
             for redirect_count in range(_MAX_REDIRECTS + 1):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise requests.Timeout("HTTP redirect deadline exceeded")
                 response = session.get(
                     current_url,
                     headers=headers,
-                    timeout=timeout,
+                    timeout=min(timeout, remaining),
                     allow_redirects=False,
                     cookies=cookies,
                 )
@@ -413,6 +420,8 @@ def scrape_with_httpx(
             timeout=timeout,
             follow_redirects=False,
             http2=True,
+            trust_env=False,
+            transport=BoundedHTTPTransport(time.monotonic() + timeout),
         ) as client:
             for redirect_count in range(_MAX_REDIRECTS + 1):
                 resolution, guard_error = resolve_safe_url_for_connect(current_url)
@@ -595,6 +604,8 @@ def scrape_with_curl_cffi(
         "Accept-Language": profile.accept_language,
     }
 
+    deadline = time.monotonic() + timeout
+
     try:
         current_url = url
         for redirect_count in range(_MAX_REDIRECTS + 1):
@@ -613,17 +624,50 @@ def scrape_with_curl_cffi(
                 current_url,
                 resolution.resolved_ip,
             )
+            # Keep SDK/native decoders and the unbounded streaming queue out
+            # of this path. Decode the wire-bounded bytes through our one seam.
+            curl_options[CurlOpt.HTTP_CONTENT_DECODING] = 0
+            raw_body = bytearray()
+            rejected: list[str] = []
+
+            def receive(
+                chunk: bytes, body: bytearray = raw_body, failures: list[str] = rejected
+            ) -> int:
+                if time.monotonic() >= deadline:
+                    failures.append("deadline")
+                    return _CURL_WRITEFUNC_ERROR
+                if len(body) + len(chunk) > DEFAULT_MAX_BODY_BYTES:
+                    failures.append("transfer")
+                    return _CURL_WRITEFUNC_ERROR
+                body.extend(chunk)
+                return len(chunk)
+
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("HTTP response deadline exceeded")
             with curl_requests.Session(
                 curl_options=curl_options,
                 trust_env=False,
             ) as session:
-                response = session.get(
-                    current_url,
-                    headers=headers,
-                    timeout=timeout,
-                    allow_redirects=False,
-                    cookies=cookies,
-                    impersonate=impersonate,
+                try:
+                    response = session.get(
+                        current_url,
+                        headers=headers,
+                        timeout=remaining,
+                        allow_redirects=False,
+                        cookies=cookies,
+                        impersonate=impersonate,
+                        accept_encoding="gzip, deflate, identity",
+                        content_callback=receive,
+                    )
+                except Exception as exc:
+                    if rejected:
+                        if rejected[0] == "deadline":
+                            raise TimeoutError("HTTP response deadline exceeded") from exc
+                        raise ValueError("HTTP response exceeds transfer limit") from exc
+                    raise
+                response.content = read_bounded_chunks(
+                    [bytes(raw_body)], response.headers, DEFAULT_MAX_BODY_BYTES, deadline
                 )
 
             location = _redirect_location(response)
@@ -664,7 +708,7 @@ def scrape_with_curl_cffi(
         elapsed_ms = (time.time() - start_time) * 1000
 
         error_str = str(e).lower()
-        if "timeout" in error_str:
+        if isinstance(e, TimeoutError) or "timeout" in error_str:
             error_type = ErrorType.TIMEOUT
             error_msg = f"curl_cffi timeout after {timeout}s"
         else:

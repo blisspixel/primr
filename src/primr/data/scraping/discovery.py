@@ -8,17 +8,12 @@ Provides multiple strategies for discovering URLs on a website:
 - Heuristic scoring for prioritization
 """
 
-import gzip
 import logging
 import re
-import xml.etree.ElementTree as ET  # ParseError type + Element API only
-from dataclasses import dataclass
 from urllib.parse import urljoin, urlparse
 
-from defusedxml.common import DefusedXmlException
-from defusedxml.ElementTree import fromstring as defused_fromstring
-
 from .config import COMMON_PAGE_PATTERNS, SitemapConfig
+from .models import DiscoveredLink as DiscoveredLink
 from .net import extract_host, head_exists, is_same_domain, make_request
 from .org_profile import classify_organization_type
 from .rate_limiter import NoOpRateLimiter, RateLimiter
@@ -26,233 +21,15 @@ from .rate_limiter import NoOpRateLimiter, RateLimiter
 logger = logging.getLogger(__name__)
 
 
-# =============================================================================
-# Data Models
-# =============================================================================
-
-
-@dataclass
-class DiscoveredLink:
-    """A discovered link with metadata for scoring."""
-
-    url: str
-    source: str  # "sitemap", "guess", "html", "homepage"
-    anchor_text: str | None = None
-    sitemap_priority: float | None = None
-    sitemap_lastmod: str | None = None
-    score: float = 0.0
-
-
-# =============================================================================
-# Sitemap Parsing
-# =============================================================================
-
-# XML namespaces for sitemaps
-SITEMAP_NS = {
-    "sm": "http://www.sitemaps.org/schemas/sitemap/0.9",
-}
-
-
 def fetch_sitemap_links(
     base_url: str,
     config: SitemapConfig | None = None,
     rate_limiter: RateLimiter | None = None,
 ) -> list[DiscoveredLink]:
-    """
-    Fetch and parse sitemap(s) with safety constraints.
+    """Discover sitemap URLs within shared transfer, parser and work budgets."""
+    from .sitemap import collect_sitemap_links
 
-    Features:
-    - Stream parsing to avoid memory issues
-    - Max depth for sitemap index recursion
-    - Max URLs limit with explicit logging
-    - Handles gzipped sitemaps
-    - Special mode for very large sitemaps
-
-    Args:
-        base_url: Base URL of the website (e.g., "https://example.com")
-        config: Sitemap configuration (default: SitemapConfig())
-        rate_limiter: Rate limiter for requests (default: NoOpRateLimiter)
-
-    Returns:
-        List of DiscoveredLink objects from sitemap(s)
-    """
-    config = config or SitemapConfig()
-    rate_limiter = rate_limiter or NoOpRateLimiter()
-
-    # Normalize base URL
-    parsed = urlparse(base_url)
-    base = f"{parsed.scheme}://{parsed.netloc}"
-
-    # Try common sitemap locations
-    sitemap_urls = [
-        f"{base}/sitemap.xml",
-        f"{base}/sitemap_index.xml",
-        f"{base}/sitemap.xml.gz",
-        f"{base}/sitemaps/sitemap.xml",
-    ]
-
-    all_links: list[DiscoveredLink] = []
-    visited_sitemaps: set[str] = set()
-
-    for sitemap_url in sitemap_urls:
-        if len(all_links) >= config.max_urls_per_sitemap:
-            logger.debug(
-                f"Reached max URLs ({config.max_urls_per_sitemap}), stopping sitemap discovery"
-            )
-            break
-
-        links = _parse_sitemap_recursive(
-            sitemap_url,
-            config=config,
-            rate_limiter=rate_limiter,
-            visited=visited_sitemaps,
-            depth=0,
-            max_urls=config.max_urls_per_sitemap - len(all_links),
-        )
-        all_links.extend(links)
-
-        if links:
-            # Found a working sitemap, don't try others
-            break
-
-    return all_links
-
-
-def _parse_sitemap_recursive(
-    sitemap_url: str,
-    config: SitemapConfig,
-    rate_limiter: RateLimiter,
-    visited: set[str],
-    depth: int,
-    max_urls: int,
-) -> list[DiscoveredLink]:
-    """
-    Recursively parse a sitemap, handling sitemap indexes.
-
-    Args:
-        sitemap_url: URL of the sitemap to parse
-        config: Sitemap configuration
-        rate_limiter: Rate limiter
-        visited: Set of already-visited sitemap URLs
-        depth: Current recursion depth
-        max_urls: Maximum URLs to return
-
-    Returns:
-        List of DiscoveredLink objects
-    """
-    if sitemap_url in visited:
-        return []
-
-    if depth > config.max_sitemap_depth:
-        logger.warning(f"Max sitemap depth ({config.max_sitemap_depth}) reached at {sitemap_url}")
-        return []
-
-    visited.add(sitemap_url)
-    host = extract_host(sitemap_url)
-
-    # Fetch sitemap
-    try:
-        rate_limiter.acquire(host)
-        try:
-            response = make_request(sitemap_url, timeout=30)
-            if response.status_code != 200:
-                return []
-            content = response.content
-        finally:
-            rate_limiter.release(host)
-    except Exception as e:
-        logger.warning(f"Failed to fetch sitemap {sitemap_url}: {e}")
-        return []
-
-    # Handle gzipped content
-    if sitemap_url.endswith(".gz") or _is_gzipped(content):
-        try:
-            content = gzip.decompress(content)
-        except Exception as e:
-            logger.warning(f"Failed to decompress gzipped sitemap: {e}")
-            return []
-
-    # Check size
-    size_mb = len(content) / (1024 * 1024)
-    if size_mb > config.max_sitemap_size_mb:
-        logger.warning(f"Sitemap {sitemap_url} is {size_mb:.1f}MB, using streaming mode")
-
-    # Parse XML securely with defusedxml. Sitemaps are fetched from untrusted
-    # origins, so XXE / entity-expansion defense is mandatory; defusedxml blocks
-    # those by default. A detected attack (DefusedXmlException) or malformed XML
-    # (ParseError) yields no links rather than falling back to an unsafe parse.
-    try:
-        root = defused_fromstring(content)
-    except (ET.ParseError, DefusedXmlException) as parse_err:
-        logger.warning(f"Failed to parse sitemap XML: {parse_err}")
-        return []
-
-    links: list[DiscoveredLink] = []
-
-    # Check if this is a sitemap index
-    if root.tag.endswith("sitemapindex"):
-        # Parse sitemap index
-        for sitemap_elem in root.findall(".//sm:sitemap/sm:loc", SITEMAP_NS):
-            if len(links) >= max_urls:
-                break
-
-            child_url = sitemap_elem.text.strip() if sitemap_elem.text else None
-            if child_url:
-                child_links = _parse_sitemap_recursive(
-                    child_url,
-                    config=config,
-                    rate_limiter=rate_limiter,
-                    visited=visited,
-                    depth=depth + 1,
-                    max_urls=max_urls - len(links),
-                )
-                links.extend(child_links)
-    else:
-        # Parse regular sitemap
-        for url_elem in root.findall(".//sm:url", SITEMAP_NS):
-            if len(links) >= max_urls:
-                logger.debug(f"Reached max URLs ({max_urls}) in sitemap")
-                break
-
-            loc = url_elem.find("sm:loc", SITEMAP_NS)
-            if loc is None or not loc.text:
-                continue
-
-            url = loc.text.strip()
-
-            # Get optional metadata. <priority> is third-party content and is
-            # frequently off-spec (e.g. "high", "0,8", stray text); a bad value
-            # must not raise ValueError and abort the entire sitemap parse.
-            priority_elem = url_elem.find("sm:priority", SITEMAP_NS)
-            priority: float | None = None
-            if priority_elem is not None and priority_elem.text:
-                try:
-                    priority = float(priority_elem.text.strip())
-                except (ValueError, TypeError):
-                    priority = None
-
-            lastmod_elem = url_elem.find("sm:lastmod", SITEMAP_NS)
-            lastmod = (
-                lastmod_elem.text.strip()
-                if lastmod_elem is not None and lastmod_elem.text
-                else None
-            )
-
-            links.append(
-                DiscoveredLink(
-                    url=url,
-                    source="sitemap",
-                    sitemap_priority=priority,
-                    sitemap_lastmod=lastmod,
-                )
-            )
-
-    return links
-
-
-def _is_gzipped(content: bytes) -> bool:
-    """Check if content is gzipped by magic bytes."""
-    return len(content) >= 2 and content[:2] == b"\x1f\x8b"
+    return collect_sitemap_links(base_url, config, rate_limiter, fetch=make_request)
 
 
 # =============================================================================

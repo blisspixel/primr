@@ -3149,7 +3149,7 @@ wheels = [
 
 [[package]]
 name = "primr"
-version = "1.39.21"
+version = "1.39.22"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -3178,6 +3178,7 @@ dependencies = [
     { name = "patchright" },
     { name = "pillow" },
     { name = "playwright" },
+    { name = "psutil", marker = "sys_platform == 'darwin'" },
     { name = "pydantic-settings" },
     { name = "pymupdf" },
     { name = "pytesseract" },
@@ -3298,6 +3299,7 @@ requires-dist = [
     { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.10.1" },
     { name = "playwright", specifier = ">=1.40.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.5.0" },
+    { name = "psutil", marker = "sys_platform == 'darwin'", specifier = ">=7.2.2" },
     { name = "pydantic", marker = "extra == 'api'", specifier = ">=2.0.0" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=11.0.0" },

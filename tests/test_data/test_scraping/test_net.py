@@ -126,7 +126,7 @@ class TestMakeRequest:
         with patch("requests.Session.request", return_value=mock_response) as mock_req:
             make_request("https://example.com", timeout=30)
 
-        assert mock_req.call_args[1]["timeout"] == 30
+        assert 0 < mock_req.call_args[1]["timeout"] <= 30
 
     def test_merges_custom_headers(self):
         """Should merge custom headers with defaults."""

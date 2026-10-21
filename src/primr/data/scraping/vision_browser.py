@@ -15,7 +15,7 @@ from .browser_egress import (
     plan_browser_egress,
 )
 from .browser_proxy import BrowserEgressProxy
-from .chromium_config import SANDBOX_ARGS
+from .chromium_config import SANDBOX_ARGS, browser_launch_options
 from .config import DEFAULT_TIMEOUT_VISION
 from .models import Attempt, ErrorType, ScrapeResult
 from .playwright_compat import (
@@ -102,7 +102,7 @@ def scrape_with_vision(
 
         with sync_playwright() as p:
             browser = p.chromium.launch(
-                headless=True,
+                **browser_launch_options(True),
                 args=browser_launch_args(
                     [
                         "--disable-blink-features=AutomationControlled",

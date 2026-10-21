@@ -60,7 +60,7 @@ def get_default_headers() -> dict[str, str]:
         "User-Agent": get_random_user_agent(),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Encoding": "gzip, deflate, identity",
         "Connection": "keep-alive",
         "Upgrade-Insecure-Requests": "1",
         "Cache-Control": "max-age=0",
@@ -186,6 +186,7 @@ class HTTPClient:
         """Request a URL, validating every redirect hop before connecting."""
         request_func = self._session.get if method == "GET" else self._session.head
         current_url = url
+        deadline = time.monotonic() + timeout
 
         for redirect_count in range(_MAX_REDIRECTS + 1):
             # The caller-normalized first hop stays as-is. A redirect hop is
@@ -205,9 +206,12 @@ class HTTPClient:
             if headers is not None:
                 request_kwargs["headers"] = headers
 
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise requests.Timeout("HTTP redirect deadline exceeded")
             response = request_func(
                 request_url,
-                timeout=timeout,
+                timeout=min(timeout, remaining),
                 allow_redirects=False,
                 verify=verify,
                 **request_kwargs,

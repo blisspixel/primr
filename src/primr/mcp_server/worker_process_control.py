@@ -6,8 +6,8 @@ import asyncio
 import os
 import signal
 
-from primr.mcp_server.windows_job import WindowsJobObject
 from primr.utils.logging_config import get_logger
+from primr.utils.windows_job import WindowsJobObject
 
 logger = get_logger(__name__)
 

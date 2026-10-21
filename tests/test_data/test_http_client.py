@@ -173,7 +173,7 @@ class TestHTTPClient:
             client.get("https://example.com", timeout=10.0)
 
             call_kwargs = mock_get.call_args[1]
-            assert call_kwargs["timeout"] == 10.0
+            assert 0 < call_kwargs["timeout"] <= 10.0
 
     @patch("requests.Session.get")
     def test_get_follows_safe_relative_redirect(self, mock_get):

@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from primr.data.pdf_extraction import _extract_in_process
 from primr.data.scraping.content import (
     _extract_text_with_structure,
     _find_content_rich_element,
@@ -22,7 +23,6 @@ from primr.data.scraping.content import (
     detect_content_type,
     extract_clean_text,
     extract_main_content,
-    extract_text_from_pdf,
     extract_text_from_pdf_via_llm,
     get_meta_description,
     get_page_title,
@@ -222,8 +222,8 @@ class TestAggressiveBoilerplate:
 class TestPdfPyMuPdf:
     def test_returns_none_when_fitz_missing(self):
         """If PyMuPDF (fitz) is not importable, returns None gracefully."""
-        with patch.dict("sys.modules", {"fitz": None}):
-            assert extract_text_from_pdf(b"%PDF-1.4 fake") is None
+        with patch.dict("sys.modules", {"fitz": None}), pytest.raises(ImportError):
+            _extract_in_process(b"%PDF-1.4 fake")
 
     def test_extracts_text_via_mocked_fitz(self):
         """Drive the happy path with a stubbed fitz module."""
@@ -235,7 +235,7 @@ class TestPdfPyMuPdf:
         fake_fitz.open.return_value = fake_doc
 
         with patch.dict("sys.modules", {"fitz": fake_fitz}):
-            out = extract_text_from_pdf(b"%PDF-1.4 real-ish")
+            out = _extract_in_process(b"%PDF-1.4 real-ish")
 
         assert out == "Page one body text"
         fake_doc.close.assert_called_once()
@@ -249,15 +249,18 @@ class TestPdfPyMuPdf:
         fake_fitz.open.return_value = fake_doc
 
         with patch.dict("sys.modules", {"fitz": fake_fitz}):
-            out = extract_text_from_pdf(b"%PDF-1.4")
+            out = _extract_in_process(b"%PDF-1.4")
 
-        assert out is None
+        assert out == ""
 
     def test_open_failure_returns_none(self):
         fake_fitz = MagicMock()
         fake_fitz.open.side_effect = RuntimeError("corrupt pdf")
-        with patch.dict("sys.modules", {"fitz": fake_fitz}):
-            assert extract_text_from_pdf(b"%PDF-broken") is None
+        with (
+            patch.dict("sys.modules", {"fitz": fake_fitz}),
+            pytest.raises(RuntimeError, match="corrupt pdf"),
+        ):
+            _extract_in_process(b"%PDF-broken")
 
 
 class TestPdfViaLlm:

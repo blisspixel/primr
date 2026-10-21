@@ -59,14 +59,25 @@ def _fake_curl_module(*, response=None, side_effect=None):
     session = MagicMock()
     session.__enter__.return_value = session
     session.__exit__.return_value = False
-    if side_effect is not None:
-        session.get.side_effect = side_effect
-    else:
-        session.get.return_value = response
+    effects = iter(side_effect) if isinstance(side_effect, list) else None
 
+    def get(*args, **kwargs):
+        if isinstance(side_effect, Exception):
+            raise side_effect
+        result = next(effects) if effects is not None else response
+        body = result.content
+        if isinstance(body, bytes):
+            assert kwargs["content_callback"](body) == len(body)
+        result.content = b""
+        return result
+
+    session.get.side_effect = get
     requests = MagicMock()
     requests.Session.return_value = session
-    return SimpleNamespace(CurlOpt=SimpleNamespace(RESOLVE="RESOLVE"), requests=requests), session
+    return SimpleNamespace(
+        CurlOpt=SimpleNamespace(RESOLVE="RESOLVE", HTTP_CONTENT_DECODING="HTTP_CONTENT_DECODING"),
+        requests=requests,
+    ), session
 
 
 class TestScrapeWithRequests:
@@ -497,7 +508,10 @@ class TestScrapeWithCurlCffi:
         assert result.success is True
         assert result.final_url == "https://example.com/page"
         fake_curl.requests.Session.assert_called_once_with(
-            curl_options={"RESOLVE": ["+example.com:443:93.184.216.34"]},
+            curl_options={
+                "RESOLVE": ["+example.com:443:93.184.216.34"],
+                "HTTP_CONTENT_DECODING": 0,
+            },
             trust_env=False,
         )
         assert session.get.call_args.args[0] == "https://example.com/page"

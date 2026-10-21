@@ -85,6 +85,19 @@ jobs:
         timeout-minutes: 5
         run: |
           uv run --no-sync playwright install --with-deps chromium
+          # Ubuntu restricts user namespaces for downloaded browser binaries.
+          # Permit only this runner's browser cache, retaining Chromium sandboxing.
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ] && \
+             [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" = 1 ]; then
+            sudo tee /etc/apparmor.d/primr-ci-chromium > /dev/null <<EOF
+          abi <abi/4.0>,
+          include <tunables/global>
+          profile primr-ci-chromium "${HOME}/.cache/ms-playwright/**/chrome{,-headless-shell}" flags=(unconfined) {
+            userns,
+          }
+          EOF
+            sudo apparmor_parser -r /etc/apparmor.d/primr-ci-chromium
+          fi
           uv run --no-sync pytest tests/test_data/test_scraping/test_native_browser_runtime.py -q
 
       - name: Preserve fuzz failure inputs

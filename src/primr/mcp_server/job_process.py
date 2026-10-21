@@ -30,7 +30,6 @@ from primr.mcp_server.job_process_types import (
 from primr.mcp_server.job_store import ResearchJobState, SingleJobStore
 from primr.mcp_server.job_terminal_manifest import write_terminal_manifest
 from primr.mcp_server.types import ResearchStage
-from primr.mcp_server.windows_job import WindowsJobObject, create_worker_job
 from primr.mcp_server.worker_environment import worker_environment
 from primr.mcp_server.worker_process_control import cleanup_process_tree, signal_process_tree
 from primr.mcp_server.worker_protocol import (
@@ -49,6 +48,7 @@ from primr.mcp_server.worker_terminal_policy import (
     terminal_event_is_compatible,
 )
 from primr.utils.logging_config import get_logger
+from primr.utils.windows_job import WindowsJobObject, create_worker_job
 
 logger = get_logger(__name__)
 

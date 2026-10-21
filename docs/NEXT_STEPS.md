@@ -1,6 +1,6 @@
 # Next Steps
 
-Released baseline: **v1.39.21**
+Released baseline: **v1.39.22**
 
 Next implementation candidate: **v1.40.0**
 
@@ -37,9 +37,10 @@ product.
 
 ## Current executable card
 
-v1.39.21 is the released baseline. It retains provider-specific model retirement
-and explicit spend gates, raises the MCP session-resource security floor,
-supports maintained Python 3.11-3.15, and updates the direct Gemini catalog.
+v1.39.22 is the released baseline. It adds bounded ingestion, native PDF
+containment, and explicit browser sandbox defaults. It retains provider-specific
+model retirement checks, explicit spend gates, the MCP session-resource security
+floor, maintained Python 3.11-3.15 support, and the updated direct Gemini catalog.
 Keyless startup, diagnostics, streams, collection signatures, and Word evidence
 labels now follow the interface rules. Research stages have typed ownership
 boundaries and an acyclic first-party import graph. Dependency proposals remain
@@ -55,7 +56,7 @@ independently validated evaluators, before any hard report-quality gate or
 hybrid-routing promotion.
 
 **Why this is next:** the version ladder already places quality claims after
-that corpus. Operator polish through v1.39.21 is the released baseline.
+that corpus. Operator polish through v1.39.22 is the released baseline.
 
 **Exit criteria:**
 
@@ -151,7 +152,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.21
+## Version gates after v1.39.22
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.

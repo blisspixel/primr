@@ -15,6 +15,8 @@ from bs4 import BeautifulSoup, FeatureNotFound, NavigableString, XMLParsedAsHTML
 
 from primr.ai.genai_factory import default_genai_http_options
 
+from .dom_metrics import link_density, subtree_metrics
+
 logger = logging.getLogger(__name__)
 
 XML_DOCUMENT_TOKENS = (
@@ -272,11 +274,13 @@ def _parse_markup_document(text: str) -> BeautifulSoup:
     """Parse HTML normally, but route XML-like documents to an XML parser when available."""
     parser = "xml" if _looks_like_xml_document(text) else "html.parser"
     try:
-        return BeautifulSoup(text, parser)
+        soup = BeautifulSoup(text, parser)
     except FeatureNotFound:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
-            return BeautifulSoup(text, "html.parser")
+            soup = BeautifulSoup(text, "html.parser")
+    subtree_metrics(soup)
+    return soup
 
 
 def extract_clean_text(
@@ -430,30 +434,9 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str | None:
     Returns:
         Extracted text or None if extraction fails
     """
-    try:
-        import fitz  # PyMuPDF
-    except ImportError:
-        return None
+    from primr.data.pdf_extraction import extract_pdf_text
 
-    if not pdf_bytes:
-        return None
-
-    try:
-        # Open PDF from bytes
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-
-        text_parts = []
-        for page in doc:
-            text_parts.append(page.get_text("text"))
-
-        doc.close()
-
-        text = "\n".join(text_parts).strip()
-        return text if text else None
-
-    except Exception as e:
-        logger.warning("PDF text extraction failed: %s", e)
-        return None
+    return extract_pdf_text(pdf_bytes)
 
 
 def _env_int(name: str, default: int) -> int:
@@ -679,24 +662,14 @@ def _find_content_rich_element(soup: BeautifulSoup):
     best_element = None
     best_score = 0
 
+    metrics = subtree_metrics(soup)
     for element in soup.find_all(["div", "section", "article", "main"]):
-        # Skip small elements
-        text = element.get_text(strip=True)
-        if len(text) < 200:
+        item = metrics[id(element)]
+        if item.text_length < 200:
             continue
-
-        # Score based on text length and paragraph count
-        paragraphs = element.find_all("p")
-        score = len(text) + (len(paragraphs) * 100)
-
-        # Penalize elements with too many links (likely nav)
-        links = element.find_all("a")
-        if links:
-            link_text = sum(len(a.get_text(strip=True)) for a in links)
-            link_ratio = link_text / max(len(text), 1)
-            if link_ratio > 0.5:  # More than 50% links = probably nav
-                score *= 0.3
-
+        score = float(item.text_length + item.paragraphs * 100)
+        if link_density(item) > 0.5:
+            score *= 0.3
         if score > best_score:
             best_score = score
             best_element = element

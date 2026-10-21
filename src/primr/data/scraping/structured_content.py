@@ -53,6 +53,7 @@ from dataclasses import dataclass, field
 from bs4 import BeautifulSoup, Tag
 
 from .content import _parse_markup_document
+from .dom_metrics import link_density, structured_score, subtree_metrics
 
 # =============================================================================
 # PASS A: DOM SANITIZATION CONFIGURATION
@@ -465,63 +466,13 @@ def prune_dom(soup: BeautifulSoup) -> BeautifulSoup:
 
 
 def compute_link_density(element: Tag) -> float:
-    """Compute ratio of link text to total text."""
-    if not element:
-        return 0.0
-
-    total_text = element.get_text(strip=True)
-    if not total_text:
-        return 0.0
-
-    link_text = ""
-    for a in element.find_all("a"):
-        link_text += a.get_text(strip=True)
-
-    return len(link_text) / len(total_text)
+    """Compute link density from one linear subtree traversal."""
+    return link_density(subtree_metrics(element)[id(element)]) if element else 0.0
 
 
 def score_container(element: Tag) -> float:
-    """
-    Score a container for main content likelihood.
-
-    Higher score = more likely to be main content.
-    """
-    if not element:
-        return 0
-
-    text = element.get_text(strip=True)
-    text_len = len(text)
-
-    if text_len < 100:
-        return 0
-
-    # Positive signals
-    paragraphs = len(element.find_all("p"))
-    lists = len(element.find_all(["ul", "ol"]))
-    headings = len(element.find_all(["h1", "h2", "h3", "h4"]))
-
-    score = text_len + (paragraphs * 50) + (lists * 30) + (headings * 40)
-
-    # Negative signals
-    links = len(element.find_all("a"))
-    buttons = len(element.find_all("button"))
-    forms = len(element.find_all("form"))
-
-    score -= (links * 5) + (buttons * 20) + (forms * 50)
-
-    # Link density penalty (nav-heavy blocks)
-    link_density = compute_link_density(element)
-    if link_density > 0.5:
-        score *= 0.3
-    elif link_density > 0.3:
-        score *= 0.6
-
-    # Check for "navish" keywords in classes
-    classes = " ".join(element.get("class", []) or []).lower()
-    if any(kw in classes for kw in ["nav", "menu", "sidebar", "footer", "header"]):
-        score *= 0.2
-
-    return max(0, score)
+    """Score one standalone container using the shared metrics implementation."""
+    return structured_score(element, subtree_metrics(element)[id(element)]) if element else 0.0
 
 
 def find_main_content(soup: BeautifulSoup) -> Tag:
@@ -538,8 +489,9 @@ def find_main_content(soup: BeautifulSoup) -> Tag:
     best_element = None
     best_score = 0
 
+    metrics = subtree_metrics(soup)
     for element in soup.find_all(["div", "section", "article", "main"]):
-        score = score_container(element)
+        score = structured_score(element, metrics[id(element)])
         if score > best_score:
             best_score = score
             best_element = element
@@ -919,7 +871,11 @@ def extract_structured_content(
         result.quality = QualityScore(score=0.0, flags=["decode_error"])
         return result
 
-    soup = _parse_markup_document(html)
+    try:
+        soup = _parse_markup_document(html)
+    except (ValueError, TypeError):
+        result.quality = QualityScore(score=0.0, flags=["structure_budget_exceeded"])
+        return result
 
     # Extract metadata first (before pruning)
     metadata = extract_metadata(soup)

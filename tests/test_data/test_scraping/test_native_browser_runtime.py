@@ -17,8 +17,9 @@ def test_sync_browser_renders_offline_in_child_process(package):
     # A native-runtime crash must fail this gate rather than kill pytest.
     program = f"""
 from {package}.sync_api import sync_playwright
+from primr.data.scraping.chromium_config import browser_launch_options
 with sync_playwright() as driver:
-    browser = driver.chromium.launch(headless=True)
+    browser = driver.chromium.launch(**browser_launch_options(True))
     page = browser.new_page(offline=True)
     page.set_content('<title>ExampleCo</title><main>Offline evidence control.</main>')
     assert page.title() == 'ExampleCo'
