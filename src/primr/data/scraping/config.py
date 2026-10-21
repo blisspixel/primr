@@ -37,8 +37,13 @@ class SitemapConfig:
 
     max_sitemap_depth: int = 3  # Max depth for sitemap index recursion
     max_urls_per_sitemap: int = 100000  # Stop after N URLs (with log)
-    max_sitemap_size_mb: int = 50  # Treat larger sitemaps as special mode
-    stream_parse: bool = True  # Stream parse XML to avoid memory issues
+    max_sitemap_size_mb: int = 50  # Hard wire and expanded-document limit
+    stream_parse: bool = True  # Compatibility setting; parsing is always incremental
+    max_sitemap_documents: int = 32  # Includes failed and empty child/root attempts
+    max_total_sitemap_size_mb: int = 100  # Shared wire/expanded work allowance
+    max_sitemap_seconds: float = 60.0
+    max_sitemap_elements: int = 1_000_000
+    max_sitemap_xml_depth: int = 64
 
 
 # =============================================================================

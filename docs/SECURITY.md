@@ -49,6 +49,58 @@ rules. Server startup or authentication failure disables that component, not
 the packaged skills, and never authorizes a research run. Provider-backed work
 still crosses Primr's estimate, approval, scope, and runtime budget gates.
 
+### Collection resource boundaries
+
+The existing pinned Requests adapter and HTTPX transport bound response bodies
+before SDK buffering, redirect handling, or status-retry draining. Curl uses a
+synchronous raw callback rather than its background streaming queue. These paths
+share the bounded identity/gzip/deflate decoder. Ordinary page responses have an
+8 MiB wire and decoded-body ceiling; sitemap requests use their configured
+document ceiling. Unsupported content encodings and malformed compressed framing
+fail closed. Caller headers, cookies, Host/SNI pinning, and redirect validation
+remain in their existing owners.
+
+Sitemap discovery defaults to 32 attempted documents, including failed or empty
+roots and children, a shared 100 MiB received/expanded-content allowance, and a
+60-second discovery deadline. Each document is limited to 50 MiB, one million
+XML elements, and 64 levels of XML nesting. Incremental defusedxml parsing clears
+processed records and retains entity restrictions. Depth and successful-URL
+limits remain independent; empty children spend the attempted-document budget.
+The HTTP adapter charges the larger wire/decoded representation for every
+redirect and status-retry response. Sitemap expansion adds any further increase
+to that charge. An attempt reserves its allowance before I/O; a failed read or
+expansion retains the reservation when completed work cannot be measured safely.
+Only successful bounded reads/expansions refund unused capacity.
+
+HTML extraction rejects trees above 100,000 nodes or depth 128 before its
+pruning/scoring passes. Both main-content scorers use one iterative subtree
+metrics pass, preserving text weights, link density, and document-order ties.
+
+Local PDF extraction uses one short-lived Python child, separate from the
+research job scheduler. The child inherits job cancellation ownership and is
+killed and reaped on timeout or parent interruption. Before importing PyMuPDF,
+it installs a 1 GiB OS memory limit (Linux address space or Windows process
+memory) and a POSIX CPU limit. Darwin adds the 1 GiB allocation allowance to
+the worker's existing virtual mappings; inherited stricter limits are retained.
+Extraction accepts at most 20 MiB, visits at most
+200 pages, retains at most 250,000 characters, and has a 12-second parent wall
+timeout. Truncated output carries an explicit marker. Unsupported resource
+controls, parser crashes, and timeouts fail closed. Native diagnostics cannot
+fill the result pipe, and provider credentials are excluded from the child's
+environment. First-party recovery retains its tighter input/output limits.
+
+Playwright and Patchright launches explicitly set `chromium_sandbox=True` by
+default, including persistent profiles, channel retries, and fresh-browser
+fallbacks. Merely omitting `--no-sandbox` does not enable these SDKs' sandbox.
+An operator on a host without sandbox support may explicitly set
+`PRIMR_DISABLE_CHROMIUM_SANDBOX=1`; launch failure never triggers that opt-out.
+
+Network deadline checks run between blocking operations; DNS resolution and
+individual socket operations still depend on OS and transport timeouts. These
+collection budgets do not constitute a hard wall timeout for an entire research
+job. Browser rendering has separate runtime limits, and sandboxing does not
+establish that the browser itself is free of vulnerabilities.
+
 ### Residual risks (accepted)
 - **T1** is mitigated, not eliminated - a novel phrasing could evade the pattern
   set; the data-fence is the backstop, and an injection red-team eval is tracked.

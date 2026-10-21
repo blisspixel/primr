@@ -10,6 +10,18 @@ from datetime import datetime
 from enum import Enum
 
 
+@dataclass
+class DiscoveredLink:
+    """A discovered link with metadata for scoring."""
+
+    url: str
+    source: str  # "sitemap", "guess", "html", "homepage"
+    anchor_text: str | None = None
+    sitemap_priority: float | None = None
+    sitemap_lastmod: str | None = None
+    score: float = 0.0
+
+
 class ErrorType(Enum):
     """Types of errors that can occur during scraping."""
 

@@ -19,6 +19,7 @@ from typing import Any
 
 JOB_OBJECT_ASSIGN_PROCESS = 0x0001
 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+JOB_OBJECT_LIMIT_PROCESS_MEMORY = 0x00000100
 JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS = 9
 ERROR_ALREADY_EXISTS = 183
 DEFAULT_TERMINATION_EXIT_CODE = 130
@@ -182,13 +183,20 @@ class WindowsJobObject:
         self.close()
 
 
-def create_worker_job(name: str) -> WindowsJobObject:
+def create_worker_job(name: str, *, memory_limit_bytes: int | None = None) -> WindowsJobObject:
     """Create and configure a uniquely named worker Job Object.
 
-    Existing names fail closed.  Reusing one could let an unrelated worker
-    join the same termination boundary.
+    Existing names fail closed. Reusing one could let an unrelated worker
+    join the same termination boundary. An optional per-process memory limit
+    adds allocation containment without changing parent process-tree ownership.
     """
     _require_job_name(name)
+    if memory_limit_bytes is not None and (
+        isinstance(memory_limit_bytes, bool)
+        or not isinstance(memory_limit_bytes, int)
+        or memory_limit_bytes <= 0
+    ):
+        raise ValueError("Process memory limit must be a positive integer")
     kernel32 = _load_kernel32()
 
     kernel32.SetLastError(0)
@@ -209,6 +217,9 @@ def create_worker_job(name: str) -> WindowsJobObject:
 
     limits = _JobObjectExtendedLimitInformation()
     limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    if memory_limit_bytes is not None:
+        limits.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_PROCESS_MEMORY
+        limits.ProcessMemoryLimit = memory_limit_bytes
     configured = kernel32.SetInformationJobObject(
         handle,
         JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS,

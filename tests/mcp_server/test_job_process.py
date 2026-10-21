@@ -32,7 +32,7 @@ VERSION = 1
 if sys.platform == "win32":
     job_object_name = os.environ.pop("PRIMR_WORKER_JOB_OBJECT", None)
     if job_object_name:
-        from primr.mcp_server.windows_job import attach_current_process
+        from primr.utils.windows_job import attach_current_process
         attach_current_process(job_object_name)
 
 def now():

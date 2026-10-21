@@ -4,12 +4,32 @@ from __future__ import annotations
 
 import time
 import zlib
-from typing import TYPE_CHECKING
+from collections.abc import Iterable, Mapping
 
-if TYPE_CHECKING:
-    import httpx
+import httpx
 
 DEFAULT_MAX_BODY_BYTES = 8 * 1024 * 1024
+
+
+class BoundedHTTPTransport(httpx.HTTPTransport):
+    """Read below Client's eager decoder, including redirect responses."""
+
+    def __init__(self, deadline: float, limit: int = DEFAULT_MAX_BODY_BYTES) -> None:
+        super().__init__(http2=True)
+        self.deadline = deadline
+        self.limit = limit
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        if time.monotonic() >= self.deadline:
+            raise httpx.TimeoutException("HTTP response deadline exceeded")
+        response = super().handle_request(request)
+        try:
+            response._content = read_bounded_body(response, self.limit, self.deadline)
+            return response
+        except TimeoutError as exc:
+            raise httpx.ReadTimeout(str(exc), request=request) from exc
+        finally:
+            response.close()
 
 
 def read_bounded_body(response: httpx.Response, limit: int, deadline: float) -> bytes:
@@ -18,28 +38,42 @@ def read_bounded_body(response: httpx.Response, limit: int, deadline: float) -> 
     Socket timeouts still apply to individual blocking operations. The deadline
     is checked at each raw read; OS DNS resolution has its own timeout policy.
     """
-    declared = response.headers.get("content-length")
+    _content_encoding(response.headers, limit)
+    if response.is_stream_consumed:
+        if len(response.content) > limit or time.monotonic() >= deadline:
+            raise ValueError("Buffered HTTP response exceeds its budget")
+        return response.content
+    return read_bounded_chunks(response.iter_raw(), response.headers, limit, deadline)
+
+
+def _content_encoding(headers: Mapping[str, str], limit: int) -> str:
+    declared = headers.get("content-length")
     if declared is not None and (not declared.isascii() or not declared.isdecimal()):
         raise ValueError("Invalid response Content-Length")
     if declared is not None and int(declared) > limit:
         raise ValueError("HTTP response exceeds transfer limit")
-    encoding = response.headers.get("content-encoding", "identity").strip().lower()
+    encoding = headers.get("content-encoding", "identity").strip().lower()
     if encoding not in {"identity", "gzip", "deflate"}:
         raise ValueError("Unsupported response content encoding")
-    if response.is_stream_consumed:
-        # Injected/caching transports may supply an already decoded response.
-        # Real HTTP responses remain unread until the bounded raw loop below.
-        if len(response.content) > limit or time.monotonic() >= deadline:
-            raise ValueError("Buffered HTTP response exceeds its budget")
-        return response.content
+    return encoding
 
+
+def read_bounded_chunks(
+    chunks: Iterable[bytes], headers: Mapping[str, str], limit: int, deadline: float
+) -> bytes:
+    """Decode raw transport or document chunks within wire and output limits.
+
+    Callers own the transport and close it on success and failure. A chunk
+    iterator must yield raw bytes without an SDK decoder or producer queue.
+    """
+    encoding = _content_encoding(headers, limit)
     body = bytearray()
     transferred = 0
     decoder = zlib.decompressobj(16 + zlib.MAX_WBITS) if encoding == "gzip" else None
     prefix = b""
     deflate_probe = bytearray()
     may_retry_raw = False
-    for raw in response.iter_raw():
+    for raw in chunks:
         if time.monotonic() >= deadline:
             raise TimeoutError("HTTP response deadline exceeded")
         transferred += len(raw)

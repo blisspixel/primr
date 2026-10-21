@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from primr.mcp_server import windows_job
+from primr.utils import windows_job
 
 
 class _FakeFunction:
@@ -107,6 +107,23 @@ def test_create_configures_kill_on_close_and_explicit_signatures(
     assert fake_windows.CreateJobObjectW.restype is windows_job.wintypes.HANDLE
     assert fake_windows.TerminateJobObject.argtypes is not None
     assert fake_windows.CloseHandle.argtypes is not None
+
+
+def test_process_memory_limit_preserves_kill_on_close(fake_windows: _FakeKernel32) -> None:
+    owner = windows_job.create_worker_job("Local\\Primr-memory", memory_limit_bytes=1024 * 1024)
+    info = fake_windows.SetInformationJobObject.calls[0][2]._obj
+    assert info.ProcessMemoryLimit == 1024 * 1024
+    assert info.BasicLimitInformation.LimitFlags == (
+        windows_job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | windows_job.JOB_OBJECT_LIMIT_PROCESS_MEMORY
+    )
+    owner.close()
+
+
+@pytest.mark.parametrize("limit", [0, -1, True, 1.5])
+def test_invalid_memory_limit_fails_before_allocating_handle(fake_windows, limit) -> None:
+    with pytest.raises(ValueError, match="positive integer"):
+        windows_job.create_worker_job("Local\\Primr-memory", memory_limit_bytes=limit)
+    assert fake_windows.CreateJobObjectW.calls == []
 
 
 def test_create_rejects_existing_name_and_closes_handle(

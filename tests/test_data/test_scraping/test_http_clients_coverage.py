@@ -203,13 +203,27 @@ class TestCurlCffi:
         session = MagicMock()
         session.__enter__.return_value = session
         session.__exit__.return_value = False
-        if side_effect is not None:
-            session.get.side_effect = side_effect
-        else:
-            session.get.return_value = response
+        effects = iter(side_effect) if isinstance(side_effect, list) else None
+
+        def get(*args, **kwargs):
+            if isinstance(side_effect, Exception):
+                raise side_effect
+            result = next(effects) if effects is not None else response
+            body = result.content
+            if isinstance(body, bytes):
+                assert kwargs["content_callback"](body) == len(body)
+            result.content = b""
+            return result
+
+        session.get.side_effect = get
         requests = MagicMock()
         requests.Session.return_value = session
-        return SimpleNamespace(CurlOpt=SimpleNamespace(RESOLVE="RESOLVE"), requests=requests)
+        return SimpleNamespace(
+            CurlOpt=SimpleNamespace(
+                RESOLVE="RESOLVE", HTTP_CONTENT_DECODING="HTTP_CONTENT_DECODING"
+            ),
+            requests=requests,
+        )
 
     def test_success(self):
         mock_resp = MagicMock()

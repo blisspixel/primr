@@ -83,7 +83,7 @@ if _SUPERVISED:
         if sys.platform == "win32":
             if not _JOB_OBJECT_NAME:
                 raise OSError("Worker supervision setup is missing")
-            from primr.mcp_server.windows_job import attach_current_process
+            from primr.utils.windows_job import attach_current_process
 
             attach_current_process(_JOB_OBJECT_NAME)
         elif sys.platform.startswith("linux"):

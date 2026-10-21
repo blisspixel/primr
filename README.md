@@ -127,7 +127,7 @@ primr --version
 ```
 
 With pipx, use `pipx install --python python3.15 primr` and an installed Python
-3.14. Plain `pip install primr` also works inside a Python 3.11 through 3.15
+3.15. Plain `pip install primr` also works inside a Python 3.11 through 3.15
 virtual environment. Download and inspect convenience installers
 before running them. For those scripts, upgrades, PATH troubleshooting, and
 source-checkout setup, see

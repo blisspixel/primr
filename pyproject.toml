@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.39.21"
+version = "1.39.22"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = "Apache-2.0"
@@ -60,6 +60,8 @@ dependencies = [
     "fpdf>=1.7.2",
     "python-docx>=0.8.11",
     "pymupdf>=1.23.0",
+    # Darwin PDF workers account for existing VM mappings before setting RLIMIT_AS.
+    "psutil>=7.2.2; sys_platform == 'darwin'",
     "pandas>=2.0.0",
     "openpyxl>=3.1.0",
     "pytesseract>=0.3.10",

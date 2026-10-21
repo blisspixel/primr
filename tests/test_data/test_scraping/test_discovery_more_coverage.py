@@ -201,8 +201,8 @@ class TestSitemapEdges:
             links = fetch_sitemap_links("https://example.com")
         assert links == []
 
-    def test_large_sitemap_logs_but_parses(self):
-        # Build a >0.001MB sitemap and set the cap tiny so the size warning fires.
+    def test_oversized_sitemap_is_rejected(self):
+        # The configured document cap is enforced before XML parsing.
         urls = "".join(f"<url><loc>https://example.com/p{i}</loc></url>" for i in range(50))
         xml = (
             '<?xml version="1.0"?>'
@@ -215,7 +215,7 @@ class TestSitemapEdges:
         config = SitemapConfig(max_sitemap_size_mb=0.00001)
         with patch("primr.data.scraping.discovery.make_request", return_value=mock_response):
             links = fetch_sitemap_links("https://example.com", config=config)
-        assert len(links) == 50
+        assert links == []
 
     def test_loc_missing_text_skipped(self):
         xml = (

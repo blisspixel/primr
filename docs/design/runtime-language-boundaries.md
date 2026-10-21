@@ -51,6 +51,28 @@ Every performance or language proposal follows this order:
 
 ## Current workload map
 
+Local PDF extraction is a bounded native capability in `data/pdf_extraction.py`.
+The controller launches one isolated Python invocation, sends bounded PDF bytes,
+and owns timeout, kill, and reap behavior. The worker installs memory limits
+before loading PyMuPDF and bounds visited pages and returned text. It is not a
+second research scheduler. Windows Job Object primitives live in
+`utils/windows_job.py` so both research-job ownership and the native extraction
+boundary use the same implementation. The detailed limits and failure behavior
+are recorded in [Security](../SECURITY.md#collection-resource-boundaries).
+
+Darwin's address-space allowance starts from the worker's measured startup
+virtual size. XNU rejects a limit below the existing map size, so a fixed
+absolute limit can disable legitimate extraction before a PDF is opened.
+The worker uses psutil's process memory metadata, adds its finite allocation
+allowance, and preserves stricter inherited limits. See the
+[XNU resource-limit consumer](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_resource.c)
+and [VM size-limit check](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/vm/vm_map.c).
+
+HTML container scoring shares iterative subtree metrics in
+`data/scraping/dom_metrics.py`. It avoids repeated descendant text scans while
+preserving selection semantics; structural budgets also bound existing pruning
+passes. This is an optimized Python baseline, not evidence for a new language.
+
 The dominant full-run costs are browser and network access, search, provider
 latency, and model generation. Those paths benefit most from bounded
 concurrency, pipeline overlap, retries, and durable recovery. Rewriting their

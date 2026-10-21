@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from typing import TypedDict
 
 SANDBOX_OPT_OUT = os.getenv("PRIMR_DISABLE_CHROMIUM_SANDBOX", "").strip().lower() in {
     "1",
@@ -17,6 +18,17 @@ SANDBOX_OPT_OUT = os.getenv("PRIMR_DISABLE_CHROMIUM_SANDBOX", "").strip().lower(
 # defense and were a regression. Sandbox is now on by default and only disabled
 # when an operator explicitly opts in via PRIMR_DISABLE_CHROMIUM_SANDBOX=1.
 SANDBOX_ARGS = ["--no-sandbox", "--disable-setuid-sandbox"] if SANDBOX_OPT_OUT else []
+
+
+class ChromiumLaunchOptions(TypedDict):
+    headless: bool
+    chromium_sandbox: bool
+
+
+def browser_launch_options(headless: bool) -> ChromiumLaunchOptions:
+    """Set the SDK sandbox option explicitly; omitting it disables containment."""
+    return {"headless": headless, "chromium_sandbox": not SANDBOX_OPT_OUT}
+
 
 BROWSER_LAUNCH_ARGS = [
     "--disable-blink-features=AutomationControlled",

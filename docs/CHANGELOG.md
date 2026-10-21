@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.22] - 2026-10-20
+
+### Security
+
+- Bound wire and decoded HTTP bodies before Requests, HTTPX, or curl can
+  buffer them, including redirect and status-retry responses. Keep retries
+  inside the request budget and negotiate only bounded content decoders.
+- Enforce sitemap document and expansion limits, parse XML incrementally, and
+  share attempt, content, and elapsed-work budgets across roots and indexes.
+- Replace repeated HTML subtree scoring with shared linear metrics and reject
+  excessive DOM depth or node counts before extraction passes.
+- Run local PDF extraction in an owned child with OS memory limits, a wall
+  timeout, and page/text budgets. Discard native diagnostics, exclude provider
+  credentials, and visibly mark text truncated at an extraction budget.
+- Explicitly enable the documented Chromium sandbox default in Playwright and
+  Patchright launch options. Keep the existing operator opt-out for hosts that
+  cannot support sandboxing; never downgrade automatically after a launch error.
+
 ## [1.39.21] - 2026-10-20
 
 ### Security

@@ -39,6 +39,7 @@ from .browser_egress import (
     plan_browser_egress,
 )
 from .browser_proxy import BrowserEgressProxy
+from .chromium_config import browser_launch_options
 from .headed_budget import (
     remaining_headed_budget,
     try_consume_headed_budget,
@@ -350,14 +351,14 @@ def _run_patchright(
                     ctx = p.chromium.launch_persistent_context(
                         user_data_dir=str(profile_dir),
                         channel=channel,
-                        headless=headless,
+                        **browser_launch_options(headless),
                         args=launch_args,
                         service_workers="block",
                     )
                 else:
                     ctx = p.chromium.launch_persistent_context(
                         user_data_dir=str(profile_dir),
-                        headless=headless,
+                        **browser_launch_options(headless),
                         args=launch_args,
                         service_workers="block",
                     )
