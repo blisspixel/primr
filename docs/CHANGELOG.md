@@ -19,8 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace repeated HTML subtree scoring with shared linear metrics and reject
   excessive DOM depth or node counts before extraction passes.
 - Run local PDF extraction in an owned child with OS memory limits, a wall
-  timeout, and page/text budgets. Discard native diagnostics, exclude provider
-  credentials, and visibly mark text truncated at an extraction budget.
+  timeout, and page/text budgets. Retain stricter inherited memory/CPU limits.
+  Discard native diagnostics, exclude provider credentials, and visibly mark
+  text truncated at an extraction budget.
 - Explicitly enable the documented Chromium sandbox default in Playwright and
   Patchright launch options. Keep the existing operator opt-out for hosts that
   cannot support sandboxing; never downgrade automatically after a launch error.

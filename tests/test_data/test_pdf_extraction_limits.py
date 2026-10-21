@@ -146,3 +146,37 @@ def test_worker_refuses_parsing_if_resource_limits_cannot_be_installed(monkeypat
     monkeypatch.setattr(pdf_extraction, "_extract_in_process", parser)
     assert pdf_extraction._worker() == 1
     parser.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "soft,hard,expected", [(3, 5, 3), (3, -1, 3), (15, 20, 12), (-1, -1, 12), (0, 8, 0)]
+)
+def test_inherited_cpu_limits_are_retained(monkeypatch, soft, hard, expected):
+    limits = MagicMock()
+    limits.RLIMIT_AS = 5
+    limits.RLIMIT_CPU = 0
+    limits.RLIM_INFINITY = -1
+    limits.getrlimit.side_effect = lambda kind: (soft, hard) if kind == 0 else (-1, -1)
+    monkeypatch.setitem(sys.modules, "resource", limits)
+    monkeypatch.setattr(sys, "platform", "linux")
+    pdf_extraction._install_limits()
+    assert limits.setrlimit.call_args_list[1].args == (0, (expected, expected))
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX inherited CPU limits")
+def test_real_pdf_worker_accepts_stricter_inherited_cpu_limit():
+    program = """
+import resource, sys
+from primr.data.pdf_extraction import extract_pdf_text
+resource.setrlimit(resource.RLIMIT_CPU, (8, 10))
+text = extract_pdf_text(sys.stdin.buffer.read())
+assert text and 'Ordinary company evidence for ExampleCo.' in text, text
+assert resource.getrlimit(resource.RLIMIT_CPU) == (8, 10)
+"""
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", program],
+        input=pdf_with_shared_pages(2),
+        capture_output=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
