@@ -92,6 +92,10 @@ environment. First-party recovery retains its tighter input/output limits.
 Playwright and Patchright launches explicitly set `chromium_sandbox=True` by
 default, including persistent profiles, channel retries, and fresh-browser
 fallbacks. Merely omitting `--no-sandbox` does not enable these SDKs' sandbox.
+Ubuntu's AppArmor restrictions can block downloaded browser binaries from
+creating sandbox namespaces. Linux CI loads a browser-cache-specific profile,
+following [Chromium's guidance](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md),
+so the native gate exercises sandboxed launches without changing global policy.
 An operator on a host without sandbox support may explicitly set
 `PRIMR_DISABLE_CHROMIUM_SANDBOX=1`; launch failure never triggers that opt-out.
 
