@@ -77,12 +77,13 @@ def test_real_timeout_leaves_no_running_pdf_child(monkeypatch):
     assert children[0].poll() is not None
 
 
-def test_cancellation_kills_and_reaps_before_propagating(monkeypatch):
+@pytest.mark.parametrize("interruption", [KeyboardInterrupt, SystemExit])
+def test_cancellation_kills_and_reaps_before_propagating(monkeypatch, interruption):
     process = MagicMock()
     process.__enter__.return_value = process
-    process.communicate.side_effect = [KeyboardInterrupt(), (b"", None)]
+    process.communicate.side_effect = [interruption(), (b"", None)]
     monkeypatch.setattr(pdf_extraction.subprocess, "Popen", lambda *a, **k: process)
-    with pytest.raises(KeyboardInterrupt):
+    with pytest.raises(interruption):
         extract_text_from_pdf(b"%PDF-test")
     process.kill.assert_called_once()
     assert process.communicate.call_count == 2

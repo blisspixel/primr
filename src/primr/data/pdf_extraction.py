@@ -55,12 +55,14 @@ def extract_pdf_text(pdf_bytes: bytes) -> str | None:
             stderr=subprocess.DEVNULL,
             env=environment,
         ) as process:
+            completed = False
             try:
                 output, _ = process.communicate(pdf_bytes, timeout=PDF_TIMEOUT_SECONDS)
-            except BaseException:
-                process.kill()
-                process.communicate()
-                raise
+                completed = True
+            finally:
+                if not completed:
+                    process.kill()
+                    process.communicate()
         if process.returncode != 0 or len(output) > MAX_PDF_TEXT_CHARS * 4:
             logger.debug(
                 "Local PDF worker rejected output (exit=%s, bytes=%d)",

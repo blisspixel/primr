@@ -291,3 +291,17 @@ def test_requests_aggregate_budget_includes_status_retry_bodies(monkeypatch):
         session.get("https://example.com/start", timeout=2)
     assert len(calls) == 2
     assert all(result.raw.closed for result in calls)
+
+
+@pytest.mark.parametrize("interruption", [KeyboardInterrupt, SystemExit])
+def test_requests_interruption_closes_body_and_retains_budget(monkeypatch, interruption):
+    result = response(b"unused")
+    result.raw.read1 = Mock(side_effect=interruption())
+    monkeypatch.setattr(HTTPAdapter, "send", lambda *a, **k: result)
+    with create_pinned_session(max_total_body_bytes=1000) as session:
+        with pytest.raises(interruption):
+            session.get("https://example.com/start", timeout=2)
+        assert result.raw.closed
+        with pytest.raises(requests.RequestException, match="Aggregate"):
+            session.get("https://example.com/start", timeout=2)
+    result.raw.read1.assert_called_once()

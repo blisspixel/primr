@@ -96,13 +96,14 @@ class PinnedHTTPAdapter(HTTPAdapter):
             limit = self.max_body_bytes
             if self.remaining_body_bytes is not None:
                 limit = min(limit, self.remaining_body_bytes)
+            buffered = False
             try:
                 used = self._buffer_response(request, response, deadline, limit)
-            except BaseException:
-                if self.remaining_body_bytes is not None:
+                buffered = True
+            finally:
+                if not buffered and self.remaining_body_bytes is not None:
                     self.consumed_body_bytes += self.remaining_body_bytes
                     self.remaining_body_bytes = 0
-                raise
             self.consumed_body_bytes += used
             if self.remaining_body_bytes is not None:
                 self.remaining_body_bytes -= used
