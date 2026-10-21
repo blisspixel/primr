@@ -17,10 +17,13 @@ also removes the "keep these two in sync" hazard the old mirror comments named.
 
 from __future__ import annotations
 
+import math
+import time
 from collections.abc import Mapping
 from typing import Any
 from urllib.parse import urljoin
 
+from primr.data.http_body import DEFAULT_MAX_BODY_BYTES, read_bounded_body
 from primr.utils.logging_config import get_logger
 from primr.utils.security import SafeUrlResolution, resolve_safe_url_for_connect
 
@@ -70,6 +73,7 @@ def safe_http_get(
     max_redirects: int = _MAX_REDIRECTS,
     log_prefix: str = "safe-http",
     transport: Any = None,
+    max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
 ) -> tuple[int | None, bytes | None, str | None]:
     """GET ``url`` SSRF-safely, validating the initial URL and every redirect hop.
 
@@ -82,10 +86,20 @@ def safe_http_get(
     ``transport`` is an injection seam for hermetic tests (an httpx transport);
     production callers leave it ``None`` to use the real transport.
     """
+    if (
+        not math.isfinite(timeout)
+        or timeout <= 0
+        or isinstance(max_body_bytes, bool)
+        or not isinstance(max_body_bytes, int)
+        or max_body_bytes < 1
+    ):
+        return None, None, None
+    deadline = time.monotonic() + timeout
     base_headers = {
         "User-Agent": user_agent or _DEFAULT_USER_AGENT,
         "Accept": _DEFAULT_ACCEPT,
         "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, identity",
     }
     if headers:
         base_headers.update(headers)
@@ -105,6 +119,8 @@ def safe_http_get(
             transport=transport,
         ) as client:
             for _hop in range(max_redirects + 1):
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("HTTP request deadline exceeded")
                 resolution, reason = resolve_safe_url_for_connect(current)
                 if resolution is None:
                     from primr.utils.security import redact_url_for_log
@@ -118,16 +134,19 @@ def safe_http_get(
                     return None, None, None
                 # ``params`` belong to the caller's URL only; a redirect target
                 # carries its own query string, so they are not re-applied.
-                resp = client.get(
+                with client.stream(
+                    "GET",
                     resolution.request_url,
                     params=params if current == url else None,
                     headers=_request_headers(base_headers, resolution),
                     extensions=_request_extensions(resolution),
-                )
-                if resp.is_redirect and "location" in resp.headers:
-                    current = urljoin(current, resp.headers["location"])
-                    continue
-                return resp.status_code, resp.content, current
+                    timeout=max(0.001, deadline - time.monotonic()),
+                ) as resp:
+                    if resp.is_redirect and "location" in resp.headers:
+                        current = urljoin(current, resp.headers["location"])
+                        continue
+                    body = read_bounded_body(resp, max_body_bytes, deadline)
+                    return resp.status_code, body, current
         logger.info("%s: too many redirects starting from %s", log_prefix, url)
         return None, None, None
     except Exception as exc:

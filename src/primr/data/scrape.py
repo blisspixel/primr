@@ -32,6 +32,7 @@ from primr.data.scraping.org_profile import classify_organization_type
 from primr.data.scraping.tier_registry import get_available_tiers
 from primr.utils import url_helpers as url_tools
 from primr.utils.console import console
+from primr.utils.files import get_safe_path, sanitize_filename
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("scrape")
@@ -1060,9 +1061,8 @@ def fetch_web_content(
                 try:
                     structured = extract_structured_content(result.raw_content, page_url)
                     structured_cache[normalized] = structured
-                    safe_name = path.replace("/", "_").strip("_") or "page"
-                    safe_name = safe_name[:50]
-                    raw_file = os.path.join(raw_folder, f"{safe_name}.txt")
+                    safe_name = sanitize_filename(path, max_length=50)
+                    raw_file = get_safe_path(Path(raw_folder), f"page_{safe_name}.txt")
                     write_executor.submit(
                         _write_raw_file, raw_file, page_url, result.tier, structured
                     )
