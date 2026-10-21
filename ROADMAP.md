@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.20
+Current State: v1.39.21
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -53,7 +53,7 @@ releases inside a band; only cut the major when its pillars hold together.
 
 | Band | Theme | Why this order |
 |------|--------|----------------|
-| **v1.39.x** (current) | Operator polish, security floors, routing honesty, maintainable stage ownership | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. v1.39.20 adds current runtime/model support, truthful operator and Word presentation, and acyclic research ownership to the maintained security baseline. |
+| **v1.39.x** (current) | Operator polish, security floors, routing honesty, maintainable stage ownership | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. v1.39.21 adds owned artifact reuse, bounded HTTP decoding, safe Windows scrape paths, and QA/cloud integration fixes to the maintained security baseline. |
 | **v1.40** | Epistemic and analyst-quality readiness | Hard gates, report-quality changes, and hybrid-routing promotions need a fully decidable production corpus for the bare company-and-website run first; without it, quality claims are vibes. |
 | **v1.41** | Backend freedom: measured host promotion + OpenRouter gateway + residual dual-provider cleanup | Unlocks honest OpenAI-only / Anthropic-only / OpenRouter / host / local profiles; depends on 1.40 instruments to judge backends. |
 | **v1.42** | Agent control-plane finish (MCP Tasks, remaining watch items) | Agents can already estimate/approve/read compact artifacts; finish long-running job lifecycle and parity so unattended delegation is safe. |
@@ -76,6 +76,8 @@ utility/reasoning routes without promoting quality or backend readiness.
 v1.39.20 completes the open operator-polish and source-quality backlog, updates
 the maintained runtime and model catalog, and strengthens dependency and
 reporting controls. It does not promote an unmeasured report-quality gate.
+v1.39.21 follows with artifact authorization and bounded collection fixes, plus
+QA and cloud-runner compatibility repairs.
 The ordered work and exit criteria live in the [execution brief](docs/NEXT_STEPS.md). A
 candidate version is not a delivery promise and is changed before release if
 the accepted scope requires a different semantic version.
@@ -2197,6 +2199,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.21 | Oct 2026 | **Artifact authority and bounded collection.** Require current-job ownership for remote file reuse, retain exact ownership for generated strategies and plans, confine QA snapshots, bound HTTP transfer and decompression, protect Windows raw scrape filenames, and repair QA and cloud CLI integration. |
 | 1.39.20 | Oct 2026 | **Security, operator polish, and maintainability.** Raise the MCP session-resource security floor, support maintained Python 3.11-3.15 and current Gemini models, preserve exact captured evidence, show truthful keyless/provider states and collection counts, use accessible Word evidence labels, remove first-party import cycles, and enable reviewed grouped dependency proposals. |
 | 1.39.19 | Oct 2026 | **Provider-specific model retirement guards.** OpenRouter Gemini 2.5 routes reject requests from their published expiration date, custom-priced selections retain the same guard, and request extensions cannot bypass model checks. Direct Gemini settings and the pilot judge use configured utility/reasoning models. |
 | 1.39.18 | Oct 2026 | **OpenRouter utility successor, redirect honesty, and prep completeness.** The default utility model is google/gemini-3.1-flash-lite before google/gemini-2.5-flash-lite expires. Redirects request each urljoin Location after the existing scheme, credential, and private-network checks. Prep is completed only when current first-party pages were captured. Section writing takes its callbacks from the coordinator, and the largest import cycle is 10 modules. |

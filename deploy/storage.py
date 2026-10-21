@@ -26,7 +26,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 # Import manifest types
 from deploy.manifest import JobManifest, ManifestAlreadyExistsError
@@ -842,7 +842,7 @@ def create_store(url: str, deployment: str = "default") -> ArtifactStore:
     if parsed.scheme == "file":
         # file:// URL - extract the path
         # On Windows, file:///C:/path becomes /C:/path, need to strip leading /
-        path = parsed.path
+        path = unquote(parsed.path)
         if path.startswith("/") and len(path) > 2 and path[2] == ":":
             path = path[1:]  # Remove leading / for Windows paths
         return LocalStore(path, deployment)
