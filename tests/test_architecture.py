@@ -101,7 +101,6 @@ INTENTIONAL_TINY_MODULES: dict[str, str] = {
     "data/fallback_types.py": "fallback result and HTTP callback protocol boundary",
     "mcp_server/cost_caps.py": "transport-independent cost-cap enforcement policy",
     "mcp_server/cloud_detect.py": "cloud-runtime adapter",
-    "mcp_server/qa_operations.py": "shared QA operation boundary",
     "mcp_server/resource_summary_utils.py": "compact resource-summary policy",
     "mcp_server/server_context.py": "cross-transport structural context",
     "mcp_server/worker_environment.py": "least-privilege worker environment boundary",

@@ -29,6 +29,11 @@ from primr.mcp_server.approval_tokens import (
     issue_approval_token,
     skill_pack_approval_args,
 )
+from primr.mcp_server.artifact_auth import (
+    register_generated_artifacts,
+    validate_artifact_destination,
+    validate_artifact_input,
+)
 from primr.mcp_server.server_context import MCPServerContext
 from primr.skill_pack.config import (
     DEFAULT_MAX_COST_PER_ROLE_USD,
@@ -421,7 +426,7 @@ def _validate_from_jd_path(
     if not from_jd_path:
         return None, None
 
-    jd_result = mcp_server.path_validator.validate(from_jd_path)
+    jd_result = validate_artifact_input(mcp_server, from_jd_path)
     if not jd_result.valid or jd_result.resolved_path is None:
         return (
             None,
@@ -456,7 +461,7 @@ def _prepare_from_plan_path(
     mcp_server: MCPServerContext,
 ) -> tuple[str | None, RolePlan | None, TextContent | None]:
     """Resolve, contain, load, and curate one MCP saved-plan snapshot."""
-    plan_result = mcp_server.path_validator.validate(from_plan_path)
+    plan_result = validate_artifact_input(mcp_server, from_plan_path)
     if not plan_result.valid or plan_result.resolved_path is None:
         return (
             None,
@@ -687,6 +692,12 @@ async def _handle_generate_skill_pack(
         return [_error_response(f"Invalid config: {exc}")]
     formats_value = str(arguments.get("formats") or SkillPackFormat.BOTH.value)
     destination = arguments.get("destination") or "output"
+    dest_result = validate_artifact_destination(
+        mcp_server, destination, default=not bool(arguments.get("destination"))
+    )
+    if not dest_result.valid or dest_result.resolved_path is None:
+        return [_error_response(f"destination rejected: {dest_result.error_message}")]
+    output_dir = dest_result.resolved_path
     max_cost = arguments.get("max_estimated_cost_usd")
     allow_recon_only = bool(arguments.get("allow_recon_only") or False)
     emit_agent_metadata = bool(arguments.get("emit_agent_metadata") or False)
@@ -806,7 +817,7 @@ async def _handle_generate_skill_pack(
         # every other path-taking MCP tool uses. Previously report_path was
         # resolved straight from caller input, letting an authenticated client
         # point the run at any server-side directory.
-        path_result = mcp_server.path_validator.validate(report_path)
+        path_result = validate_artifact_input(mcp_server, report_path, directory=True)
         if not path_result.valid or path_result.resolved_path is None:
             return [
                 _error_response(
@@ -842,7 +853,7 @@ async def _handle_generate_skill_pack(
 
     # Destination is caller-controlled too — contain it to allowed roots before
     # creating directories and writing the SKILL.md tree / Cowork zip / report.
-    dest_result = mcp_server.path_validator.validate(destination)
+    dest_result = mcp_server.path_validator.validate(str(output_dir))
     if not dest_result.valid or dest_result.resolved_path is None:
         return [
             _error_response(f"destination rejected: {dest_result.error_message or 'invalid path'}")
@@ -861,6 +872,10 @@ async def _handle_generate_skill_pack(
             output_dir=output_dir,
             prepared_plan=prepared_plan,
         )
+        generated = [artifacts.report_md_path, artifacts.cowork_zip_path, *artifacts.skill_md_paths]
+        if pack.plan:
+            generated.extend([pack.plan.plan_md_path, pack.plan.plan_json_path])
+        register_generated_artifacts(mcp_server, generated)
     except (FileNotFoundError, ValueError, RuntimeError, OSError) as exc:
         return [_pipeline_error_response(exc)]
     except Exception as exc:

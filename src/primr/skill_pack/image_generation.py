@@ -337,6 +337,7 @@ def _fetch_provider_image_url(url_value: str, timeout: float = 120.0) -> bytes:
         url_value,
         timeout=timeout,
         log_prefix="skill-pack-image",
+        max_body_bytes=MAX_PROVIDER_IMAGE_BYTES,
     )
     if status_code is None or content is None:
         raise RuntimeError("Image provider URL was blocked or unreachable during guarded fetch")

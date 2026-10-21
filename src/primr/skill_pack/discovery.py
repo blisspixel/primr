@@ -15,9 +15,15 @@ from __future__ import annotations
 
 import logging
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
+from primr.core.trusted_report import (
+    ReportSnapshotError,
+    stable_report_snapshot,
+    validate_trusted_report,
+)
 from primr.skill_pack.archetypes import load_archetypes
 from primr.skill_pack.prompts_loader import extract_json, load_skill_pack_prompt
 from primr.skill_pack.role_brief import (
@@ -100,9 +106,16 @@ def _read_first_existing(base_dir: Path, candidates: list[str]) -> str | None:
         path = base_dir / relative
         if path.exists() and path.is_file():
             try:
-                return path.read_text(encoding="utf-8", errors="replace")
-            except OSError as exc:
-                logger.warning("Could not read %s: %s", path, exc)
+                report = validate_trusted_report(
+                    path, allowed_roots=[base_dir], max_bytes=2_000_000
+                )
+                with (
+                    tempfile.TemporaryDirectory(prefix="primr-skill-evidence-") as directory,
+                    stable_report_snapshot(report, directory) as snapshot,
+                ):
+                    return snapshot.read_text(encoding="utf-8", errors="replace")
+            except (OSError, ReportSnapshotError) as exc:
+                raise ValueError("Evidence must be a bounded, regular, non-linked file") from exc
     return None
 
 

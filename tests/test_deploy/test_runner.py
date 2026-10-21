@@ -447,6 +447,42 @@ class TestSIGTERMHandling:
 class TestBuildPrimrCommand:
     """Tests for building primr CLI command."""
 
+    @pytest.mark.parametrize(
+        "name", ["doctor", "improve", "refine", "calibrate", "company", "init"]
+    )
+    def test_reserved_company_name_cannot_dispatch_a_command(self, tmp_path, name):
+        spec = JobSpec("job", "prod", "run", 1, name, "https://example.com", "full")
+        with pytest.raises(ValueError, match="reserved CLI command"):
+            build_primr_command(spec, tmp_path)
+
+    @pytest.mark.parametrize(
+        "name", ["--qa=/private/report.txt", "--test-accordion=topic", "ExampleCo"]
+    )
+    def test_company_name_remains_positional(self, tmp_path, name):
+        from primr.core.cli import parse_args
+
+        spec = JobSpec("job", "prod", "run", 1, name, "https://example.com", "full")
+        cmd = build_primr_command(spec, tmp_path)
+        config = parse_args(cmd[3:])
+        assert config.company_name == name
+        assert config.website == "https://example.com"
+        assert config.command.value == "research"
+
+    @pytest.mark.parametrize("vendor", ["--qa=/private/report.txt", ["aws"], {"aws": True}])
+    def test_invalid_vendor_cannot_select_cli_options(self, tmp_path, vendor):
+        spec = JobSpec(
+            "job",
+            "prod",
+            "run",
+            1,
+            "ExampleCo",
+            "https://example.com",
+            "full",
+            {"cloud_vendor": vendor},
+        )
+        with pytest.raises(ValueError, match="Invalid cloud_vendor"):
+            build_primr_command(spec, tmp_path)
+
     def test_basic_command(self, tmp_path):
         """Test basic command generation."""
         spec = JobSpec(
@@ -464,7 +500,9 @@ class TestBuildPrimrCommand:
         assert "Test Co" in cmd
         assert "https://test.example" in cmd
         assert "--mode" in cmd
-        assert "complete" in cmd  # full maps to complete
+        from primr.core.cli import parse_args
+
+        assert parse_args(cmd[3:]).mode == "complete"
         assert "--skip-confirm" in cmd
 
     def test_scrape_mode_mapping(self, tmp_path):
@@ -481,7 +519,9 @@ class TestBuildPrimrCommand:
 
         cmd = build_primr_command(spec, tmp_path)
 
-        assert "scrape-only" in cmd
+        from primr.core.cli import parse_args
+
+        assert parse_args(cmd[3:]).mode == "scrape-only"
 
     def test_deep_mode_mapping(self, tmp_path):
         """Test that deep mode maps to deep-research."""
@@ -497,7 +537,9 @@ class TestBuildPrimrCommand:
 
         cmd = build_primr_command(spec, tmp_path)
 
-        assert "deep-research" in cmd
+        from primr.core.cli import parse_args
+
+        assert parse_args(cmd[3:]).mode == "deep-research"
 
     def test_options_included(self, tmp_path):
         """Test that options are included in command."""
@@ -517,6 +559,25 @@ class TestBuildPrimrCommand:
         assert "--cloud-vendor" in cmd
         assert "aws" in cmd
         assert "--no-qa" in cmd
+
+
+@pytest.mark.parametrize("as_uri", [False, True])
+def test_runner_uses_the_local_stores_effective_directory(tmp_path, monkeypatch, as_uri):
+    from deploy import runner
+
+    root = tmp_path / "artifacts with spaces"
+    spec = JobSpec("job", "prod", "run", 1, "ExampleCo", "https://example.com", "full")
+    monkeypatch.setenv("ARTIFACT_STORE_URL", root.as_uri() if as_uri else str(root))
+    monkeypatch.setattr(runner, "parse_job_spec", lambda: spec)
+    monkeypatch.setattr(runner, "setup_signal_handlers", lambda: None)
+    with (
+        patch.object(
+            runner, "StructuredLogger", side_effect=RuntimeError("stop before execution")
+        ) as log,
+        pytest.raises(RuntimeError, match="stop before execution"),
+    ):
+        runner.main()
+    assert log.call_args.args[0] == root / "prod" / "job" / "_logs" / "runner.jsonl"
 
 
 class TestStructuredLogger:

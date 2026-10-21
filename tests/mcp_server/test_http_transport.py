@@ -291,6 +291,79 @@ async def test_explicit_ingress_requires_auth_and_allows_configured_origin(tmp_p
 
 
 @pytest.mark.asyncio
+async def test_authenticated_http_qa_enforces_owner_and_report_scope(tmp_path, monkeypatch):
+    import secrets
+    import time
+
+    from primr.mcp_server.security import PathValidator
+    from primr.mcp_server.types import ResearchStage
+    from tests.mcp_server.test_auth import create_signed_jwt
+
+    secret = secrets.token_hex(32)
+    monkeypatch.setenv("MCP_JWT_SECRET", secret)
+    monkeypatch.delenv("MCP_JWT_ISSUER", raising=False)
+    monkeypatch.delenv("MCP_JWT_AUDIENCE", raising=False)
+    server = create_mcp_server(
+        transport="streamable-http",
+        journal_path=str(tmp_path / "journal.json"),
+        skip_background_tasks=True,
+    )
+    root = tmp_path / "output"
+    root.mkdir()
+    server.path_validator = PathValidator([str(root)])
+    job = server.job_store.create("ExampleCo", "full", owner_client_id="owner")
+    report = root / job.job_id / "report.md"
+    report.parent.mkdir()
+    report.write_text("# ExampleCo", encoding="utf-8")
+    job.output_paths = [str(report)]
+    job.advance_stage(ResearchStage.COMPLETED)
+    server.job_store.update(job)
+    with (
+        patch.object(server, "_setup_signal_handlers"),
+        patch("primr.mcp_server.server.configure_http_logging"),
+        patch("uvicorn.Server") as runner,
+    ):
+        runner.return_value.serve = AsyncMock()
+        await server.run_http()
+    app = runner.call_args.args[0].app
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
+        ) as client,
+    ):
+        with patch(
+            "primr.mcp_server.qa_operations.run_qa_analysis", new_callable=AsyncMock
+        ) as analyze:
+            analyze.return_value = {"overall_score": 91}
+            for owner, scopes, allowed in [
+                ("foreign", "research report", False),
+                ("owner", "research", False),
+                ("owner", "research report", True),
+            ]:
+                token = create_signed_jwt(
+                    {"sub": owner, "scope": scopes, "exp": int(time.time()) + 60}, secret
+                )
+                response = await client.post(
+                    "/mcp/",
+                    json=_request(
+                        "tools/call", {"name": "run_qa", "arguments": {"report_path": str(report)}}
+                    ),
+                    headers=_headers(
+                        Authorization=f"Bearer {token}",
+                        **{"Mcp-Method": "tools/call", "Mcp-Name": "run_qa"},
+                    ),
+                )
+                assert response.status_code == 200, response.text
+                payload = json.loads(_payload(response)["result"]["content"][0]["text"])
+                if allowed:
+                    assert payload == {"overall_score": 91}
+                else:
+                    assert payload["error_type"] == "artifact_access_denied"
+            analyze.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_legacy_initialize_and_session_request(tmp_path):
     app = await _app(tmp_path, require_auth=False)
     async with (

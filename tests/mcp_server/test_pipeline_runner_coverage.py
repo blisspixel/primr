@@ -270,16 +270,36 @@ class TestRunStrategyGeneration:
 class TestRunQAAnalysis:
     @pytest.mark.asyncio
     async def test_returns_scores(self, tmp_path):
+        from datetime import datetime
+
+        from primr.qa.models import (
+            CitationCheckResult,
+            ClassifiedIssue,
+            CompletenessCheckResult,
+            ConfidenceAssessment,
+            IssueType,
+            LogicCheckResult,
+            QAAnalysis,
+            Severity,
+        )
+
         report = tmp_path / "report.md"
         report.write_text("# report", encoding="utf-8")
 
-        analysis = SimpleNamespace(
+        analysis = QAAnalysis(
             overall_score=88.0,
-            completeness_score=90.0,
-            accuracy_score=85.0,
-            clarity_score=80.0,
-            actionability_score=75.0,
-            issues=[SimpleNamespace(description="fix this")],
+            section_scores={"Introduction": 90},
+            citation_check=CitationCheckResult(1, 1, [], [], 85),
+            logic_check=LogicCheckResult([], [], 80),
+            completeness_check=CompletenessCheckResult([], [], [], 90),
+            confidence_assessment=ConfidenceAssessment({}, 75),
+            issues=[
+                ClassifiedIssue(
+                    IssueType.COMPLETENESS, Severity.LOW, "Introduction", "fix this", "L1"
+                )
+            ],
+            timestamp=datetime.now(),
+            model_used="test",
         )
         with (
             patch("primr.qa.report_loader.ReportLoader") as MockLoader,
@@ -289,9 +309,15 @@ class TestRunQAAnalysis:
             MockAnalyzer.return_value.analyze_report.return_value = analysis
             result = await run_qa_analysis(str(report))
 
-        MockLoader.return_value.load_report_from_path.assert_called_once_with(report)
+        call = MockLoader.return_value.load_report_from_path.call_args
+        assert call.kwargs == {"display_path": report}
+        assert call.args[0] != report
+        assert not call.args[0].exists()
         assert result["overall_score"] == 88.0
         assert result["category_scores"]["completeness"] == 90.0
+        assert result["category_scores"]["citation_accuracy"] == 85
+        assert result["category_scores"]["logical_consistency"] == 80
+        assert result["category_scores"]["confidence"] == 75
         assert result["improvement_suggestions"] == ["fix this"]
 
     @pytest.mark.asyncio

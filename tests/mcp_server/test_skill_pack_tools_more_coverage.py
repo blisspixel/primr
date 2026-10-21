@@ -65,6 +65,8 @@ def _mcp_server_for(arguments):
         if rp == tmp_base or tmp_base in rp.parents:
             roots.append(str(rp))
     server = MagicMock()
+    server.transport = "stdio"
+    server._auth_context = None
     server.path_validator = PathValidator(allowed_roots=roots)
     return server
 

@@ -481,29 +481,31 @@ def build_primr_command(job_spec: JobSpec, output_dir: Path) -> list[str]:
         sys.executable,
         "-m",
         "primr",
-        job_spec.company_name,
-        job_spec.company_url,
         "--output-dir",
         str(output_dir),
         "--skip-confirm",  # Non-interactive
     ]
 
-    # Map job mode to primr mode
-    mode_map = {
-        "scrape": "scrape-only",
-        "deep": "deep-research",
-        "full": "complete",
-    }
-    primr_mode = mode_map.get(job_spec.mode, "complete")
-    cmd.extend(["--mode", primr_mode])
+    cmd.extend(["--mode", job_spec.mode])
 
     # Add options
     options = job_spec.options
-    if options.get("cloud_vendor"):
-        cmd.extend(["--cloud-vendor", options["cloud_vendor"]])
+    vendor = options.get("cloud_vendor")
+    if vendor:
+        if vendor not in ("azure", "aws", "gcp", "agnostic", "private"):
+            raise ValueError("Invalid cloud_vendor")
+        cmd.extend(["--cloud-vendor", vendor])
     if options.get("no_qa"):
         cmd.append("--no-qa")
 
+    cmd.extend(["--", job_spec.company_name, job_spec.company_url])
+    # The CLI also recognizes positional command names after option parsing.
+    # Use its own dispatcher to fail closed before launching an unrelated task.
+    from primr.core.cli import parse_args
+    from primr.core.cli_contract import Command
+
+    if parse_args(cmd[3:]).command is not Command.RESEARCH:
+        raise ValueError("Company name selects a reserved CLI command")
     return cmd
 
 
@@ -686,7 +688,7 @@ def main() -> int:
     # For local stores, we also need a local output directory for primr
     # For cloud stores, we use a temp directory and upload artifacts after
     if isinstance(store, LocalStore):
-        output_dir = Path(artifact_store_url) / job_spec.deployment / job_spec.job_id
+        output_dir = store.base_path / store.deployment / job_spec.job_id
     else:
         output_dir = Path(tempfile.mkdtemp(prefix=f"primr_{job_spec.job_id}_"))
 

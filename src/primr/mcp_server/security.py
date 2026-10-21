@@ -24,6 +24,7 @@ def _utcnow() -> datetime:
 
 import contextlib
 
+from primr.utils.fs_safety import path_contains_link_or_reparse_point
 from primr.utils.url_security import redact_url_for_log, resolve_safe_url_for_connect
 
 logger = logging.getLogger(__name__)
@@ -192,7 +193,13 @@ class PathValidator:
                 else:
                     candidate = root / input_path
 
-                # Resolve without following symlinks
+                # Inspect the supplied spelling before resolve() erases aliases.
+                if path_contains_link_or_reparse_point(candidate):
+                    return PathValidationResult(
+                        valid=False,
+                        error_type="path_traversal_blocked",
+                        error_message="Path contains links or reparse points",
+                    )
                 try:
                     resolved = candidate.resolve(strict=False)
                 except (OSError, ValueError):

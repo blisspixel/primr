@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.21] - 2026-10-20
+
+### Security
+
+- Require report scope and current-job ownership before remote QA, strategy,
+  and skill-pack tools reuse local artifacts. Confine A2A QA inputs to the same
+  roots as MCP and process bounded stable snapshots. Check linked paths before
+  resolution, protect nested evidence/JD/plan reads, and isolate remote output
+  destinations. Trusted local artifact reuse remains available.
+- Bound fallback HTTP transfers and decoded bodies before buffering, including
+  gzip and deflate expansion. Close redirect bodies unread and check the fetch
+  deadline between raw reads. Apply the image byte cap at the network seam.
+- Sanitize URL-derived raw-scrape filenames for Windows path, drive, and stream
+  syntax and keep writes beneath the run's raw-scrape directory.
+
+### Fixed
+
+- Serialize QA's actual component scores, preserve report identity during
+  snapshotting, and run synchronous QA work outside the controller event loop.
+- Canonicalize retained artifact paths through the same validator as caller
+  inputs so trusted macOS temporary-directory aliases preserve ownership.
+- Keep cloud job company names positional, reject reserved commands, validate
+  vendor options, and pass supported public research modes to the CLI. Resolve
+  local runner output through the parsed artifact store, including escaped file
+  URIs, and align MCP file roots with configured report/working directories.
+
 ## [1.39.20] - 2026-10-20
 
 ### Security

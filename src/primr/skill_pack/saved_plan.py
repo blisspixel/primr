@@ -10,9 +10,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
 from pathlib import Path
 from typing import Any
 
+from primr.core.trusted_report import (
+    ReportSnapshotError,
+    stable_report_snapshot,
+    validate_trusted_report,
+)
 from primr.skill_pack.config import MAX_ROLES
 from primr.skill_pack.curation import apply_curation
 from primr.skill_pack.schema import (
@@ -130,9 +136,17 @@ def saved_plan_approval_basis(plan: RolePlan) -> tuple[str, int]:
 def load_plan(json_path: Path) -> RolePlan:
     """Load and strictly validate a previously persisted role plan."""
     try:
-        with json_path.open("rb") as handle:
-            raw_bytes = handle.read(MAX_SAVED_PLAN_BYTES + 1)
-    except OSError as exc:
+        if json_path.stat().st_size > MAX_SAVED_PLAN_BYTES:
+            raise SavedPlanValidationError(
+                f"Saved role plan exceeds the {MAX_SAVED_PLAN_BYTES}-byte input limit."
+            )
+        report = validate_trusted_report(json_path, max_bytes=MAX_SAVED_PLAN_BYTES)
+        with (
+            tempfile.TemporaryDirectory(prefix="primr-saved-plan-") as directory,
+            stable_report_snapshot(report, directory) as snapshot,
+        ):
+            raw_bytes = snapshot.read_bytes()
+    except (OSError, ReportSnapshotError) as exc:
         raise RuntimeError(f"Could not read role plan at {json_path}: {exc}") from exc
     if len(raw_bytes) > MAX_SAVED_PLAN_BYTES:
         raise SavedPlanValidationError(

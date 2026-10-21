@@ -77,6 +77,7 @@ def test_fetch_provider_image_url_uses_guarded_fetch_for_redirects() -> None:
         "https://cdn.example/generated.png",
         timeout=120.0,
         log_prefix="skill-pack-image",
+        max_body_bytes=MAX_PROVIDER_IMAGE_BYTES,
     )
 
 

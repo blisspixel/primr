@@ -46,12 +46,14 @@ from primr.mcp_server.approval_tokens import (
     research_approval_args,
     strategy_approval_args,
 )
+from primr.mcp_server.artifact_auth import validate_artifact_destination
 from primr.mcp_server.audit_log import audit_tool_calls
 from primr.mcp_server.cloud_diagnostics import get_cloud_diagnostics as _get_cloud_diagnostics
 from primr.mcp_server.job_responses import build_job_response, include_artifacts_requested
 from primr.mcp_server.job_store import JobInProgressError, ResearchJobState
 from primr.mcp_server.job_tools import handle_cancel_job as _handle_cancel_job
 from primr.mcp_server.platforms import normalize_platform
+from primr.mcp_server.qa_tool_handler import handle_run_qa as _handle_run_qa
 from primr.mcp_server.research_policy import (
     build_research_estimate as _build_research_estimate,
 )
@@ -345,7 +347,7 @@ async def _handle_research_company(
     # destination is documented as output/-scoped, so validate it through the
     # same path guard used for report_path tools before mkdir()/copy2().
     if destination is not None:
-        dest_result = mcp_server.path_validator.validate(destination, client_id)
+        dest_result = validate_artifact_destination(mcp_server, destination)
         if not dest_result.valid:
             return [
                 TextContent(
@@ -599,83 +601,6 @@ async def _handle_check_jobs(
             text=json.dumps({"jobs": jobs}),
         )
     ]
-
-
-async def _handle_run_qa(
-    mcp_server: MCPServerContext,
-    arguments: dict[str, Any],
-) -> list[TextContent]:
-    """
-    Handle run_qa tool.
-
-    Requirements: 8.1-8.6
-    """
-    import json
-
-    report_path = arguments.get("report_path")
-
-    # Validate path
-    path_result = mcp_server.path_validator.validate(report_path)
-    if not path_result.valid:
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "error": True,
-                        "error_type": path_result.error_type,
-                        "error_code": MCPErrorCode.PATH_TRAVERSAL_BLOCKED,
-                        "message": path_result.error_message,
-                    }
-                ),
-            )
-        ]
-
-    # Check if file exists
-    if not path_result.resolved_path.exists():
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "error": True,
-                        "error_type": "report_not_found",
-                        "error_code": MCPErrorCode.REPORT_NOT_FOUND,
-                        "message": f"Report not found: {report_path}",
-                    }
-                ),
-            )
-        ]
-
-    # Run QA analysis
-    try:
-        from primr.mcp_server.qa_operations import run_qa_analysis
-
-        result = await run_qa_analysis(str(path_result.resolved_path))
-
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(result),
-            )
-        ]
-
-    except Exception:
-        # Same rationale as the strategy-generation handler: keep the
-        # full traceback in the server log, return a generic message.
-        logger.exception("QA analysis failed")
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "error": True,
-                        "error_type": "qa_analysis_failed",
-                        "message": "QA analysis failed (see server logs)",
-                    }
-                ),
-            )
-        ]
 
 
 async def _handle_doctor(

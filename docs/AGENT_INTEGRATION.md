@@ -40,6 +40,15 @@ human runs it directly in a terminal.
 
 ## Operating Rules
 
+For authenticated remote MCP/A2A clients, QA and existing-artifact generation
+require both `research` and `report` authority. Only artifacts of the currently
+retained owned job can be reused. Skill-pack directory reuse must stay in its
+dedicated job directory, including any JD or saved-plan inputs. Unknown and
+historical server files need a local operator workflow. Omit a standalone
+skill-pack destination to receive an isolated server-selected folder; explicit
+remote destinations must belong to the caller's current job. These restrictions
+apply in addition to the normal estimate and approval gates.
+
 Any explicitly billable agent-driven Primr run must follow this lifecycle:
 
 1. Estimate the exact run.
