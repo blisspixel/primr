@@ -43,10 +43,10 @@ jobs:
         timeout-minutes: 5
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          version: "0.11.33"
+          version: "0.13.5"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-          cache-suffix: ${{ runner.os }}-py${{ matrix.python-version }}
+          cache-suffix: emsign-fixed-${{ runner.os }}-py${{ matrix.python-version }}
 
       - name: Set up Python ${{ matrix.python-version }}
         timeout-minutes: 10
@@ -294,10 +294,10 @@ jobs:
         timeout-minutes: 5
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          version: "0.11.33"
+          version: "0.13.5"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-          cache-suffix: ${{ runner.os }}-py3.15-cross-platform
+          cache-suffix: emsign-fixed-${{ runner.os }}-py3.15-cross-platform
 
       - name: Set up Python 3.15
         timeout-minutes: 10
@@ -341,10 +341,10 @@ jobs:
         timeout-minutes: 5
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          version: "0.11.33"
+          version: "0.13.5"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-          cache-suffix: ${{ runner.os }}-py3.15-a2a
+          cache-suffix: emsign-fixed-${{ runner.os }}-py3.15-a2a
 
       - name: Set up Python 3.15
         timeout-minutes: 10
@@ -400,7 +400,7 @@ jobs:
           persist-credentials: false
 
       - name: Build job runner image
-        run: docker build --file deploy/Dockerfile --tag primr-job-runner:ci .
+        run: docker build --pull --no-cache --file deploy/Dockerfile --tag primr-job-runner:ci .
 
       - name: Smoke test job runner imports
         run: >-
@@ -415,7 +415,7 @@ jobs:
           cp pyproject.toml MANIFEST.in README.md "$context/"
           cp -R src "$context/src"
           cp deploy/build-requirements.lock deploy/runtime-requirements.lock "$context/deploy/"
-          docker build --file "$context/Dockerfile.primr" --tag primr-openclaw:ci "$context"
+          docker build --pull --no-cache --file "$context/Dockerfile.primr" --tag primr-openclaw:ci "$context"
 
       - name: Smoke test OpenClaw CLI entry points
         run: >-

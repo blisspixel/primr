@@ -15,6 +15,9 @@
 # =============================================================================
 FROM python:3.15-slim@sha256:2da676046630d7bf14c6764ae1143dc7fa0377a53f94bf5a642f0b214aca5bce AS builder
 
+# Hash-bootstrap pip before using its vendored TLS trust store.
+RUN python -m pip install --no-cache-dir --no-deps "https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
+
 WORKDIR /build
 
 # Install the exact, hash-verified build toolchain exported from uv.lock.
@@ -55,6 +58,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /build/dist/*.whl /app/
 COPY deploy/build-requirements.lock /app/build-requirements.lock
 COPY deploy/runtime-requirements.lock /app/runtime-requirements.lock
+
+RUN python -m pip install --no-cache-dir --no-deps "https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
 
 # Install only hash-verified locked dependencies, then the locally built wheel.
 # The build toolchain supports the small number of locked source distributions

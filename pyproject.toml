@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.39.23"
+version = "1.39.24"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = "Apache-2.0"
@@ -190,6 +190,8 @@ docs = [
 
 [dependency-groups]
 release = [
+    # Installer used by the exported container build toolchain.
+    "pip>=26.2.2",
     "build>=1.2.2",
     "cyclonedx-bom>=7.0.0",
     "setuptools>=77.0",
@@ -241,9 +243,11 @@ constraint-dependencies = [
     "PyJWT>=2.15.1",
     "soupsieve>=2.9.0",
     # Environment-name activation and POSIX launcher quoting fixes.
-    "virtualenv>=21.14.9",
+    "virtualenv>=21.14.12",
     # Older vendored parsers import sre_constants, removed in Python 3.15.
     "pip-api>=0.0.35",
+    # pip vendors its own CA bundle, independent of application certifi.
+    "pip>=26.2.2",
 ]
 
 [tool.ruff]

@@ -1,6 +1,6 @@
 # Provider Expansion: OpenAI, Anthropic, Billing-Verifiable Hosts, Gateways, and Local
 
-Status: STARTED (provider facts refreshed September 1, 2026; Responses
+Status: STARTED (provider facts refreshed October 22, 2026; Responses
 adapters, governed OpenRouter preview, explicitly gated Codex experiment, and
 host-native handoff shipped; full recipe promotions remain eval-gated)
 ROADMAP anchor: Active Queue #26. Companion to
@@ -28,7 +28,7 @@ will route over.
    OpenAI-compatible servers only; no platform-specific code. (vLLM has no
    Windows support; that is the server operator's concern, not primr's,
    because primr only speaks the protocol.)
-5. **Current models only.** August 2026 model generations below; never
+5. **Current catalogs, evaluated defaults.** Verified model generations below; never
    register a superseded model as a default. Re-verify IDs at
    implementation time against provider docs (the registry refresh is
    cheap; shipping stale defaults is not).
@@ -59,10 +59,11 @@ will route over.
 
 ## Current state (what already exists in the codebase)
 
-- `Provider` ABC with xAI / Gemini / OpenAI / Anthropic / OpenRouter / Ollama providers;
+- `Provider` ABC with xAI, Gemini, OpenAI, Anthropic, OpenRouter, Ollama, Foundry,
+  and Bedrock providers;
   `pick_model_for_role` keeps the measured xAI/Gemini route first, then gives
   explicitly enabled OpenRouter precedence over unpromoted direct OpenAI and
-  Anthropic recipes. Current OpenAI GPT-5.6 and current Claude-family candidates are
+  Anthropic recipes. Current GPT-6 and Claude 5.5/Fable 5.1 candidates are
   registered, but they have not been validated as full-pipeline recipes. As of
   1.37.0, `ai/providers/azure_foundry.py` and `ai/providers/bedrock.py` also
   exist as real `Provider` classes registered in `KNOWN_PROVIDERS` — wired for
@@ -115,12 +116,12 @@ will route over.
 - The September 1, 2026 curated recipe uses Gemini 2.5 Flash Lite for utility,
   GPT-4.1 Mini for writing, and DeepSeek V3.2 for reasoning. The catalog rates
   and context limits are recorded in the central model registry.
-- As of 2026-10-12 the default utility model is `google/gemini-3.1-flash-lite`.
-  `google/gemini-2.5-flash-lite` retains its historical catalog row, but new
-  requests reject it from 2026-10-20 UTC. Explicit replacements need a fresh
-  estimate. The full-run dry run on October 12 displays about $1.07
-  (estimator total $1.0655). It does not assume prompt-cache savings and does
-  not include OpenRouter credit-purchase fees.
+- The default utility model remains `google/gemini-3.1-flash-lite`.
+  The October 22 gateway catalog still lists the three Gemini 2.5 base slugs,
+  now without the previously announced retirement dates. Their explicit
+  overrides are available again in the catalog; the separately absent batch
+  slugs retain their earlier dates. This does not promote the old utility
+  default or prove account-specific access.
 - Provider routing sends registered prompt/completion `max_price` ceilings,
   `require_parameters=true`, `data_collection=deny`, and ZDR by default.
   See OpenRouter's [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection),
@@ -131,20 +132,45 @@ will route over.
   is deliberately labeled preview until a representative full-report eval
   supports quality promotion.
 
-## Verified provider facts (August 13, 2026)
+## Verified provider facts (October 22, 2026)
+
+The catalog covers supported text/report execution and curated gateway models.
+It is a dated snapshot, not a promise to list every audio, image, restricted,
+preview, or alternate-endpoint model a vendor offers. Registration allows explicit
+selection; it does not establish account access, report quality, or a promotion.
+
+Rates below are USD per million standard text tokens. The estimator supports
+input, output, cached reads, declared long-context tiers, and conservative
+per-token write-price allowances when write-free usage cannot be established. Batch, priority,
+regional contracts, explicit cache writes/storage, and tool fees must be checked
+separately for the selected execution path. Explicit cache writes remain disabled
+until their estimation and metering gates are complete. No paid evaluation was
+performed for this catalog refresh.
 
 Primary sources are linked inline with the integration facts they support:
 
 ### OpenAI (direct)
 
-- Models: [GPT-5.6 Sol, Terra, and Luna](https://developers.openai.com/api/docs/models)
-  are $5/$30, $2/$12, and $0.20/$1.20 per MTok respectively.
-  Their cached-input prices are $0.50, $0.20, and $0.02. All three have 1.05M
-  context and 128K output. The older registered
-  family includes `gpt-5.5` ($5/$30), `gpt-5.4` ($2.50/$15),
-  `gpt-5.4-mini` ($0.75/$4.50), `gpt-5.4-nano` ($0.20/$1.25, 400K ctx).
-  Registered 1.05M-context entries include the current >272K long-context tier
-  metadata. GPT-5.6 reasoning effort adds `max` to none through xhigh.
+- The current [model catalog](https://developers.openai.com/api/docs/models)
+  and [standard prices](https://developers.openai.com/api/docs/pricing) are:
+
+  | Model | Input | Output | Cached input |
+  | --- | ---: | ---: | ---: |
+  | `gpt-6-astra` | $10 | $50 | $1 |
+  | `gpt-6.1-sol` | $2 | $10 | $0.10 |
+  | `gpt-6-sol` | $2 | $10 | $0.20 |
+  | `gpt-6-luna` | $0.10 | $0.50 | $0.01 |
+
+  These have 922,000 maximum input tokens and 128,000 maximum output tokens
+  inside the 1,050,000 shared context. Prompts above 272,000 tokens reprice the
+  full request at twice input/cache rates and 1.5 times output rates. Direct
+  OpenAI uses Responses, including for GPT-6.1 Sol tool calling. GPT-6.1 Sol
+  does not accept `none` or `minimal` reasoning effort.
+- Historical registrations remain selectable where available. GPT-5.6 Sol and
+  its unsuffixed alias now cost $4/$20, cached $0.40; the provider guarantees
+  its promotion at least through November 21, without publishing an exact end
+  date. Do not invent a scheduled price change. Terra remains $2/$12 and Luna
+  $0.20/$1.20. The o4-mini cached-input rate is $0.275, not an inferred $0.11.
 - Web search: `web_search` in the **Responses API** is
   [$10 per 1k calls](https://developers.openai.com/api/docs/pricing#tools)
   plus search-content tokens at model rates. Build new work on Responses; Chat
@@ -154,10 +180,16 @@ Primary sources are linked inline with the integration facts they support:
   [50% lower costs and a 24-hour completion window](https://developers.openai.com/api/docs/guides/batch).
   Primr does not currently route production stages through Batch.
 - Caching: GPT-5.6 cache writes cost 1.25x uncached input and current explicit
-  controls use `prompt_cache_options`. Primr records cache reads but does not
-  yet opt into explicit OpenAI cache writes or estimate their multiplier. Older
+  controls use `prompt_cache_options`. Current direct OpenAI requests use
+  explicit-only mode without breakpoints, preventing automatic paid writes and
+  prewarming. Foundry applies the same policy for declared GPT-5.6/6 pricing
+  references on Responses. Quotes include maximum published write-price allowances where absence of
+  writes cannot be proven. Token-derived recorded costs remain approximations
+  when write usage or lifetime is unavailable; a quote allowance is not actual
+  spend. Explicit write usage/TTL metering and savings validation
+  are still prerequisites to enabling a caching optimization. Older
   retention-field assumptions must not drive new behavior. See the
-  [GPT-5.6 guide](https://developers.openai.com/api/docs/guides/latest-model#prompt-caching).
+  [OpenAI model guide](https://developers.openai.com/api/docs/guides/latest-model#prompt-caching).
 - Deep research: OpenAI still documents
   [`o3-deep-research`](https://developers.openai.com/api/docs/models/o3-deep-research)
   and [`o4-mini-deep-research`](https://developers.openai.com/api/docs/models/o4-mini-deep-research)
@@ -176,8 +208,12 @@ Primary sources are linked inline with the integration facts they support:
   interaction references the store. Imported store data persists until manual
   deletion; raw File API uploads are deleted after 48 hours. See Google's
   [File Search guide](https://ai.google.dev/gemini-api/docs/file-search).
-- Gemini 3.7 Flash, 3.6 Flash, and 3.5 Flash-Lite are registered evaluation
-  candidates. Direct Gemini production defaults remain pinned. Primr omits
+- Gemini 4 Argon, 3.8 Flash, 3.6 Flash, and 3.5 Flash-Lite are registered
+  evaluation candidates. Argon is $2/$10, cached $0.10, through November 30,
+  then $4/$20, cached $0.20. Flash 3.8 is $0.75/$3.75, cached $0.075, through
+  December 31, then $1.50/$7.50, cached $0.15. Flash 3.5 and 3.7 are provider
+  aliases; their first observed accounting cutover stays October 20 when the
+  catalog is rechecked. Direct Gemini production defaults remain pinned. Primr omits
   unsupported sampling controls on these request paths, records explicit
   thinking levels, and applies Google's published January 1, 2027 price change
   to 3.6 and 3.7 by pricing date. Promotion still requires representative
@@ -185,20 +221,91 @@ Primary sources are linked inline with the integration facts they support:
   [latest-model migration guide](https://ai.google.dev/gemini-api/docs/latest-model)
   and [pricing page](https://ai.google.dev/gemini-api/docs/pricing).
 
+### xAI
+
+[Grok 4.7](https://docs.x.ai/developers/models/grok-4.7) is the current selectable
+flagship, with a 500K context. Standard input/output/cache rates are $2/$6/$0.50
+below 200,000 prompt tokens and $4/$12/$1 at or above 200,000, applied to the full
+request. Existing Grok 4.3 and 4.5 production pins remain evaluated defaults.
+
+### OpenRouter
+
+The [gateway models API](https://openrouter.ai/api/v1/models) is the authority for
+its own slugs, prices, context tiers and availability. Direct-provider rates are
+not copied into gateway rows. For example, gateway Gemini 3.8 Flash is now
+$0.825/$4.125, cached $0.0825, while direct Google remains $0.75/$3.75.
+
+The curated catalog includes GPT-6/6.1, Claude 5.5/Fable 5.1, Gemini 4 Argon,
+Grok 4.7, the October 17 DeepSeek V4.1 Flash snapshot and MiniMax M3.1 Flash.
+Existing DeepSeek, GLM, Qwen and Llama rows were rechecked against that endpoint.
+Three absent historical routes reject new work without inventing retirement
+dates. Their prior prices remain usable for historical accounting.
+
+Scheduled DeepSeek V4 rates vary within the UTC day. Until time-of-day pricing
+is represented by the estimator, their rows use the highest published schedule
+rate as a conservative estimate and request ceiling, not a claim of the current
+spot rate. Native billed cost remains authoritative when every call reports it.
+Gateway `min_prompt_tokens` thresholds are interpreted inclusively for conservative
+estimates at the boundary; direct-provider thresholds follow their own docs.
+Gateway ceilings include the highest declared prompt tier and retain privacy,
+zero-data-retention and required-parameter controls.
+
+### Bedrock and Foundry
+
+[AWS pricing](https://aws.amazon.com/bedrock/pricing/) and its public pricing-table
+metered-unit maps independently verify current Bedrock rates. Nova 2 Lite is
+$0.30/$2.50 globally and $0.33/$2.75 for US geo inference. Current Claude 5.5 and
+Fable 5.1 global rates match the direct table below; US geo rates are 10% higher,
+including cache and Haiku's long-context tier. Explicit global and US inference
+profile IDs are registered. Converse omits invalid Claude sampling controls.
+These registrations do not promise support for mantle-only APIs or all AWS
+regions, and the provider still requires configured AWS region and access.
+
+[Foundry deployments](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/provisioned-throughput-sizing)
+are operator-owned names with contract, region and service-tier pricing. They
+still require a verified `AZURE_FOUNDRY_PRICE_AS` catalog reference or explicit
+finite input/output prices. GPT-6 references are now available; a direct-provider
+reference must only be used when it matches the deployment's actual offer. No
+universal Azure price or account eligibility is inferred. For a deployment with
+[Responses support](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/responses),
+set `AZURE_OPENAI_API_STYLE=responses` explicitly. This reuses the existing
+Responses adapter and preserves the deployment name, output-token field and
+`store=false`; the default remains Chat Completions for existing deployments.
+Pricing-reference metadata never silently selects an endpoint.
+
+### Local Ollama
+
+Current local candidates include [Qwen 3.8 27B](https://ollama.com/library/qwen3.8)
+and [Gemma 4 12B, 26B and 31B](https://ollama.com/library/gemma4). They carry
+$0 model API prices only for local execution, not cloud tags. The catalog's 256K
+context requires matching runtime configuration; 16K is a conservative configured
+generation cap, not an asserted provider maximum. No model was downloaded or
+inferred, and registration does not establish that it fits this machine.
+
 ### Anthropic (direct)
 
-- Models: `claude-fable-5` ($10/$50), `claude-opus-4-8` ($5/$25),
-  `claude-sonnet-5` (Primr estimates $3/$15 post-intro; Anthropic launch
-  pricing is $2/$10 through 2026-08-31), `claude-sonnet-4-6` ($3/$15,
-  explicit back-compat only), and `claude-haiku-4-5` ($1/$5). 1M ctx on
-  Fable, Opus, and both Sonnet generations with no long-context premium.
-- Integration traps that MUST be capability-flagged in the registry:
-  Fable 5 / Opus 4.7+ / Sonnet 5 **reject temperature/top_p/top_k**; Sonnet 5
-  uses adaptive thinking by default, accepts `output_config.effort` values
-  `low`, `medium`, `high`, `max`, and `xhigh`, allows explicit
-  `thinking: {"type": "disabled"}`, and rejects legacy manual
-  `thinking.budget_tokens`; Fable 5's new tokenizer uses ~30-35% more tokens
-  (re-baseline cost estimates); Fable 5 can return `stop_reason: "refusal"`.
+- Current [models and API identifiers](https://platform.claude.com/docs/en/models/overview)
+  have these [standard rates](https://platform.claude.com/docs/en/about-claude/pricing):
+
+  | Model | Input | Output | Cached input |
+  | --- | ---: | ---: | ---: |
+  | `claude-fable-5-1` | $10 | $50 | $0.25 |
+  | `claude-opus-5-5` | $4 | $20 | $0.20 |
+  | `claude-sonnet-5-5` | $2 | $10 | $0.10 |
+  | `claude-haiku-5-5` | $0.10 | $0.50 | $0.01 |
+
+  All have 1M context and 128K output. Haiku 5.5 prompts above 100,000 tokens
+  reprice the full request at $0.50/$2.50, cached $0.05. Sonnet 5's launch
+  rate became its standard $2/$10, cached $0.20; a guessed post-intro increase
+  must not drive estimates. The evaluated legacy routing IDs remain pinned.
+- Current Claude families reject sampling parameters and manual thinking
+  budgets. Use adaptive thinking and `output_config.effort`; Opus 5 and Fable
+  5 cannot disable thinking. They reject assistant-prefill final turns.
+  The newer tokenizer can count about 30% more tokens for the same text, so
+  price-per-token savings do not establish report cost or quality savings.
+- [Retired Haiku 3.5](https://platform.claude.com/docs/en/about-claude/model-deprecations)
+  remains available for historical cost lookup, but new work is blocked from
+  its documented February 19 retirement. Active Sonnet 4.6 is not marked retired.
 - Web search: server-side `web_search_20260209` ($10/1k) plus
   `web_fetch_20260209` (free per-call, token costs only). Both Messages-API
   tools.

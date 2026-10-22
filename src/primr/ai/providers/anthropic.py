@@ -32,6 +32,11 @@ from primr.ai.providers.base import (
     ProviderUnavailableError,
     QuotaExhaustedError,
 )
+from primr.config.anthropic_models import (
+    CLAUDE_ADAPTIVE_ONLY_FAMILIES,
+    CLAUDE_ALWAYS_THINKING_FAMILIES,
+    rejects_claude_sampling,
+)
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("ai.providers.anthropic")
@@ -77,39 +82,16 @@ def _is_retryable_status(status_code: int) -> bool:
 # line. Matched by substring so dated or aliased IDs (claude-opus-4-8,
 # claude-fable-5, ...) are all covered. Keep in sync with config/models.py when
 # new tiers land.
-_SAMPLING_PARAM_REJECTORS: tuple[str, ...] = (
-    "opus-4-7",
-    "opus-4-8",
-    "sonnet-5",
-    "fable-5",
-    "mythos-5",
-)
-
 _OUTPUT_CONFIG_EFFORT_MODELS: tuple[str, ...] = (
     "opus-4-6",
-    "opus-4-7",
-    "opus-4-8",
     "sonnet-4-6",
-    "sonnet-5",
-    "fable-5",
-    "mythos-5",
-)
-_MANUAL_THINKING_REJECTORS: tuple[str, ...] = (
-    "opus-4-7",
-    "opus-4-8",
-    "sonnet-5",
-    "fable-5",
-    "mythos-5",
+    *CLAUDE_ADAPTIVE_ONLY_FAMILIES,
 )
 _ASSISTANT_PREFILL_REJECTORS: tuple[str, ...] = (
     "opus-4-6",
-    "opus-4-7",
-    "opus-4-8",
     "sonnet-4-6",
-    "sonnet-5",
-    "fable-5",
-    "mythos-5",
     "mythos-preview",
+    *CLAUDE_ADAPTIVE_ONLY_FAMILIES,
 )
 _VALID_EFFORT_LEVELS: frozenset[str] = frozenset({"low", "medium", "high", "max", "xhigh"})
 _ADAPTIVE_THINKING_TYPES: frozenset[str] = frozenset({"adaptive", "disabled"})
@@ -118,7 +100,7 @@ _VALID_THINKING_DISPLAY: frozenset[str] = frozenset({"omitted", "summarized"})
 
 def _rejects_sampling_params(model: str) -> bool:
     """Return True when ``model`` 400s on temperature/top_p/top_k."""
-    return any(marker in model for marker in _SAMPLING_PARAM_REJECTORS)
+    return rejects_claude_sampling(model)
 
 
 def _supports_output_config_effort(model: str) -> bool:
@@ -128,7 +110,7 @@ def _supports_output_config_effort(model: str) -> bool:
 
 def _rejects_manual_thinking_config(model: str) -> bool:
     """Return True when ``model`` uses adaptive thinking instead of ``thinking``."""
-    return any(marker in model for marker in _MANUAL_THINKING_REJECTORS)
+    return rejects_claude_sampling(model)
 
 
 def _rejects_assistant_prefill(model: str) -> bool:
@@ -164,6 +146,10 @@ def _normalized_thinking_config(model: str, value: object) -> dict[str, Any] | N
         return dict(value)
 
     thinking_type = value.get("type")
+    if thinking_type == "disabled" and any(
+        marker in model for marker in CLAUDE_ALWAYS_THINKING_FAMILIES
+    ):
+        raise ValueError(f"Thinking cannot be disabled for Anthropic model {model}")
     if thinking_type in _ADAPTIVE_THINKING_TYPES:
         config = dict(value)
         display = config.get("display")

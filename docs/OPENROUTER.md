@@ -140,7 +140,7 @@ Primr supports an expanded set of pre-priced, verified models through OpenRouter
 | Google | `google/gemini-3.8-flash` | `$0.75 / $3.75` | Writing, Reasoning |
 | Google | `google/gemini-3.7-flash` | `$0.75 / $3.75` | Writing, Reasoning |
 | Google | `google/gemini-3.1-flash-lite` | `$0.25 / $1.50` | Default utility |
-| Google | `google/gemini-2.5-flash-lite` | `$0.10 / $0.40` | Historical pricing; new requests rejected from 2026-10-20 UTC |
+| Google | `google/gemini-2.5-flash-lite` | `$0.10 / $0.40` | Explicit override; current catalog lists no retirement date; not the default |
 | OpenAI | `openai/gpt-5.4-mini` | `$0.75 / $4.50` | Writing, Utility |
 | OpenAI | `openai/gpt-5.4-nano` | `$0.20 / $1.25` | Utility |
 | OpenAI | `openai/gpt-4.1-mini` | `$0.40 / $1.60` | Writing |

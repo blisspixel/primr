@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.23
+Current State: v1.39.24
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -53,7 +53,7 @@ releases inside a band; only cut the major when its pillars hold together.
 
 | Band | Theme | Why this order |
 |------|--------|----------------|
-| **v1.39.x** (current) | Operator polish, security floors, routing honesty, maintainable stage ownership | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. v1.39.23 binds judge comparisons to frozen claims, verdicts, and evidence while retaining the bounded-ingestion security baseline. |
+| **v1.39.x** (current) | Operator polish, security floors, routing honesty, maintainable stage ownership | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. v1.39.24 refreshes provider catalogs, verified prices, and request compatibility while retaining frozen judge comparisons and the bounded-ingestion security baseline. |
 | **v1.40** | Epistemic and analyst-quality readiness | Hard gates, report-quality changes, and hybrid-routing promotions need a fully decidable production corpus for the bare company-and-website run first; without it, quality claims are vibes. |
 | **v1.41** | Backend freedom: measured host promotion + OpenRouter gateway + residual dual-provider cleanup | Unlocks honest OpenAI-only / Anthropic-only / OpenRouter / host / local profiles; depends on 1.40 instruments to judge backends. |
 | **v1.42** | Agent control-plane finish (MCP Tasks, remaining watch items) | Agents can already estimate/approve/read compact artifacts; finish long-running job lifecycle and parity so unattended delegation is safe. |
@@ -79,7 +79,9 @@ reporting controls. It does not promote an unmeasured report-quality gate.
 v1.39.21 follows with artifact authorization and bounded collection fixes, plus
 QA and cloud-runner compatibility repairs. v1.39.22 bounds native HTTP SDK
 buffering, sitemap work, HTML scoring and PDF parsing, and restores explicit
-browser sandbox defaults. v1.39.23 repairs calibration comparison snapshot
+browser sandbox defaults. v1.39.24 refreshes current provider catalogs and standard
+prices without promoting new report defaults. It corrects recorded prompt-tier
+costs and gateway price ceilings. v1.39.23 repairs calibration comparison snapshot
 integrity and failure handling without promoting a report-quality gate.
 The ordered work and exit criteria live in the [execution brief](docs/NEXT_STEPS.md). A
 candidate version is not a delivery promise and is changed before release if
@@ -2202,6 +2204,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.24 | Oct 2026 | **Provider catalog currency.** Register current models and verified direct/gateway/Bedrock rates, enforce supported Claude request parameters, and repair tiered accounting without changing evaluated defaults. |
 | 1.39.23 | Oct 2026 | **Calibration comparison integrity.** Reuse the original claims, cloud verdicts, and captured evidence; reject invalid local plans; exclude failed or changed artifacts from agreement counts. |
 | 1.39.22 | Oct 2026 | **Bounded ingestion.** Bound HTTP buffering and status retries, sitemap expansion and traversal, HTML scoring, and native PDF resources; explicitly enable browser sandbox defaults. |
 | 1.39.21 | Oct 2026 | **Artifact authority and bounded collection.** Require current-job ownership for remote file reuse, retain exact ownership for generated strategies and plans, confine QA snapshots, bound HTTP transfer and decompression, protect Windows raw scrape filenames, and repair QA and cloud CLI integration. |

@@ -9,6 +9,14 @@ import pytest
 from primr.core import cli_dispatch, cli_update
 from primr.utils.version_check import InstallMethod
 
+
+@pytest.fixture(autouse=True)
+def _isolate_installer_environment(monkeypatch):
+    # Behavior tests use command doubles. The guard has its own version/path
+    # tests and the rejection-to-no-execution test below.
+    monkeypatch.setattr(cli_update, "require_safe_update_installer", lambda _kind: None)
+
+
 # --- interception (primr update / upgrade / self-update) ---
 
 
@@ -260,3 +268,20 @@ def test_notify_swallows_output_errors_after_success(monkeypatch):
 
     # A passive notice must not reverse a successful research exit.
     cli_update.notify_if_update_available()
+
+
+@pytest.mark.parametrize("kind", ["uv", "pipx", "pip"])
+def test_unsafe_update_installer_stops_before_upgrade(monkeypatch, kind):
+    monkeypatch.setattr(cli_update, "get_latest_version", lambda **_: "999.0.0")
+    monkeypatch.setattr(
+        cli_update,
+        "detect_install_method",
+        lambda: InstallMethod(kind=kind, upgrade_command=[kind, "upgrade", "primr"]),
+    )
+
+    def reject(_kind):
+        raise ValueError("affected installer")
+
+    monkeypatch.setattr(cli_update, "require_safe_update_installer", reject)
+    monkeypatch.setattr(cli_update.subprocess, "run", lambda *a, **k: pytest.fail("unsafe upgrade"))
+    assert cli_update.run_update(yes=True) == 1

@@ -27,6 +27,18 @@ tool_guidance() {
     fi
 }
 
+# pipx may also select UV as its backend, so check it before either route.
+if command -v uv >/dev/null 2>&1; then
+    UV_VERSION=$(uv --version)
+    if [[ ! "$UV_VERSION" =~ ^uv\ ([0-9]+)\.([0-9]+)\.([0-9]+)($|[[:space:]]) ]] || \
+        (( BASH_REMATCH[1] == 0 && (BASH_REMATCH[2] < 13 || (BASH_REMATCH[2] == 13 && BASH_REMATCH[3] < 4)) )); then
+        echo "Error: UV 0.13.4 or newer is required to repair its TLS trust store."
+        tool_guidance
+        exit 1
+    fi
+fi
+PATCHED_PIP_URL="https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
+
 # Keep an existing pipx install with its manager; prefer uv for fresh installs.
 PIPX_INSTALLED=false
 if command -v pipx >/dev/null 2>&1 && \
@@ -78,6 +90,7 @@ else
             exit 1
         fi
         echo "==> pipx not found. Installing pipx..."
+        "$PYTHON" -m pip install --user --no-deps --no-cache-dir "$PATCHED_PIP_URL"
         "$PYTHON" -m pip install --user pipx
         PIPX_COMMAND=("$PYTHON" -m pipx)
         "${PIPX_COMMAND[@]}" ensurepath
@@ -112,6 +125,10 @@ if [ "$INSTALLER" = uv ]; then
         uv tool install --upgrade --python 3.15 "$PACKAGE"
     fi
 else
+    # Repair shared pip without a package-index lookup, then verify the result.
+    "${PIPX_COMMAND[@]}" upgrade-shared --pip-args "--no-index --no-deps $PATCHED_PIP_URL"
+    SHARED_LIBS=$("${PIPX_COMMAND[@]}" environment --value PIPX_SHARED_LIBS)
+    "$PYTHON" -c 'import sys; from pathlib import Path; from importlib.metadata import distributions; root=Path(sys.argv[1]); paths=[root/"Lib/site-packages", *root.glob("lib/python*/site-packages")]; versions=[d.version for p in paths for d in distributions(path=[str(p)]) if d.metadata["Name"].lower()=="pip"]; sys.exit(0 if versions and all(tuple(map(int,v.split("."))) >= (26,2,2) for v in versions) else "Repair pipx shared installer to pip >=26.2.2 before continuing")' "$SHARED_LIBS"
     if [ "$PIPX_INSTALLED" = true ]; then
         # --force install ignores --python in older distro pipx releases.
         echo "==> Reinstalling $PACKAGE with Python $PYVER..."

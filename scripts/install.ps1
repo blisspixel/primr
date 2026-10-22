@@ -23,6 +23,15 @@ function Invoke-Checked([string]$Command, [string[]]$Arguments) {
     }
 }
 
+# pipx may select UV as its backend even when preserving an existing install.
+if (Get-Command uv -ErrorAction SilentlyContinue) {
+    $uvVersion = & uv --version | Out-String
+    if ($LASTEXITCODE -ne 0 -or $uvVersion -notmatch '^uv (\d+\.\d+\.\d+)(?=\s|$)' -or [version]$Matches[1] -lt [version]'0.13.4') {
+        throw "UV 0.13.4 or newer is required to repair its TLS trust store."
+    }
+}
+$patchedPipUrl = "https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
+
 # Keep an existing pipx install with its manager; prefer uv for fresh installs.
 $pipxInstalled = $false
 if (Get-Command pipx -ErrorAction SilentlyContinue) {
@@ -103,6 +112,7 @@ if (-not $pipxInstalled -and (Get-Command uv -ErrorAction SilentlyContinue)) {
             exit 1
         }
         Write-Host "==> pipx not found. Installing pipx..." -ForegroundColor Yellow
+        Invoke-Checked $pythonPath @("-m", "pip", "install", "--user", "--no-deps", "--no-cache-dir", $patchedPipUrl)
         Invoke-Checked $pythonPath @("-m", "pip", "install", "--user", "pipx")
         $pipxCommand = $pythonPath
         $pipxPrefix = @("-m", "pipx")
@@ -139,6 +149,11 @@ if ($installer -eq "uv") {
     }
     Invoke-Checked "uv" $installArguments
 } else {
+    Invoke-Checked $pipxCommand ($pipxPrefix + @("upgrade-shared", "--pip-args", "--no-index --no-deps $patchedPipUrl"))
+    $sharedLibs = & $pipxCommand @pipxPrefix environment --value PIPX_SHARED_LIBS
+    if ($LASTEXITCODE -ne 0) { throw "Cannot locate pipx shared installer." }
+    $verifyShared = "import sys; from pathlib import Path; from importlib.metadata import distributions; root=Path(sys.argv[1]); paths=[root/'Lib/site-packages', *root.glob('lib/python*/site-packages')]; versions=[d.version for p in paths for d in distributions(path=[str(p)]) if d.metadata['Name'].lower()=='pip']; sys.exit(0 if versions and all(tuple(map(int,v.split('.'))) >= (26,2,2) for v in versions) else 'Repair pipx shared installer to pip >=26.2.2 before continuing')"
+    Invoke-Checked $pythonPath @("-c", $verifyShared, "$sharedLibs")
     if ($pipxInstalled) {
         # --force install ignores --python in older distro pipx releases.
         Write-Host "==> Reinstalling $Package with Python $ver..." -ForegroundColor Green

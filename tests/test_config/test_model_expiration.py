@@ -12,6 +12,21 @@ from primr.config.models import ModelRegistry, PrimrModels
 from primr.config.settings import AIConfig
 
 
+@pytest.fixture(autouse=True)
+def frozen_gateway_retirement_snapshot(monkeypatch):
+    """Exercise guards with the earlier snapshot, independent of current availability."""
+    from primr.config.openrouter_models import OPENROUTER_EXPIRATIONS
+
+    for name in (
+        "google/gemini-2.5-flash-lite",
+        "google/gemini-2.5-flash",
+        "google/gemini-2.5-pro",
+    ):
+        monkeypatch.setitem(OPENROUTER_EXPIRATIONS, name, date(2026, 10, 20))
+    config = ModelRegistry.OPENROUTER_GEMINI_2_5_FLASH_LITE
+    monkeypatch.setattr(config, "expiration_date", date(2026, 10, 20))
+
+
 def set_today(monkeypatch, day: date) -> None:
     class Clock(datetime):
         @classmethod

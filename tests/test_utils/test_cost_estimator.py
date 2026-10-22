@@ -488,7 +488,7 @@ class TestTieredPricing:
     def test_openai_gpt5_family_has_long_context_tiers(self):
         """OpenAI GPT-5.x models should carry long-context surcharge metadata."""
         expected = (
-            (ModelRegistry.OPENAI_GPT_5_6_SOL, 10.00, 45.00),
+            (ModelRegistry.OPENAI_GPT_5_6_SOL, 8.00, 30.00),
             (ModelRegistry.OPENAI_GPT_5_6_TERRA, 4.00, 18.00),
             (ModelRegistry.OPENAI_GPT_5_6_LUNA, 0.40, 1.80),
             (ModelRegistry.OPENAI_GPT_5_5, 10.00, 45.00),
@@ -1051,7 +1051,7 @@ class TestGrokTier:
         assert f"{ModelRegistry.ANTHROPIC_SONNET.name} reasoning" in notes
         assert "claude-haiku-4-5 writing" in notes
         assert "claude-haiku-4-5 utility" in notes
-        assert "Sonnet 5 token estimates include a 30% tokenizer safety factor" in notes
+        assert "Claude token estimates include a 30% tokenizer safety factor" in notes
 
     def test_standard_estimate_routes_openrouter_only_after_explicit_opt_in(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -1070,7 +1070,7 @@ class TestGrokTier:
 
         notes = " ".join(est.notes)
         assert est.mode == "full (OpenRouter routed preview)"
-        assert est.total_cost == pytest.approx(1.0655)
+        assert est.total_cost == pytest.approx(1.0667)
         assert "deepseek/deepseek-v3.2 reasoning" in notes
         assert "openai/gpt-4.1-mini writing" in notes
         assert "google/gemini-3.1-flash-lite utility" in notes

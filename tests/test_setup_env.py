@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 import setup_env
+from scripts import installer_trust
 
 
 class _VersionInfo(tuple):
@@ -51,3 +52,33 @@ def test_basic_setup_accepts_python_311(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(setup_env, "install_status", lambda _package: (True, "1.0", "1.0"))
 
     setup_env.main_basic()
+
+
+@pytest.mark.parametrize("version", ["26.2.2", "26.3", "27.0.0"])
+def test_patched_installer_preserves_current_versions(monkeypatch, version):
+    monkeypatch.setattr(setup_env.metadata, "version", lambda _: version)
+    monkeypatch.setattr(
+        setup_env.subprocess, "run", lambda *a, **k: pytest.fail("unexpected install")
+    )
+    setup_env.ensure_patched_installer()
+
+
+@pytest.mark.parametrize("version", ["26.2.1", "26.2", "25.1", "26.2.2rc1"])
+def test_affected_installer_uses_hash_bootstrap_and_stops_on_failure(monkeypatch, version):
+    import subprocess
+
+    monkeypatch.setattr(setup_env.metadata, "version", lambda _: version)
+    captured = []
+
+    def fail(cmd, **kwargs):
+        captured.append((cmd, kwargs))
+        raise subprocess.CalledProcessError(1, cmd)
+
+    monkeypatch.setattr(setup_env.subprocess, "run", fail)
+    with pytest.raises(subprocess.CalledProcessError):
+        setup_env.ensure_patched_installer()
+    cmd, kwargs = captured[0]
+    assert cmd[-1] == installer_trust.PATCHED_PIP_URL
+    assert "#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70" in cmd[-1]
+    assert "--no-deps" in cmd
+    assert kwargs["check"] is True

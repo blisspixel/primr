@@ -1,6 +1,6 @@
 # Next Steps
 
-Released baseline: **v1.39.23**
+Released baseline: **v1.39.24**
 
 Next implementation candidate: **v1.40.0**
 
@@ -37,7 +37,9 @@ product.
 
 ## Current executable card
 
-v1.39.23 is the released baseline. It binds judge comparisons to the original
+v1.39.24 is the released baseline. It refreshes current provider catalogs and
+standard/cache prices, fixes prompt-tier accounting and gateway ceilings, and
+retains evaluated report defaults. It binds judge comparisons to the original
 claims, verdicts, and source captures, rejects incomplete local judge plans, and
 excludes failed or changed artifacts from agreement counts. It retains bounded
 ingestion, native PDF containment, explicit browser sandbox defaults, and the
@@ -59,7 +61,7 @@ independently validated evaluators, before any hard report-quality gate or
 hybrid-routing promotion.
 
 **Why this is next:** the version ladder already places quality claims after
-that corpus. Operator polish through v1.39.23 is the released baseline.
+that corpus. Operator polish through v1.39.24 is the released baseline.
 
 **Exit criteria:**
 
@@ -155,7 +157,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.23
+## Version gates after v1.39.24
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.

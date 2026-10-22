@@ -126,9 +126,11 @@ def test_dependency_security_floors_exclude_affected_versions(
         ("anyio", "4.14.1", "4.14.2"),
         ("pyjwt", "2.14.0", "2.15.1"),
         ("soupsieve", "2.8.4", "2.9.0"),
-        ("virtualenv", "21.14.3", "21.14.9"),
-        ("virtualenv", "21.14.6", "21.14.9"),
-        ("virtualenv", "21.14.8", "21.14.9"),
+        ("virtualenv", "21.14.3", "21.14.12"),
+        ("virtualenv", "21.14.6", "21.14.12"),
+        ("virtualenv", "21.14.8", "21.14.12"),
+        ("virtualenv", "21.14.11", "21.14.12"),
+        ("pip", "26.2.1", "26.2.2"),
     ],
 )
 def test_transitive_security_constraints_and_locked_versions(
@@ -186,8 +188,8 @@ def test_setup_uv_actions_pin_the_export_tool_version() -> None:
     for workflow in WORKFLOW_DIR.glob("*.yml"):
         text = workflow.read_text(encoding="utf-8")
         setup_count = text.count("astral-sh/setup-uv@")
-        assert text.count('version: "0.11.33"') == setup_count, (
-            f"{workflow.name} must pin uv 0.11.33 at every setup-uv step"
+        assert text.count('version: "0.13.5"') == setup_count, (
+            f"{workflow.name} must pin uv 0.13.5 at every setup-uv step"
         )
 
 
@@ -200,7 +202,7 @@ def test_container_requirement_exports_match_uv_lock() -> None:
         capture_output=True,
         text=True,
     ).stdout.split()[1]
-    assert installed_version == "0.11.33", "use the repository-pinned uv release"
+    assert installed_version == "0.13.5", "use the repository-pinned uv release"
     exports = {
         ROOT / "deploy" / "runtime-requirements.lock": ["--no-dev", "--extra", "api"],
         ROOT / "deploy" / "build-requirements.lock": [
@@ -257,8 +259,8 @@ def test_container_installs_are_hash_locked_and_local_project_only() -> None:
     assert f"ARG PRIMR_VERSION={version}" in openclaw
 
     ci = (WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8")
-    assert "docker build --file deploy/Dockerfile" in ci
-    assert 'docker build --file "$context/Dockerfile.primr"' in ci
+    assert "docker build --pull --no-cache --file deploy/Dockerfile" in ci
+    assert 'docker build --pull --no-cache --file "$context/Dockerfile.primr"' in ci
     assert 'cp -R openclaw/. "$context/"' in ci
     assert "cp pyproject.toml MANIFEST.in README.md" in ci
     assert 'cp -R src "$context/src"' in ci
@@ -269,3 +271,34 @@ def test_container_installs_are_hash_locked_and_local_project_only() -> None:
     assert "cp pyproject.toml MANIFEST.in README.md" in openclaw_docs
     assert "cp -r src" in openclaw_docs
     assert "build-requirements.lock" in openclaw_docs
+
+
+def test_installer_trust_stores_are_separate_from_application_dependencies() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    runtime = {Requirement(value).name for value in project["project"]["dependencies"]}
+    assert "pip" not in runtime
+    release = {
+        Requirement(value).name: Requirement(value)
+        for value in project["dependency-groups"]["release"]
+    }
+    assert "26.2.1" not in release["pip"].specifier
+    assert "26.2.2" in release["pip"].specifier
+    exported = (ROOT / "deploy/build-requirements.lock").read_text()
+    assert "pip==26.2.2" in exported
+    publisher = (WORKFLOW_DIR / "release.yml").read_text()
+    assert "pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086" in publisher
+    assert "id-token: write" in publisher
+
+
+def test_container_installers_are_hash_bootstrapped_before_dependency_downloads() -> None:
+    from scripts.installer_trust import PATCHED_PIP_URL
+
+    for path in (ROOT / "deploy/Dockerfile", ROOT / "openclaw/Dockerfile.primr"):
+        stages = re.split(r"^FROM ", path.read_text(), flags=re.MULTILINE)[1:]
+        assert len(stages) == 2
+        for stage in stages:
+            assert PATCHED_PIP_URL in stage
+            assert stage.index(PATCHED_PIP_URL) < stage.index("--require-hashes")
+        if path.name == "Dockerfile.primr":
+            assert stages[1].index("USER primr") < stages[1].index(PATCHED_PIP_URL)
+            assert "--no-deps --user" in stages[1]

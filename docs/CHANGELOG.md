@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.24] - 2026-10-22
+
+### Security
+
+- Update UV to 0.13.5, pip to 26.2.2 or newer, virtualenv's embedded installer
+  floor to 21.14.12, and the SHA-pinned publishing action to 1.14.3 with
+  sigstore 4.5.1. Hash-bootstrap container installers before dependency
+  downloads and rebuild CI containers without cached layers. Separate
+  installation-tool trust stores from the existing application certifi fix.
+  Guard the convenience installers and self-update path against affected UV
+  or pipx shared installers before package downloads.
+
+### Added
+
+- Register current GPT-6/6.1, Claude 5.5/Fable 5.1, Grok 4.7, curated gateway,
+  Bedrock Nova 2/Claude, and local Qwen 3.8/Gemma 4 candidates with dated official
+  pricing. Keep evaluated routing defaults unchanged. Allow an explicit Foundry
+  Responses API setting for compatible current deployments.
+
+### Fixed
+
+- Correct direct and gateway standard/cache prices, context tiers and retired
+  route availability. Preserve original Gemini alias accounting dates on a
+  catalog recheck. Use documented conservative ceilings for time-varying gateway
+  rates and retain native billing as authoritative.
+- Apply the prompt tier to recorded single-call costs, include all declared
+  tiers in gateway request ceilings, reject non-finite deployment prices, and
+  omit unsupported Claude sampling controls on Messages and Bedrock Converse.
+  Reject attempts to disable always-on Claude thinking before SDK calls.
+- Prevent automatic paid cache writes on current direct OpenAI Responses calls.
+  Include published write-price ceilings in conservative quotes, retain
+  exact provider billing when available, and apply the newer
+  Claude tokenizer margin across verified direct and gateway model families.
+
 ## [1.39.23] - 2026-10-22
 
 ### Security

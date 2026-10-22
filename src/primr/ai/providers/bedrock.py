@@ -28,6 +28,7 @@ from primr.ai.providers.base import (
     ProviderUnavailableError,
     QuotaExhaustedError,
 )
+from primr.config.anthropic_models import rejects_claude_sampling
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("ai.providers.bedrock")
@@ -171,8 +172,9 @@ class BedrockProvider(Provider):
 
         inference_config: dict[str, Any] = {
             "maxTokens": max_tokens,
-            "temperature": temperature,
         }
+        if not rejects_claude_sampling(model):
+            inference_config["temperature"] = temperature
         request: dict[str, Any] = {
             "modelId": model,
             "messages": converse_messages,
