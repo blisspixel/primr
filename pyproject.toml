@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.39.22"
+version = "1.39.23"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = "Apache-2.0"
@@ -91,6 +91,9 @@ dependencies = [
     # 2.2.0 bounds retained HTTP sessions and reclaims closed/idle sessions
     # (CVE-2026-59951), including legacy initialized clients.
     "mcp>=2.2.0,<3",
+    # Used by telemetry.py and MCP. The runtime floor reaches wheel consumers;
+    # 1.45.1 bounds tracestate parsing (GHSA-xcq7-p3pf-p88h).
+    "opentelemetry-api>=1.45.1",
     "defusedxml",
     "typer>=0.9.0",
     # Security floor (DoS, CVE-2026-54282/54283): form-parsing limits silently
@@ -237,7 +240,8 @@ constraint-dependencies = [
     "anyio>=4.14.2",
     "PyJWT>=2.15.1",
     "soupsieve>=2.9.0",
-    "virtualenv>=21.14.4",
+    # Environment-name activation and POSIX launcher quoting fixes.
+    "virtualenv>=21.14.9",
     # Older vendored parsers import sre_constants, removed in Python 3.15.
     "pip-api>=0.0.35",
 ]

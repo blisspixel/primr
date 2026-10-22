@@ -83,6 +83,14 @@ Use `--inspect-baseline-decision` to verify the record against current artifacts
 operator has completed the required review. No example in this document
 authorizes arming `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` automatically.
 
+Judge comparison reuses the original sampled claims and cloud verdicts. Both
+judges receive the same captured source text; the comparison does not reread
+the report or repeat the cloud pass. A failed cloud or local pass contributes
+no agreement count. If the report or its sidecar changes during comparison,
+the outcome records `comparison_artifact_changed` and no agreement is written.
+The preserved cloud sidecar is still a cloud result, not evidence of successful
+comparison. Resolve failed outcomes before treating a pack as ready.
+
 The candidate regression floor is a report-clustered Wilson lower bound at 95
 percent confidence. The gate records `bound_method`, `confidence`, and `bound`.
 That bound is not the desired quality bar. Define the bar from material error

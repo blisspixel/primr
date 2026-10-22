@@ -106,7 +106,6 @@ INTENTIONAL_TINY_MODULES: dict[str, str] = {
     "mcp_server/worker_environment.py": "least-privilege worker environment boundary",
     "primr_cli.py": "legacy console-entry compatibility shim",
     "qa/artifact_fingerprints.py": "artifact identity policy",
-    "qa/calibration_judge_agreement.py": "judge-agreement calculation seam",
     "utils/timeutils.py": "shared UTC clock seam",
 }
 

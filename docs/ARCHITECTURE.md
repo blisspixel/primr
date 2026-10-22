@@ -901,6 +901,9 @@ src/primr/
 │   └── skill_pack/         # Skill-pack planning and evaluation prompts
 ├── output/                  # MD/TXT/DOCX/PDF rendering and artifact validation
 ├── qa/                      # Report analysis, calibration, honesty, and scoring
+│   ├── calibration_runner.py # One report snapshot shared by cloud/local comparison
+│   ├── calibration_sidecars.py # Sidecar snapshot reads, fingerprints, and report binding
+│   └── calibration_judge_agreement.py # Claim-aligned, decidable verdict comparison
 ├── agentic/                 # Memory, hypotheses, hooks, and research subagents
 │   └── subagents/          # Scraper, analyst, writer, QA, and verifier roles
 ├── skill_pack/              # Role planning, skill authoring, validation, packaging

@@ -96,6 +96,8 @@ def test_docker_base_images_are_digest_pinned() -> None:
         (None, "urllib3", "2.7.0", "2.8.0"),
         (None, "pillow", "12.3.0", "13.0.0"),
         (None, "certifi", "2026.5.20", "2026.10.19"),
+        (None, "opentelemetry-api", "1.44.0", "1.45.1"),
+        (None, "opentelemetry-api", "1.45.0", "1.45.1"),
         ("docs", "mkdocs-material", "9.7.6", "9.7.7"),
     ],
 )
@@ -124,7 +126,9 @@ def test_dependency_security_floors_exclude_affected_versions(
         ("anyio", "4.14.1", "4.14.2"),
         ("pyjwt", "2.14.0", "2.15.1"),
         ("soupsieve", "2.8.4", "2.9.0"),
-        ("virtualenv", "21.14.3", "21.14.4"),
+        ("virtualenv", "21.14.3", "21.14.9"),
+        ("virtualenv", "21.14.6", "21.14.9"),
+        ("virtualenv", "21.14.8", "21.14.9"),
     ],
 )
 def test_transitive_security_constraints_and_locked_versions(
