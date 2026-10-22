@@ -103,7 +103,7 @@ def _foundry_deployment_config(model_name: str) -> "ModelConfig | None":
             in_price, out_price = float(raw_in), float(raw_out)
         except ValueError:
             return None
-        if in_price < 0 or out_price < 0:
+        if not isfinite(in_price) or not isfinite(out_price) or in_price < 0 or out_price < 0:
             return None
         return ModelConfig(
             name=deployment,
@@ -165,28 +165,11 @@ def _openrouter_custom_model_config(model_name: str) -> "ModelConfig | None":
 
 
 class PrimrModels:
-    """
-    CENTRALIZED MODEL ASSIGNMENTS FOR PRIMR
-    =======================================
+    """Selection and standard text-cost facade over provider-owned catalogs.
 
-    THIS IS WHERE YOU CHANGE MODELS GLOBALLY.
-
-    To upgrade to a new model:
-    1. Add new model to ModelRegistry above
-    2. Update FLASH_MODEL and/or PRO_MODEL below
-    3. Done - all code uses these constants
-
-    CURRENT ASSIGNMENTS (July 2026):
-    ------------------------------------
-    FLASH_MODEL = gemini-3-flash-preview       (cheap, fast - for scraping/filtering)
-    PRO_MODEL   = gemini-3.1-pro-preview       (smart - for report writing, tiered pricing)
-    DEEP_RESEARCH_AGENT = deep-research-preview-04-2026 (autonomous 12+ page reports)
-
-    OTHER REGISTRY ENTRIES:
-    -----------------------
-    gemini-3-pro-preview               - Deprecated; replaced by 3.1 Pro
-    gemini-3.1-pro-preview-customtools - Same as 3.1 Pro + optimized for custom tool prioritization
-    Override via AI_REASONING_MODEL env var in .env
+    Registration makes a model explicitly selectable. Evaluated production
+    defaults change only after the quality and cost promotion decision.
+    Historical routes remain available for accounting even after retirement.
     """
 
     # =========================================================================
@@ -271,29 +254,19 @@ class PrimrModels:
         ModelRegistry.GROK_4_3.name: ModelRegistry.GROK_4_3,
         ModelRegistry.GROK_4_5.name: ModelRegistry.GROK_4_5,
         ModelRegistry.GROK_4_6.name: ModelRegistry.GROK_4_6,
+        ModelRegistry.GROK_4_7.name: ModelRegistry.GROK_4_7,
         ModelRegistry.GROK_4_20.name: ModelRegistry.GROK_4_20,
         ModelRegistry.GROK_4_20_REASONING.name: ModelRegistry.GROK_4_20_REASONING,
         ModelRegistry.GROK_4_20_NR.name: ModelRegistry.GROK_4_20_NR,
         ModelRegistry.GROK_4_20_NR_NEW.name: ModelRegistry.GROK_4_20_NR_NEW,
         ModelRegistry.GROK_4_20_MULTI_AGENT.name: ModelRegistry.GROK_4_20_MULTI_AGENT,
         # OpenAI
-        ModelRegistry.OPENAI_GPT_5_6_SOL.name: ModelRegistry.OPENAI_GPT_5_6_SOL,
-        ModelRegistry.OPENAI_GPT_5_6.name: ModelRegistry.OPENAI_GPT_5_6,
-        ModelRegistry.OPENAI_GPT_5_6_TERRA.name: ModelRegistry.OPENAI_GPT_5_6_TERRA,
-        ModelRegistry.OPENAI_GPT_5_6_LUNA.name: ModelRegistry.OPENAI_GPT_5_6_LUNA,
-        ModelRegistry.OPENAI_GPT_5_5.name: ModelRegistry.OPENAI_GPT_5_5,
-        ModelRegistry.OPENAI_GPT_5_4.name: ModelRegistry.OPENAI_GPT_5_4,
-        ModelRegistry.OPENAI_GPT_5_4_MINI.name: ModelRegistry.OPENAI_GPT_5_4_MINI,
-        ModelRegistry.OPENAI_GPT_5_4_NANO.name: ModelRegistry.OPENAI_GPT_5_4_NANO,
-        ModelRegistry.OPENAI_O4_MINI.name: ModelRegistry.OPENAI_O4_MINI,
+        **{m.name: m for m in ModelRegistry.OPENAI_MODELS},
         # OpenRouter curated gateway routes
         **{m.name: m for m in ModelRegistry.OPENROUTER_MODELS},
         # Anthropic
-        ModelRegistry.ANTHROPIC_OPUS.name: ModelRegistry.ANTHROPIC_OPUS,
-        ModelRegistry.ANTHROPIC_SONNET.name: ModelRegistry.ANTHROPIC_SONNET,
-        ModelRegistry.ANTHROPIC_SONNET_4_6.name: ModelRegistry.ANTHROPIC_SONNET_4_6,
-        ModelRegistry.ANTHROPIC_HAIKU.name: ModelRegistry.ANTHROPIC_HAIKU,
-        ModelRegistry.ANTHROPIC_HAIKU_3_5.name: ModelRegistry.ANTHROPIC_HAIKU_3_5,
+        **{m.name: m for m in ModelRegistry.ANTHROPIC_MODELS},
+        **{m.name: m for m in ModelRegistry.OLLAMA_CURRENT_MODELS},
         # Ollama (local, zero cost) — original four
         ModelRegistry.OLLAMA_QWEN3_CODER_30B.name: ModelRegistry.OLLAMA_QWEN3_CODER_30B,
         ModelRegistry.OLLAMA_QWEN2_5_32B.name: ModelRegistry.OLLAMA_QWEN2_5_32B,
@@ -310,6 +283,7 @@ class PrimrModels:
         ModelRegistry.BEDROCK_NOVA_MICRO.name: ModelRegistry.BEDROCK_NOVA_MICRO,
         ModelRegistry.BEDROCK_NOVA_LITE.name: ModelRegistry.BEDROCK_NOVA_LITE,
         ModelRegistry.BEDROCK_NOVA_PRO.name: ModelRegistry.BEDROCK_NOVA_PRO,
+        **{m.name: m for m in ModelRegistry.BEDROCK_CURRENT_MODELS},
     }
 
     @classmethod
@@ -391,9 +365,14 @@ class PrimrModels:
     def is_latest_model(cls, model_name: str) -> bool:
         """Check whether a model is in the current flagship model set."""
         latest_models = {
-            ModelRegistry.OPENAI_GPT_5_6_SOL.name,
-            ModelRegistry.OPENAI_GPT_5_6_TERRA.name,
-            ModelRegistry.OPENAI_GPT_5_6_LUNA.name,
+            ModelRegistry.OPENAI_GPT_6_ASTRA.name,
+            ModelRegistry.OPENAI_GPT_6_1_SOL.name,
+            ModelRegistry.OPENAI_GPT_6_LUNA.name,
+            ModelRegistry.ANTHROPIC_FABLE_5_1.name,
+            ModelRegistry.ANTHROPIC_OPUS_5_5.name,
+            ModelRegistry.ANTHROPIC_SONNET_5_5.name,
+            ModelRegistry.ANTHROPIC_HAIKU_5_5.name,
+            ModelRegistry.GROK_4_7.name,
             ModelRegistry.GEMINI_4_ARGON.name,
             ModelRegistry.GEMINI_3_8_FLASH.name,
             ModelRegistry.GEMINI_3_5_FLASH_LITE.name,
@@ -445,6 +424,8 @@ class PrimrModels:
         cached_input_tokens: int = 0,
         force_high_tier: bool = False,
         pricing_date: date | None = None,
+        *,
+        force_input_price_ceiling: bool = False,
     ) -> TokenCostBreakdown:
         """Calculate detailed token costs for one model.
 
@@ -495,6 +476,17 @@ class PrimrModels:
         else:
             input_rate = base_input_rate
             output_rate = base_output_rate
+
+        if force_input_price_ceiling:
+            write_ceiling = (
+                config.cost_per_1m_input_tokens_write_ceiling_high
+                if tier_applied
+                else config.cost_per_1m_input_tokens_write_ceiling
+            )
+            input_rate = max(input_rate, write_ceiling or input_rate)
+            base_input_rate = max(
+                base_input_rate, config.cost_per_1m_input_tokens_write_ceiling or base_input_rate
+            )
 
         cache_rate = base_cache_rate
         high_cache_rate = config.cost_per_1m_input_tokens_cached_high
@@ -562,6 +554,7 @@ class PrimrModels:
                 int(usage.get("input_tokens", 0)),
                 int(usage.get("output_tokens", 0)),
                 cached_input_tokens=int(usage.get("cached_input_tokens", 0)),
+                prompt_tokens=int(usage.get("input_tokens", 0)) if call_count == 1 else None,
                 # One recorded call retains its actual request shape, so its
                 # published threshold can be applied exactly. Aggregated or
                 # legacy buckets cannot prove that every request stayed below
@@ -575,9 +568,9 @@ class PrimrModels:
     def calculate_cost_conservative(
         cls, model_name: str, input_tokens: int, output_tokens: int
     ) -> float:
-        """Calculate cost using the highest tier for tiered models.
+        """Calculate conservative cost including published cache-write ceilings.
 
-        For flat-pricing models this is identical to calculate_cost().
+        For models without write fees or context tiers this equals calculate_cost().
         Use this for **pre-run estimates** where we don't know prompt sizes.
         All token counts are clamped to non-negative values defensively.
         """
@@ -594,6 +587,7 @@ class PrimrModels:
             input_tokens,
             output_tokens,
             force_high_tier=config.has_tiered_pricing,
+            force_input_price_ceiling=True,
         ).total_cost
 
     @classmethod

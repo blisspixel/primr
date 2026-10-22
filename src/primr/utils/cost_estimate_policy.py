@@ -53,3 +53,19 @@ def vendor_refresh_notes(refresh_tasks: int) -> list[str]:
         if refresh_tasks
         else []
     )
+
+
+def cache_write_estimate_notes(model_names: Sequence[str | None]) -> list[str]:
+    """Disclose published write-price allowances without claiming exact billing."""
+    from primr.config.models import PrimrModels
+
+    if any(
+        (config := PrimrModels.get_model_config(name)) is not None
+        and config.cost_per_1m_input_tokens_write_ceiling is not None
+        for name in model_names
+        if name is not None
+    ):
+        return [
+            "Input estimates include published cache-write price ceilings; actual provider billing can be lower."
+        ]
+    return []

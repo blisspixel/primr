@@ -76,6 +76,11 @@ def _provider_policy(model: str) -> dict[str, Any]:
         raise ValueError(f"OpenRouter model {model!r} is not registered with explicit pricing")
     config.require_available()
     input_rate, output_rate, _cached_rate = config.standard_rates()
+    # A cap is the highest declared rate, not a flat-price quote. The estimator
+    # applies the prompt tier and runtime budgets account for native billing.
+    if config.has_tiered_pricing:
+        input_rate = max(input_rate, config.cost_per_1m_input_tokens_high or input_rate)
+        output_rate = max(output_rate, config.cost_per_1m_output_tokens_high or output_rate)
     policy: dict[str, Any] = {
         "allow_fallbacks": True,
         "require_parameters": openrouter_require_parameters(),

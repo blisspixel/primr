@@ -1,6 +1,6 @@
 """Direct Gemini catalog, including historical prices and provider retirements.
 
-Sources checked 2026-10-20:
+Sources checked 2026-10-22:
 https://ai.google.dev/gemini-api/docs/models
 https://ai.google.dev/gemini-api/docs/pricing
 https://ai.google.dev/gemini-api/docs/deprecations
@@ -12,6 +12,7 @@ from datetime import date
 
 from primr.config.model_config import ModelConfig
 
+# Preserve the first observed accounting cutover when rechecking the catalog.
 GEMINI_ALIASES_VERIFIED_ON = date(2026, 10, 20)
 GEMINI_MODEL_ALIASES = {
     "gemini-3.5-flash": "gemini-3.6-flash",

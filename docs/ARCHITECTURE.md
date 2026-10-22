@@ -911,6 +911,9 @@ src/primr/
 │   ├── model_config.py      # Shared model metadata, pricing, and provider retirement checks
 │   ├── model_registry.py    # Direct-provider registrations; re-exports ModelConfig
 │   ├── gemini_models.py     # Direct Gemini catalog, history, and dated prices/retirements
+│   ├── openai_models.py     # Direct OpenAI catalog and standard context tiers
+│   ├── anthropic_models.py  # Direct Claude catalog, lifecycle and shared request capabilities
+│   ├── bedrock_models.py    # AWS-verified global and geo Converse candidates
 │   └── openrouter_models.py # OpenRouter registrations and published route retirements
 ├── utils/                   # Shared async, I/O, security, console, and logging seams
 │   ├── windows_job.py      # Owned Windows process trees and native memory limits

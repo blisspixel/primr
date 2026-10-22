@@ -29,6 +29,7 @@ from primr.ai.providers.base import (
     Provider,
     ProviderUnavailableError,
 )
+from primr.config.openai_models import OPENAI_PAID_CACHE_WRITE_MODELS
 from primr.utils.logging_config import get_logger
 from primr.utils.model_policy import require_model_calls_allowed
 
@@ -327,6 +328,18 @@ class OpenAICompatibleProvider(Provider):
     ) -> Any:
         """Issue one request using Responses or Chat Completions."""
         if self._api_style == "responses":
+            billing_model = model
+            if self.name == "foundry" and model == os.getenv("AZURE_OPENAI_DEPLOYMENT", "").strip():
+                billing_model = os.getenv("AZURE_FOUNDRY_PRICE_AS", "").strip() or model
+            if (
+                self.name in {"openai", "foundry"}
+                and billing_model in OPENAI_PAID_CACHE_WRITE_MODELS
+            ):
+                # No developer breakpoints are emitted by the Primr text pipeline.
+                # Explicit-only mode prevents automatic paid writes or prewarming.
+                extra_body = dict(call_kwargs.get("extra_body") or {})
+                extra_body["prompt_cache_options"] = {"mode": "explicit"}
+                call_kwargs["extra_body"] = extra_body
             return client.responses.create(model=model, input=messages, **call_kwargs)
         return client.chat.completions.create(
             model=model,

@@ -92,7 +92,7 @@ echo "sk-..." | ./deploy.sh secrets set OPENAI_API_KEY -
 ### Rebuilding Container Dependency Locks
 
 The production Dockerfiles install dependency exports generated from `uv.lock`
-with uv 0.11.33. Regenerate both files whenever the lock changes, then run the
+with uv 0.13.5. Regenerate both files whenever the lock changes, then run the
 supply-chain tests before committing them:
 
 ```bash

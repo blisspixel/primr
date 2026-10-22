@@ -18,6 +18,8 @@ import webbrowser
 from importlib import metadata
 from pathlib import Path
 
+from scripts.installer_trust import ensure_patched_installer
+
 # Force UTF-8 stdout/stderr on Windows so Rich can print Unicode symbols.
 # Must run before any Rich imports since Rich inspects the stream encoding.
 if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
@@ -753,6 +755,12 @@ def main_basic():
 
 if __name__ == "__main__":
     try:
+        # Outside the Rich fallback: a failed trust-store repair must not
+        # continue through main_basic and download packages with old pip.
+        if (sys.version_info.major, sys.version_info.minor) < (3, 11):
+            # Reject or restart before even downloading the setup UI.
+            main_rich() if RICH else main_basic()
+        ensure_patched_installer()
         if not RICH:
             try:
                 install_rich_and_restart()

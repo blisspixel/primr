@@ -27,6 +27,9 @@ config = json.loads(Path(os.environ['INSTALLER_CONFIG']).read_text())
 name, *args = sys.argv[1:]
 with Path(os.environ['INSTALLER_LOG']).open('a') as log:
     log.write(json.dumps([name, *args]) + '\\n')
+if name == 'uv' and args == ['--version']:
+    print('uv ' + config.get('uv_version', '0.13.5'))
+    sys.exit(0)
 if name == 'py' or name.startswith('python'):
     if name == 'py':
         version = args.pop(0).removeprefix('-')
@@ -44,6 +47,8 @@ if name == 'py' or name.startswith('python'):
         sys.prefix = config['stdlib']
         sys.base_prefix = config['stdlib'] + '-base' if config.get('venv') else sys.prefix
         sysconfig.get_path = lambda *_args, **_kwargs: config['stdlib']
+        if 'pipx shared installer' in args[1]:
+            sys.exit(0 if config.get('shared_repaired', True) else 1)
         exec(args[1])
         sys.exit(0)
     if args[:2] == ['-m', 'pip']:
@@ -218,7 +223,7 @@ def test_existing_pipx_install_is_recreated_with_supported_python(installer):
     reinstall = next(call for call in calls if call[:2] == ["pipx", "reinstall"])
     assert reinstall[2] == "--python"
     assert Path(reinstall[3]).name == "python3.14"
-    assert not any(call[0] == "uv" for call in calls)
+    assert not any(call[0] == "uv" and call[1:] != ["--version"] for call in calls)
 
 
 def test_preview_only_python_fails_with_actionable_guidance(installer):
@@ -274,3 +279,22 @@ def test_bootstrap_failure_stops_before_installing_primr(installer):
     assert result.returncode != 0
     assert not any("pipx" in call and "primr" in call for call in calls)
     assert "==> Done." not in result.stdout
+
+
+@pytest.mark.parametrize("version", ["0.11.33", "0.13.3", "unknown"])
+def test_affected_uv_stops_before_any_package_download(installer, version):
+    result, calls, _ = installer(tools=("uv",), uv_version=version)
+    assert result.returncode != 0
+    assert not any("install" in call or "reinstall" in call for call in calls)
+    assert "0.13.4" in result.stdout + result.stderr
+
+
+def test_shared_installer_repair_is_verified_before_package_install(installer):
+    result, calls, _ = installer(
+        tools=("pipx",), versions={"python3": "3.15"}, shared_repaired=False
+    )
+    assert result.returncode != 0
+    repair = next(call for call in calls if call[:2] == ["pipx", "upgrade-shared"])
+    assert "--no-index --no-deps https://files.pythonhosted.org/" in repair[-1]
+    assert "#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70" in repair[-1]
+    assert not any(call[:2] == ["pipx", "install"] for call in calls)

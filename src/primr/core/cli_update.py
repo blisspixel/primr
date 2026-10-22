@@ -12,6 +12,7 @@ import subprocess
 
 from primr import __version__
 from primr.utils.console import console
+from primr.utils.installer_trust import require_safe_update_installer
 from primr.utils.terminal import can_prompt_for_input
 from primr.utils.version_check import (
     check_for_update,
@@ -109,6 +110,7 @@ def run_update(*, check_only: bool = False, yes: bool = False) -> int:
     console.blank()
     console.status(f"Upgrading primr to v{latest}")
     try:
+        require_safe_update_installer(method.kind)
         result = subprocess.run(
             method.upgrade_command,
             check=False,

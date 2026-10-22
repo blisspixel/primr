@@ -95,7 +95,7 @@ def test_bedrock_chat_uses_converse_and_records_usage():
     call = fake.converse.call_args.kwargs
     assert call["modelId"] == "us.anthropic.claude-sonnet-5"
     assert call["system"] == [{"text": "sys"}]
-    assert call["inferenceConfig"] == {"maxTokens": 500, "temperature": 0.5}
+    assert call["inferenceConfig"] == {"maxTokens": 500}
 
 
 def test_bedrock_chat_requires_a_non_system_message():

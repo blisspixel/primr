@@ -35,7 +35,7 @@ Source: `docs/images/primr-demo-terminal.html`. Requires Playwright Chromium
    `pyproject.toml`, then installs its exact pinned set so your environment
    matches CI and other contributors. After changing dependencies in
    `pyproject.toml`, run `uv lock` and regenerate the container exports below.
-   Use **uv 0.11.33**, the version pinned in CI; export formatting is part of
+   Use **uv 0.13.5**, the version pinned in CI; export formatting is part of
    the reproducibility check. Install uv from https://docs.astral.sh/uv/ if you
    don't have it.
 
@@ -51,6 +51,7 @@ Source: `docs/images/primr-demo-terminal.html`. Requires Playwright Chromium
    python -m venv .venv
    .venv\Scripts\activate  # Windows
    # or: source .venv/bin/activate  # macOS/Linux
+   python -m pip install --no-deps "https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
    pip install -e ".[dev]"
    playwright install chromium
    ```
@@ -88,7 +89,7 @@ original proposal once the maintainer PR lands. Preserve maintainer authorship
 without bot coauthor trailers; do not merge the proposal branch itself. This
 keeps review automation separate from the default branch's commit authorship.
 
-After changing the dependency lock with uv 0.11.33, regenerate both checked-in
+After changing the dependency lock with uv 0.13.5, regenerate both checked-in
 container exports before running the release gate:
 
 ```bash
@@ -99,6 +100,33 @@ uv run --no-sync pytest tests/test_supply_chain_pins.py -q
 
 Commit `pyproject.toml`, `uv.lock`, and any changed exports together. A lockfile
 update alone can leave the container build on older dependencies and fail CI.
+
+### Installer trust-store remediation (2026-10-22)
+
+The emSign incident requires separate updates to application `certifi`, pip's
+vendored bundle, UV's embedded roots, and the publisher's sigstore runtime.
+Use UV 0.13.5 and pip 26.2.2 or newer. Our virtualenv floor is 21.14.12 so
+new development environments also receive a repaired embedded pip. The setup
+wizard and container stages hash-bootstrap pip before package-index downloads;
+the release export includes the installer without adding it to application
+runtime requirements. The publishing action is commit-pinned to 1.14.3,
+whose upload/attestation runtime includes certifi 2026.10.19 and sigstore 4.5.1.
+
+Refresh existing development environments with `uv sync --locked --all-extras`.
+Rebuild existing containers using `docker build --pull --no-cache`; changed
+source pins do not repair already-built images. CI uses a new cache namespace
+and uncached container builds. Inspect pip in each virtual environment and in
+pipx's shared installer environment separately; upgrading the application's
+certifi or one Python environment does not repair every installer on a machine.
+The Bash and PowerShell installers reject affected UV and hash-bootstrap
+pipx installation and shared pip. `primr update` rejects an affected or
+unverifiable selected installer before running its upgrade command.
+Keep TLS verification enabled. For older pip installations, use the exact
+hash-pinned bootstrap in the manual setup above before other downloads.
+
+References: [Python incident notice](https://discuss.python.org/t/109576),
+[UV advisory](https://github.com/astral-sh/uv/security/advisories/GHSA-hq85-5cpj-mr62),
+and [publishing action release](https://github.com/pypa/gh-action-pypi-publish/releases/tag/v1.14.3).
 
 ### Running Tests
 

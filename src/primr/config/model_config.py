@@ -31,9 +31,21 @@ class ModelConfig:
     deprecated: bool = False
     expiration_date: date | None = None
     replacement_model: str | None = None
+    # Highest published token-write price across supported cache lifetimes.
+    # Conservative quotes use this when write counts/policy cannot be proven.
+    cost_per_1m_input_tokens_write_ceiling: float | None = None
+    cost_per_1m_input_tokens_write_ceiling_high: float | None = None
+    available: bool = True
 
     def require_available(self, on_date: date | None = None) -> None:
         """Reject new requests on or after a provider's published retirement date."""
+        if not self.available:
+            replacement = (
+                f" Select {self.replacement_model} explicitly." if self.replacement_model else ""
+            )
+            raise ValueError(
+                f"Model {self.name} is unavailable.{replacement} Re-estimate before running."
+            )
         effective_date = on_date if on_date is not None else datetime.now(UTC).date()
         if self.expiration_date is not None and effective_date >= self.expiration_date:
             replacement = (

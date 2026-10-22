@@ -371,12 +371,12 @@ class TestAnthropicModelCorrectness:
         assert config is not None
         assert config.max_output_tokens == 128_000
 
-    def test_sonnet_5_uses_conservative_post_intro_estimate(self) -> None:
+    def test_sonnet_5_uses_current_standard_pricing(self) -> None:
         config = PrimrModels.get_model_config(ModelRegistry.ANTHROPIC_SONNET.name)
         assert config is not None
-        assert config.cost_per_1m_input_tokens == 3.00
-        assert config.cost_per_1m_output_tokens == 15.00
-        assert config.cost_per_1m_input_tokens_cached == 0.30
+        assert config.cost_per_1m_input_tokens == 2.00
+        assert config.cost_per_1m_output_tokens == 10.00
+        assert config.cost_per_1m_input_tokens_cached == 0.20
 
     def test_sonnet_4_6_remains_registered_for_back_compat(self) -> None:
         config = PrimrModels.get_model_config("claude-sonnet-4-6")

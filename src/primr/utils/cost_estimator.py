@@ -1,23 +1,7 @@
-"""
-Cost Estimator for Gemini API usage.
+"""Pre-run token and tool estimates from the shared model-pricing facade.
 
-Provides estimated costs before running research to help users
-make informed decisions about API spending.
-
-Pricing as of February 2026 (from models.py single source of truth):
-- Gemini 3 Flash: $0.50/$3.00 per 1M tokens (input/output)
-- Gemini 3 Pro: $2.00/$12.00 per 1M tokens (input/output) — flat pricing
-- Gemini 3.1 Pro: $2.00/$12.00 (<=200k prompts) | $4.00/$18.00 (>200k prompts) — tiered
-- Deep Research: ~$2-3 per standard task, ~$3-5 per complex task (API doesn't expose tokens)
-- Google Search Grounding: $35/1000 queries ($0.035/query)
-
-Note: When AI_REASONING_MODEL is set to a tiered-pricing model (e.g. 3.1 Pro), cost
-estimates use conservative high-tier pricing (>200k). Actual costs may be lower if most
-prompts stay under the 200k token threshold.
-
-Note: Actual search query counts are available in API response via
-groundingMetadata.webSearchQueries. Typical reports use 10-30 searches,
-not the 100+ that "thinking steps" might suggest.
+Quotes use declared prompt tiers and cache-write ceilings. Actual provider billing
+can be lower. New Claude tokenizers retain the existing 30% estimation margin.
 """
 
 from collections.abc import Sequence
@@ -25,6 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from math import ceil
 
+from primr.config.anthropic_models import uses_modern_claude_tokenizer
 from primr.config.models import (
     DEEP_RESEARCH_COST,
     LITE_AI_STRATEGY_MAX_INPUT_TOKENS,
@@ -34,6 +19,7 @@ from primr.config.models import (
     PrimrModels,
     TokenCostBreakdown,
 )
+from primr.utils.cost_estimate_policy import cache_write_estimate_notes
 from primr.utils.cost_estimate_policy import (
     deep_path_hiring_overhead as _deep_path_hiring_overhead,
 )
@@ -133,7 +119,7 @@ GEMINI_3_FLASH_OUTPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[1] 
 
 GOOGLE_SEARCH_PRICE_PER_1000 = SEARCH_COST_PER_QUERY * 1000  # 35.00
 
-_SONNET_5_TOKENIZER_MULTIPLIER = 1.30
+_CLAUDE_TOKENIZER_MULTIPLIER = 1.30
 
 
 def _split_cached_tokens(
@@ -172,11 +158,11 @@ def _apply_tokenizer_safety_factor(
     output_tokens: int,
 ) -> tuple[int, int, bool]:
     """Inflate estimates for models with documented tokenizer expansion."""
-    if model_name != "claude-sonnet-5":
+    if not uses_modern_claude_tokenizer(model_name):
         return (input_tokens, output_tokens, False)
     return (
-        ceil(input_tokens * _SONNET_5_TOKENIZER_MULTIPLIER),
-        ceil(output_tokens * _SONNET_5_TOKENIZER_MULTIPLIER),
+        ceil(input_tokens * _CLAUDE_TOKENIZER_MULTIPLIER),
+        ceil(output_tokens * _CLAUDE_TOKENIZER_MULTIPLIER),
         True,
     )
 
@@ -407,6 +393,7 @@ def _lite_strategy_cost_breakdown(
         input_tokens,
         output_tokens,
         force_high_tier=config.has_tiered_pricing,
+        force_input_price_ceiling=True,
     )
     return (model_name, breakdown, input_tokens, output_tokens, tokenizer_adjusted)
 
@@ -645,6 +632,7 @@ def estimate_cost(
         flash_in,
         flash_out,
         cached_input_tokens=flash_cached,
+        force_input_price_ceiling=True,
     )
     # For estimates, use conservative (highest tier) pricing.
     pro_breakdown = PrimrModels.calculate_cost_breakdown(
@@ -653,6 +641,7 @@ def estimate_cost(
         pro_out,
         cached_input_tokens=pro_cached,
         force_high_tier=active_pro.has_tiered_pricing,
+        force_input_price_ceiling=True,
     )
 
     (
@@ -731,8 +720,9 @@ def estimate_cost(
             f"Estimate uses conservative (>{threshold_k}k) tier. "
             "Actual cost may be lower."
         )
+    notes.extend(cache_write_estimate_notes([active_pro.name, lite_strategy_model]))
     if sonnet_5_tokenizer_adjusted:
-        notes.append("Claude Sonnet 5 token estimates include a 30% tokenizer safety factor.")
+        notes.append("Claude token estimates include a 30% tokenizer safety factor.")
     if lite_strategy_tokenizer_adjusted:
         notes.append("Lite strategy estimate includes a 30% tokenizer safety factor.")
 
@@ -862,13 +852,21 @@ def _estimate_fast_mode_cost(
     # not assume prompt-cache hits. Pass prompt_tokens so ≥200k long-context
     # surcharges (Grok 4.3/4.5) apply when stage input estimates are large.
     utility_breakdown = PrimrModels.calculate_cost_breakdown(
-        utility_model, flash_in, flash_out, prompt_tokens=flash_in
+        utility_model, flash_in, flash_out, prompt_tokens=flash_in, force_input_price_ceiling=True
     )
     reasoning_breakdown = PrimrModels.calculate_cost_breakdown(
-        reasoning_model, grok_reasoning_in, grok_reasoning_out, prompt_tokens=grok_reasoning_in
+        reasoning_model,
+        grok_reasoning_in,
+        grok_reasoning_out,
+        prompt_tokens=grok_reasoning_in,
+        force_input_price_ceiling=True,
     )
     writing_breakdown = PrimrModels.calculate_cost_breakdown(
-        writing_model, grok_writing_in, grok_writing_out, prompt_tokens=grok_writing_in
+        writing_model,
+        grok_writing_in,
+        grok_writing_out,
+        prompt_tokens=grok_writing_in,
+        force_input_price_ceiling=True,
     )
     utility_cost = utility_breakdown.total_cost
     reasoning_cost = reasoning_breakdown.total_cost
@@ -953,8 +951,9 @@ def _estimate_fast_mode_cost(
     notes.append(
         "Hiring signals via ATS / careers page (~$0.01, +1-2 min; skip with PRIMR_SKIP_HIRING_SIGNALS=1)"
     )
+    notes.extend(cache_write_estimate_notes([utility_model, reasoning_model, writing_model]))
     if utility_tokenizer_adjusted or reasoning_tokenizer_adjusted or writing_tokenizer_adjusted:
-        notes.append("Claude Sonnet 5 token estimates include a 30% tokenizer safety factor.")
+        notes.append("Claude token estimates include a 30% tokenizer safety factor.")
     if _supports_cached_input_pricing(utility_model, reasoning_model, writing_model):
         notes.append(
             "No pre-run prompt-cache savings assumed; actual cache hits are recorded in usage."

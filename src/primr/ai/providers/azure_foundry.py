@@ -12,6 +12,8 @@ Env:
 - ``AZURE_OPENAI_BASE_URL`` — the full OpenAI-compatible base, e.g.
   ``https://<resource>.openai.azure.com/openai/v1/`` or the Foundry project form
   ``https://<account>.services.ai.azure.com/api/projects/<project>/openai/v1/``.
+- ``AZURE_OPENAI_API_STYLE`` - ``chat_completions`` (default) or ``responses``.
+  Select Responses explicitly for compatible current GPT deployments.
 - ``AZURE_OPENAI_ENDPOINT`` — alternative to BASE_URL; the resource root
   (``https://<resource>.openai.azure.com``), from which the ``/openai/v1/`` base
   is derived.
@@ -59,6 +61,7 @@ class AzureFoundryProvider(OpenAICompatibleProvider):
             base_url=resolve_foundry_base_url() or _UNRESOLVED_BASE_URL,
             api_key_env=AZURE_FOUNDRY_API_KEY_ENV,
             billing_help_url="https://ai.azure.com/",
+            api_style=os.getenv("AZURE_OPENAI_API_STYLE", "chat_completions").strip(),
         )
 
     def is_available(self) -> bool:

@@ -3,8 +3,11 @@
 from dataclasses import replace
 from enum import Enum
 
+from primr.config.anthropic_models import build_anthropic_models
+from primr.config.bedrock_models import build_current_bedrock_models
 from primr.config.gemini_models import build_gemini_models
 from primr.config.model_config import ModelConfig
+from primr.config.openai_models import build_openai_models
 from primr.config.openrouter_models import build_openrouter_models
 
 
@@ -30,6 +33,8 @@ class ModelType(Enum):
     IMAGE = "image"  # Image generation
 
 
+_OPENAI_MODELS = build_openai_models()
+_ANTHROPIC_MODELS = build_anthropic_models()
 _GEMINI_MODELS = build_gemini_models()
 _OPENROUTER_MODELS = build_openrouter_models(ModelConfig)
 
@@ -174,6 +179,9 @@ class ModelRegistry:
         tier_threshold_inclusive=True,
     )
 
+    # Grok 4.7 is selectable; the MAX routing pin remains evaluated Grok 4.5.
+    GROK_4_7 = replace(GROK_4_6, name="grok-4.7", display_name="Grok 4.7")
+
     # GROK 4.20 REASONING - dated canonical ID retained for compatibility
     # Pricing: $1.25/$0.20 cached/$2.50 below 200k prompt tokens;
     # $2.50/$0.40 cached/$5.00 at or above 200k. Context: 1M tokens.
@@ -228,152 +236,22 @@ class ModelRegistry:
         deprecated=True,  # Superseded by Grok 4.3 reasoning-intensity parameter
     )
 
-    # OPENAI GPT-5.6 - Current family (Sol frontier, Terra balanced, Luna low cost).
-    # Registered as eval-gated candidates; production routing remains unchanged.
-    # All have 1.05M context, 128K output, and >272K long-context pricing.
-    OPENAI_GPT_5_6_SOL = ModelConfig(
-        name="gpt-5.6-sol",
-        display_name="GPT-5.6 Sol",
-        provider="openai",
-        cost_per_1m_input_tokens=5.00,
-        cost_per_1m_output_tokens=30.00,
-        max_input_tokens=1_050_000,
-        max_output_tokens=128_000,
-        cost_per_1m_input_tokens_cached=0.50,
-        cost_per_1m_input_tokens_high=10.00,
-        cost_per_1m_output_tokens_high=45.00,
-        cost_per_1m_input_tokens_cached_high=1.00,
-        tier_threshold_tokens=272_000,
-    )
-    OPENAI_GPT_5_6 = replace(
-        OPENAI_GPT_5_6_SOL,
-        name="gpt-5.6",
-        display_name="GPT-5.6 (Sol alias)",
-    )
-    OPENAI_GPT_5_6_TERRA = replace(
-        OPENAI_GPT_5_6_SOL,
-        name="gpt-5.6-terra",
-        display_name="GPT-5.6 Terra",
-        cost_per_1m_input_tokens=2.00,
-        cost_per_1m_output_tokens=12.00,
-        cost_per_1m_input_tokens_cached=0.20,
-        cost_per_1m_input_tokens_high=4.00,
-        cost_per_1m_output_tokens_high=18.00,
-        cost_per_1m_input_tokens_cached_high=0.40,
-    )
-    OPENAI_GPT_5_6_LUNA = replace(
-        OPENAI_GPT_5_6_SOL,
-        name="gpt-5.6-luna",
-        display_name="GPT-5.6 Luna",
-        cost_per_1m_input_tokens=0.20,
-        cost_per_1m_output_tokens=1.20,
-        cost_per_1m_input_tokens_cached=0.02,
-        cost_per_1m_input_tokens_high=0.40,
-        cost_per_1m_output_tokens_high=1.80,
-        cost_per_1m_input_tokens_cached_high=0.04,
-    )
-
-    # OPENAI GPT-5.5 - Previous flagship reasoning + coding
-    # $5.00 input / $30.00 output per 1M tokens, cached input $0.50
-    # Long-context surcharge: 2x input / 1.5x output above 272K input tokens
-    # Context: 1.05M tokens, Output: 128k tokens
-    # PRICING UPDATED: May 2026 audit — Feb 2026 registry had $2.00/$10.00 (wrong).
-    OPENAI_GPT_5_5 = ModelConfig(
-        name="gpt-5.5",
-        display_name="GPT-5.5",
-        provider="openai",
-        cost_per_1m_input_tokens=5.00,
-        cost_per_1m_output_tokens=30.00,
-        max_input_tokens=1_050_000,
-        max_output_tokens=128_000,  # June 2026 audit: docs list 128k (was 100k)
-        supports_thinking=True,
-        supports_tools=True,
-        supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.50,
-        cost_per_1m_input_tokens_high=10.00,
-        cost_per_1m_output_tokens_high=45.00,
-        cost_per_1m_input_tokens_cached_high=1.00,
-        tier_threshold_tokens=272_000,
-    )
-
-    # OPENAI GPT-5.4 - Affordable flagship
-    # $2.50 input / $15.00 output per 1M tokens, cached input $0.25
-    # Long-context surcharge: 2x input / 1.5x output above 272K input tokens
-    # Context: 1.05M tokens, Output: 128k tokens
-    # PRICING UPDATED: May 2026 audit — output was $10.00, cached was $0.625.
-    OPENAI_GPT_5_4 = ModelConfig(
-        name="gpt-5.4",
-        display_name="GPT-5.4",
-        provider="openai",
-        cost_per_1m_input_tokens=2.50,
-        cost_per_1m_output_tokens=15.00,
-        max_input_tokens=1_050_000,
-        max_output_tokens=128_000,  # June 2026 audit: 128k (was 100k)
-        supports_thinking=True,
-        supports_tools=True,
-        supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.25,
-        # The surcharge applies to this 1.05M-context model, not mini or nano.
-        cost_per_1m_input_tokens_high=5.00,
-        cost_per_1m_output_tokens_high=22.50,
-        cost_per_1m_input_tokens_cached_high=0.50,
-        tier_threshold_tokens=272_000,
-    )
-
-    # OPENAI GPT-5.4 MINI - Utility tier candidate
-    # $0.75 input / $4.50 output per 1M tokens
-    # Context: 400k tokens, Output: 128k tokens
-    # PRICING UPDATED: May 2026 audit — was $0.40/$1.60 (wrong).
-    OPENAI_GPT_5_4_MINI = ModelConfig(
-        name="gpt-5.4-mini",
-        display_name="GPT-5.4 Mini",
-        provider="openai",
-        cost_per_1m_input_tokens=0.75,
-        cost_per_1m_output_tokens=4.50,
-        max_input_tokens=400_000,  # June 2026 audit: 400K (was 200K)
-        max_output_tokens=128_000,  # June 2026 audit: 128k (was 100k)
-        supports_thinking=True,
-        supports_tools=True,
-        supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.075,  # Confirmed June 2026 (docs)
-    )
-
-    # OPENAI GPT-5.4 NANO - Ultra-cheap utility tier
-    # $0.20 input / $1.25 output per 1M tokens
-    # Context: 400k tokens, Output: 128k tokens
-    # PRICING UPDATED: May 2026 audit — was $0.10/$0.40 (wrong).
-    OPENAI_GPT_5_4_NANO = ModelConfig(
-        name="gpt-5.4-nano",
-        display_name="GPT-5.4 Nano",
-        provider="openai",
-        cost_per_1m_input_tokens=0.20,
-        cost_per_1m_output_tokens=1.25,
-        max_input_tokens=400_000,  # June 2026 audit: 400K (was 200K)
-        max_output_tokens=128_000,  # June 2026 audit: 128k (was a wrong 16k cap)
-        supports_thinking=True,
-        supports_tools=True,
-        supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.02,  # Confirmed June 2026 (docs)
-    )
-
-    # OPENAI O4-MINI - Reasoning model (faster than o3-mini, same price)
-    # $1.10 input / $4.40 output per 1M tokens
-    # Strong reasoning candidate for v1.24.0 eval — cheaper output than Grok 4.3.
-    # Context: 200K tokens (typical OpenAI tier; verify before relying), Output: 100K.
-    # ADDED: May 2026 audit — was missing from registry entirely.
-    OPENAI_O4_MINI = ModelConfig(
-        name="o4-mini",
-        display_name="o4-mini",
-        provider="openai",
-        cost_per_1m_input_tokens=1.10,
-        cost_per_1m_output_tokens=4.40,
-        max_input_tokens=200_000,
-        max_output_tokens=100_000,
-        supports_thinking=True,
-        supports_tools=True,
-        supports_multimodal=False,  # Reasoning models typically text-only
-        cost_per_1m_input_tokens_cached=0.11,  # Inferred from 90% cache rule
-    )
+    # Direct OpenAI catalog includes current candidates and historical records.
+    # Registration does not repoint production defaults.
+    OPENAI_GPT_6_ASTRA = _OPENAI_MODELS["OPENAI_GPT_6_ASTRA"]
+    OPENAI_GPT_6_SOL = _OPENAI_MODELS["OPENAI_GPT_6_SOL"]
+    OPENAI_GPT_6_1_SOL = _OPENAI_MODELS["OPENAI_GPT_6_1_SOL"]
+    OPENAI_GPT_6_LUNA = _OPENAI_MODELS["OPENAI_GPT_6_LUNA"]
+    OPENAI_MODELS = tuple(_OPENAI_MODELS.values())
+    OPENAI_GPT_5_6_SOL = _OPENAI_MODELS["OPENAI_GPT_5_6_SOL"]
+    OPENAI_GPT_5_6 = _OPENAI_MODELS["OPENAI_GPT_5_6"]
+    OPENAI_GPT_5_6_TERRA = _OPENAI_MODELS["OPENAI_GPT_5_6_TERRA"]
+    OPENAI_GPT_5_6_LUNA = _OPENAI_MODELS["OPENAI_GPT_5_6_LUNA"]
+    OPENAI_GPT_5_5 = _OPENAI_MODELS["OPENAI_GPT_5_5"]
+    OPENAI_GPT_5_4 = _OPENAI_MODELS["OPENAI_GPT_5_4"]
+    OPENAI_GPT_5_4_MINI = _OPENAI_MODELS["OPENAI_GPT_5_4_MINI"]
+    OPENAI_GPT_5_4_NANO = _OPENAI_MODELS["OPENAI_GPT_5_4_NANO"]
+    OPENAI_O4_MINI = _OPENAI_MODELS["OPENAI_O4_MINI"]
 
     # Gateway-qualified names keep routing and accounting at the billing boundary.
     OPENROUTER_MODELS = _OPENROUTER_MODELS
@@ -384,94 +262,17 @@ class ModelRegistry:
         model for model in _OPENROUTER_MODELS if model.name == "google/gemini-3.1-flash-lite"
     )
 
-    # ANTHROPIC CLAUDE OPUS 4.8 - Most capable (GA May 28, 2026)
-    # $5.00 input / $25.00 output per 1M tokens, cached input $0.50. Context: 1M, Output: 128k.
-    ANTHROPIC_OPUS = ModelConfig(
-        name="claude-opus-4-8",
-        display_name="Claude Opus 4.8",
-        provider="anthropic",
-        cost_per_1m_input_tokens=5.00,
-        cost_per_1m_output_tokens=25.00,
-        max_input_tokens=1_000_000,
-        max_output_tokens=128_000,
-        supports_thinking=True,
-        supports_tools=True,
-        supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.50,
-    )
-
-    # ANTHROPIC CLAUDE SONNET 5 - Best speed/intelligence balance
-    # Conservative rate: $3.00 input / $15.00 output per 1M tokens, cached $0.30.
-    # Context: 1M tokens, Output: 128k tokens. Uses adaptive thinking.
-    ANTHROPIC_SONNET = ModelConfig(
-        name="claude-sonnet-5",
-        display_name="Claude Sonnet 5",
-        provider="anthropic",
-        cost_per_1m_input_tokens=3.00,
-        cost_per_1m_output_tokens=15.00,
-        max_input_tokens=1_000_000,
-        max_output_tokens=128_000,
-        supports_thinking=True,
-        supports_tools=True,
-        supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.30,
-    )
-
-    # ANTHROPIC CLAUDE SONNET 4.6 - Previous balanced tier (GA Feb 2026)
-    # Kept for back-compat; predecessor to claude-sonnet-5.
-    # $3.00 input / $15.00 output per 1M tokens, cached input $0.30
-    ANTHROPIC_SONNET_4_6 = ModelConfig(
-        name="claude-sonnet-4-6",
-        display_name="Claude Sonnet 4.6",
-        provider="anthropic",
-        cost_per_1m_input_tokens=3.00,
-        cost_per_1m_output_tokens=15.00,
-        max_input_tokens=1_000_000,
-        max_output_tokens=64_000,
-        supports_thinking=True,
-        supports_tools=True,
-        supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.30,
-        deprecated=True,
-    )
-
-    # ANTHROPIC CLAUDE HAIKU 4.5 - Fastest, utility tier candidate
-    # $1.00 input / $5.00 output per 1M tokens, cached input $0.10
-    # Batch API: $0.50 / $2.50 (50% off, currently unmodeled in cost estimator)
-    # Context: 200k tokens, Output: 64k tokens
-    ANTHROPIC_HAIKU = ModelConfig(
-        name="claude-haiku-4-5",
-        display_name="Claude Haiku 4.5",
-        provider="anthropic",
-        cost_per_1m_input_tokens=1.00,
-        cost_per_1m_output_tokens=5.00,
-        max_input_tokens=200_000,
-        max_output_tokens=65_536,
-        supports_thinking=True,
-        supports_tools=True,
-        supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.10,
-    )
-
-    # ANTHROPIC CLAUDE HAIKU 3.5 - RETIRED Feb 19, 2026
-    # June 2026 audit: claude-3-5-haiku was retired on 2026-02-19 and now 404s.
-    # The canonical slug was always the dated claude-3-5-haiku-20241022; the
-    # bare "claude-haiku-3-5" alias is gone too. Kept registered + deprecated
-    # for historical eval comparison only — DO NOT route to it. Use Haiku 4.5.
-    ANTHROPIC_HAIKU_3_5 = ModelConfig(
-        name="claude-haiku-3-5",
-        display_name="Claude Haiku 3.5",
-        provider="anthropic",
-        cost_per_1m_input_tokens=0.80,
-        cost_per_1m_output_tokens=4.00,
-        max_input_tokens=200_000,
-        max_output_tokens=8_192,
-        supports_thinking=False,  # Pre-Claude-4 era, no extended thinking
-        supports_tools=True,
-        supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.08,
-        deprecated=True,  # Retired 2026-02-19 (404) → claude-haiku-4-5
-    )
+    # Direct Anthropic records preserve the evaluated routing constants.
+    ANTHROPIC_FABLE_5_1 = _ANTHROPIC_MODELS["ANTHROPIC_FABLE_5_1"]
+    ANTHROPIC_OPUS_5_5 = _ANTHROPIC_MODELS["ANTHROPIC_OPUS_5_5"]
+    ANTHROPIC_SONNET_5_5 = _ANTHROPIC_MODELS["ANTHROPIC_SONNET_5_5"]
+    ANTHROPIC_HAIKU_5_5 = _ANTHROPIC_MODELS["ANTHROPIC_HAIKU_5_5"]
+    ANTHROPIC_MODELS = tuple(_ANTHROPIC_MODELS.values())
+    ANTHROPIC_OPUS = _ANTHROPIC_MODELS["ANTHROPIC_OPUS"]
+    ANTHROPIC_SONNET = _ANTHROPIC_MODELS["ANTHROPIC_SONNET"]
+    ANTHROPIC_SONNET_4_6 = _ANTHROPIC_MODELS["ANTHROPIC_SONNET_4_6"]
+    ANTHROPIC_HAIKU = _ANTHROPIC_MODELS["ANTHROPIC_HAIKU"]
+    ANTHROPIC_HAIKU_3_5 = _ANTHROPIC_MODELS["ANTHROPIC_HAIKU_3_5"]
 
     # OLLAMA QWEN3 CODER 30B - Local inference, agentic-friendly
     # Zero cost (local), 131k context
@@ -674,6 +475,28 @@ class ModelRegistry:
         supports_thinking=False,
         supports_tools=True,
         supports_multimodal=True,
+    )
+
+    BEDROCK_CURRENT_MODELS = build_current_bedrock_models()
+
+    # Local-only library tags. 16K is a conservative configured generation cap;
+    # the advertised context windows require matching local runtime settings.
+    OLLAMA_CURRENT_MODELS = tuple(
+        ModelConfig(
+            name=name,
+            display_name=display,
+            provider="ollama",
+            cost_per_1m_input_tokens=0.0,
+            cost_per_1m_output_tokens=0.0,
+            max_input_tokens=262_144,
+            max_output_tokens=16_384,
+        )
+        for name, display in (
+            ("qwen3.8:27b", "Qwen 3.8 27B (Local)"),
+            ("gemma4:12b", "Gemma 4 12B (Local)"),
+            ("gemma4:26b", "Gemma 4 26B (Local)"),
+            ("gemma4:31b", "Gemma 4 31B (Local)"),
+        )
     )
 
     # DEEP RESEARCH AGENT - Autonomous research producing 12+ page reports
