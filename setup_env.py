@@ -757,8 +757,10 @@ if __name__ == "__main__":
     try:
         # Outside the Rich fallback: a failed trust-store repair must not
         # continue through main_basic and download packages with old pip.
-        if (sys.version_info.major, sys.version_info.minor) >= (3, 11):
-            ensure_patched_installer()
+        if (sys.version_info.major, sys.version_info.minor) < (3, 11):
+            # Reject or restart before even downloading the setup UI.
+            main_rich() if RICH else main_basic()
+        ensure_patched_installer()
         if not RICH:
             try:
                 install_rich_and_restart()
