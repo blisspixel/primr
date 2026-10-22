@@ -1,6 +1,6 @@
 # Next Steps
 
-Released baseline: **v1.39.22**
+Released baseline: **v1.39.23**
 
 Next implementation candidate: **v1.40.0**
 
@@ -37,8 +37,11 @@ product.
 
 ## Current executable card
 
-v1.39.22 is the released baseline. It adds bounded ingestion, native PDF
-containment, and explicit browser sandbox defaults. It retains provider-specific
+v1.39.23 is the released baseline. It binds judge comparisons to the original
+claims, verdicts, and source captures, rejects incomplete local judge plans, and
+excludes failed or changed artifacts from agreement counts. It retains bounded
+ingestion, native PDF containment, explicit browser sandbox defaults, and the
+patched telemetry/environment dependency floors. It retains provider-specific
 model retirement checks, explicit spend gates, the MCP session-resource security
 floor, maintained Python 3.11-3.15 support, and the updated direct Gemini catalog.
 Keyless startup, diagnostics, streams, collection signatures, and Word evidence
@@ -56,7 +59,7 @@ independently validated evaluators, before any hard report-quality gate or
 hybrid-routing promotion.
 
 **Why this is next:** the version ladder already places quality claims after
-that corpus. Operator polish through v1.39.22 is the released baseline.
+that corpus. Operator polish through v1.39.23 is the released baseline.
 
 **Exit criteria:**
 
@@ -68,7 +71,7 @@ that corpus. Operator polish through v1.39.22 is the released baseline.
 paid evaluation, a deterministic prose-quality gate, a lone LLM judge, memory,
 and a new public command.
 
-**Implementation status (2026-10-20):** the maintenance ownership work is
+**Implementation status (2026-10-22):** the maintenance ownership work is
 complete: section, trust, and strategy stages receive explicit callbacks, the
 legacy section pipeline has one canonical owner, and the first-party import
 cycle baseline is empty. The v1.40 quality candidate remains unreleased; corpus
@@ -152,7 +155,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.22
+## Version gates after v1.39.23
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.

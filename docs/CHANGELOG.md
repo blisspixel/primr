@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.23] - 2026-10-22
+
+### Security
+
+- Require OpenTelemetry API 1.45.1 or newer for bounded inbound tracestate
+  parsing, including published wheel installs. Update the locked development
+  environment tool to virtualenv 21.14.9 or newer for activation and POSIX
+  launcher quoting fixes. Regenerate the hashed container dependency exports.
+
+### Fixed
+
+- Compare local judges against the exact sampled claims and saved cloud
+  verdicts, without rereading or rejudging reports. Reject incomplete local
+  judge plans before provider calls, exclude changed report or sidecar
+  artifacts from agreement counts, and continue the batch after individual
+  cloud, local, or decoding failures. Write calibration sidecars atomically.
+
 ## [1.39.22] - 2026-10-20
 
 ### Security

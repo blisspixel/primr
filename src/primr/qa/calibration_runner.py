@@ -21,18 +21,18 @@ switchable so tests stay offline.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
-    from primr.qa.label_calibration import EvidenceReview
+    from primr.qa.label_calibration import CalibrationReport, EvidenceReview
 
 from primr.qa.artifact_fingerprints import artifact_bytes_fingerprint, artifact_fingerprint
-from primr.qa.calibration_judge_agreement import JudgeAgreement, JudgeDisagreement
+from primr.qa.calibration_judge_agreement import JudgeAgreement, compare_calibration_reports
 from primr.qa.calibration_measurement import (
     DEFAULT_CALIBRATION_SAMPLE_SEED,
     parse_judge_verdict,
@@ -43,7 +43,12 @@ from primr.qa.calibration_sidecars import (
     SIDECAR_SUFFIX as SIDECAR_SUFFIX,
 )
 from primr.qa.calibration_sidecars import (
-    calibration_sidecar_matches_artifact,
+    read_sidecar_payload as _read_sidecar_payload,
+)
+from primr.qa.calibration_sidecars import (
+    read_sidecar_snapshot as _read_sidecar_snapshot,
+)
+from primr.qa.calibration_sidecars import (
     sidecar_path_for,
 )
 from primr.qa.label_calibration import (
@@ -53,6 +58,7 @@ from primr.qa.label_calibration import (
     calibrate_claims,
     extract_labeled_claims,
 )
+from primr.utils.atomic_io import atomic_write_text
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("qa.calibration_runner")
@@ -344,23 +350,54 @@ def run_calibration(
     stamps its provenance into each sidecar; an explicit ``judge_fn`` wins
     over it (test seam).
     """
+    return [
+        outcome
+        for outcome, _report in _iter_calibrations(
+            report_paths,
+            max_per_label=max_per_label,
+            dry_run=dry_run,
+            write_sidecar=write_sidecar,
+            fetch_fn=fetch_fn,
+            judge_fn=judge_fn,
+            review_fn=review_fn,
+            judge_selection=judge_selection,
+            captured_sources=captured_sources,
+            sample_seed=sample_seed,
+        )
+    ]
+
+
+def _iter_calibrations(
+    report_paths: list[Path],
+    *,
+    max_per_label: int = DEFAULT_MAX_PER_LABEL,
+    dry_run: bool = False,
+    write_sidecar: bool = True,
+    fetch_fn: Callable[[str], str] | None = None,
+    judge_fn: Callable[[str, str], bool | str] | None = None,
+    review_fn: Callable[[str, str], EvidenceReview] | None = None,
+    judge_selection: JudgeSelection | None = None,
+    captured_sources: dict[str, str] | None = None,
+    sample_seed: int = DEFAULT_CALIBRATION_SAMPLE_SEED,
+) -> Iterator[tuple[ReportCalibrationOutcome, CalibrationReport | None]]:
+    """Yield each outcome with its original claims and verdicts, without rejudging."""
     selection = judge_selection or JudgeSelection(kind="cloud", model="fast-tier")
     effective_judge = judge_fn if judge_fn is not None else selection.judge_fn
 
-    outcomes: list[ReportCalibrationOutcome] = []
     for path in report_paths:
         try:
             report_bytes = path.read_bytes()
             content = report_bytes.decode("utf-8")
         except (OSError, UnicodeDecodeError) as e:
-            outcomes.append(
+            yield (
                 ReportCalibrationOutcome(
                     report_path=path,
                     claims_sampled=0,
                     judgeable_claims=0,
                     estimated_judge_calls=0,
                     error=f"unreadable: {e}",
-                )
+                ),
+                None,
             )
             continue
         report_artifact = artifact_bytes_fingerprint(report_bytes)
@@ -370,13 +407,14 @@ def run_calibration(
         judge_calls = _estimate_judge_calls(claims)
 
         if dry_run:
-            outcomes.append(
+            yield (
                 ReportCalibrationOutcome(
                     report_path=path,
                     claims_sampled=len(claims),
                     judgeable_claims=len(judgeable),
                     estimated_judge_calls=judge_calls,
-                )
+                ),
+                None,
             )
             continue
 
@@ -389,14 +427,15 @@ def run_calibration(
                 captured_sources=captured_sources,
             )
         except Exception as e:
-            outcomes.append(
+            yield (
                 ReportCalibrationOutcome(
                     report_path=path,
                     claims_sampled=len(claims),
                     judgeable_claims=len(judgeable),
                     estimated_judge_calls=judge_calls,
                     error=f"calibration_failed: {e}",
-                )
+                ),
+                None,
             )
             continue
         payload = report.to_dict()
@@ -410,21 +449,22 @@ def run_calibration(
         sidecar: Path | None = None
         if write_sidecar:
             if artifact_fingerprint(path) != report_artifact:
-                outcomes.append(
+                yield (
                     ReportCalibrationOutcome(
                         report_path=path,
                         claims_sampled=len(claims),
                         judgeable_claims=len(judgeable),
                         estimated_judge_calls=judge_calls,
                         error="report_changed_during_calibration",
-                    )
+                    ),
+                    None,
                 )
                 continue
             sidecar = sidecar_path_for(path)
-            sidecar.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+            atomic_write_text(sidecar, json.dumps(payload, indent=2, ensure_ascii=False))
             logger.info("Calibration sidecar written: %s", sidecar)
 
-        outcomes.append(
+        yield (
             ReportCalibrationOutcome(
                 report_path=path,
                 claims_sampled=len(claims),
@@ -432,12 +472,9 @@ def run_calibration(
                 estimated_judge_calls=judge_calls,
                 sidecar_path=sidecar,
                 per_label=payload["per_label"],
-            )
+            ),
+            report,
         )
-    return outcomes
-
-
-_DECIDED = ("traceable", "untraceable")
 
 
 def _sampled_claims(content: str, *, max_per_label: int | None, sample_seed: int) -> list[Any]:
@@ -466,112 +503,75 @@ def compare_judges(
     both passes) and is compared verdict-by-verdict. Returns the cloud
     outcomes and the agreement summary.
     """
-    # Shared fetch cache so sources are fetched once across both passes,
-    # and a memoized cloud judge so each (claim, source) pair is billed
-    # exactly once even though the sidecar pass and the comparison pass
-    # both consult it.
+    if (
+        local_selection.kind != "local"
+        or not local_selection.model.strip()
+        or not callable(local_selection.judge_fn)
+    ):
+        raise ValueError("Comparison requires a configured local judge with a model and callable")
+
+    # Both judges see one capture per URL. Keep frozen input independent of
+    # caller mutations, and memoize repeated cloud claim/source pairs.
+    captures = dict(captured_sources) if captured_sources is not None else None
     fetch_cache: dict[str, str] = {}
-    base_fetch = fetch_fn
-    if base_fetch is None:
+    if fetch_fn is None:
         from primr.qa.label_calibration import _default_fetch
 
-        base_fetch = _default_fetch
+        fetch_fn = _default_fetch
 
     def cached_fetch(url: str) -> str:
         if url not in fetch_cache:
-            fetch_cache[url] = base_fetch(url)
+            fetch_cache[url] = fetch_fn(url)
         return fetch_cache[url]
 
-    base_cloud_judge = cloud_judge_fn
-    if base_cloud_judge is None:
+    if cloud_judge_fn is None:
         from primr.qa.label_calibration import _default_judge
 
-        base_cloud_judge = _default_judge
+        cloud_judge_fn = _default_judge
     judge_cache: dict[tuple[str, str], bool | str] = {}
 
     def cached_cloud_judge(claim_sentence: str, source_text: str) -> bool | str:
         key = (claim_sentence, source_text)
         if key not in judge_cache:
-            judge_cache[key] = base_cloud_judge(claim_sentence, source_text)
+            judge_cache[key] = cloud_judge_fn(claim_sentence, source_text)
         return judge_cache[key]
 
-    cloud_outcomes = run_calibration(
+    outcomes: list[ReportCalibrationOutcome] = []
+    compared = agreed = 0
+    for outcome, cloud_report in _iter_calibrations(
         report_paths,
         max_per_label=max_per_label,
         fetch_fn=cached_fetch,
         judge_fn=cached_cloud_judge,
         judge_selection=JudgeSelection(kind="cloud", model="fast-tier"),
-        captured_sources=captured_sources,
+        captured_sources=captures,
         sample_seed=sample_seed,
-    )
-
-    compared = 0
-    agreed = 0
-    per_report: dict[Path, JudgeAgreement] = {}
-    for path in report_paths:
+    ):
+        if cloud_report is None or outcome.sidecar_path is None:
+            outcomes.append(outcome)
+            continue
+        payload, sidecar_artifact = _read_sidecar_snapshot(outcome.report_path)
+        if payload is None or payload.get("claims") != cloud_report.to_dict()["claims"]:
+            outcomes.append(replace(outcome, error="comparison_artifact_changed"))
+            continue
         try:
-            content = path.read_text(encoding="utf-8")
-        except OSError:
+            local_report = calibrate_claims(
+                [result.claim for result in cloud_report.results],
+                fetch_fn=cached_fetch,
+                judge_fn=local_selection.judge_fn,
+                captured_sources=captures,
+            )
+            agreement = compare_calibration_reports(
+                cloud_report, local_report, local_model=local_selection.model
+            )
+        except Exception as exc:
+            outcomes.append(replace(outcome, error=f"judge_comparison_failed: {exc}"))
             continue
-        claims = _sampled_claims(content, max_per_label=max_per_label, sample_seed=sample_seed)
-        cloud_report = calibrate_claims(
-            claims,
-            fetch_fn=cached_fetch,
-            judge_fn=cached_cloud_judge,
-            captured_sources=captured_sources,
-        )
-        local_report = calibrate_claims(
-            claims,
-            fetch_fn=cached_fetch,
-            judge_fn=local_selection.judge_fn,
-            captured_sources=captured_sources,
-        )
-        report_compared = 0
-        report_agreed = 0
-        report_disagreements: list[JudgeDisagreement] = []
-        for claim_index, (cloud_result, local_result) in enumerate(
-            zip(cloud_report.results, local_report.results, strict=True)
+        if (
+            artifact_fingerprint(outcome.report_path) != payload["report_artifact"]
+            or artifact_fingerprint(outcome.sidecar_path) != sidecar_artifact
         ):
-            if cloud_result.verdict in _DECIDED and local_result.verdict in _DECIDED:
-                compared += 1
-                report_compared += 1
-                if cloud_result.verdict == local_result.verdict:
-                    agreed += 1
-                    report_agreed += 1
-                else:
-                    report_disagreements.append(
-                        JudgeDisagreement(
-                            claim_index=claim_index,
-                            cloud_verdict=cloud_result.verdict,
-                            local_verdict=local_result.verdict,
-                        )
-                    )
-        per_report[path] = JudgeAgreement(
-            compared=report_compared,
-            agreed=report_agreed,
-            local_model=local_selection.model,
-            disagreements=tuple(report_disagreements),
-        )
-
-    agreement = JudgeAgreement(compared=compared, agreed=agreed, local_model=local_selection.model)
-    _stamp_judge_agreement(cloud_outcomes, per_report)
-    return cloud_outcomes, agreement
-
-
-def _stamp_judge_agreement(
-    outcomes: list[ReportCalibrationOutcome],
-    per_report: dict[Path, JudgeAgreement],
-) -> None:
-    """Persist per-report cloud-vs-local agreement beside calibration verdicts."""
-    for outcome in outcomes:
-        if outcome.sidecar_path is None:
-            continue
-        agreement = per_report.get(outcome.report_path)
-        if agreement is None:
-            continue
-        payload = _read_sidecar_payload(outcome.report_path)
-        if payload is None:
-            logger.warning("Could not stamp judge agreement into %s", outcome.sidecar_path)
+            outcomes.append(replace(outcome, error="comparison_artifact_changed"))
             continue
         payload["judge_agreement"] = {
             "scope": "report",
@@ -581,47 +581,14 @@ def _stamp_judge_agreement(
             "agreement": agreement.agreement,
             "disagreements": [item.to_dict() for item in agreement.disagreements],
         }
-        outcome.sidecar_path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        atomic_write_text(outcome.sidecar_path, json.dumps(payload, indent=2, ensure_ascii=False))
+        compared += agreement.compared
+        agreed += agreement.agreed
+        outcomes.append(outcome)
 
-
-def _read_sidecar_payload(
-    report_path: Path,
-    *,
-    report_artifact: dict[str, Any] | None = None,
-) -> dict[str, Any] | None:
-    payload, _fingerprint = _read_sidecar_snapshot(
-        report_path,
-        report_artifact=report_artifact,
+    return outcomes, JudgeAgreement(
+        compared=compared, agreed=agreed, local_model=local_selection.model
     )
-    return payload
-
-
-def _read_sidecar_snapshot(
-    report_path: Path,
-    *,
-    report_artifact: dict[str, Any] | None = None,
-) -> tuple[dict[str, Any] | None, dict[str, Any]]:
-    """Read, validate, and fingerprint a sidecar from one byte snapshot."""
-
-    sidecar = sidecar_path_for(report_path)
-    try:
-        content = sidecar.read_bytes()
-    except OSError:
-        return None, {"size_bytes": None, "content_hash": None}
-    fingerprint = artifact_bytes_fingerprint(content)
-    try:
-        payload = json.loads(content.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return None, fingerprint
-    if not isinstance(payload, dict):
-        return None, fingerprint
-    expected_artifact = report_artifact or artifact_fingerprint(report_path)
-    if not calibration_sidecar_matches_artifact(expected_artifact, payload):
-        return None, fingerprint
-    return payload, fingerprint
 
 
 def write_calibration_pack_manifest(
