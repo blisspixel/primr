@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   judge plans before provider calls, exclude changed report or sidecar
   artifacts from agreement counts, and continue the batch after individual
   cloud, local, or decoding failures. Write calibration sidecars atomically.
+- Separate bounded browser dependency setup from the native CI test and use
+  Ubuntu's HTTPS archive for runner package downloads. Preserve the native
+  test deadline and Chromium sandbox checks when archive mirrors are slow.
 
 ## [1.39.22] - 2026-10-20
 

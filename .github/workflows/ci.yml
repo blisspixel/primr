@@ -78,13 +78,24 @@ jobs:
               "$RUNNER_TEMP/primr-url-corpus" \
               2>&1 | tee "$RUNNER_TEMP/primr-fuzz-artifacts/engine.log"
 
+      - name: Install native browser dependencies
+        if: matrix.python-version == '3.15'
+        timeout-minutes: 10
+        run: |
+          # The runner's Azure archive mirror can stall while fetching fonts.
+          # Use Ubuntu's HTTPS archive; apt still verifies signed repository data.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu' | \
+              sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+          fi
+          uv run --no-sync playwright install --with-deps chromium
+
       - name: Native browser compatibility on newest stable
         env:
           PRIMR_BROWSER_SMOKE: "1"
         if: matrix.python-version == '3.15'
         timeout-minutes: 5
         run: |
-          uv run --no-sync playwright install --with-deps chromium
           # Ubuntu restricts user namespaces for downloaded browser binaries.
           # Permit only this runner's browser cache, retaining Chromium sandboxing.
           if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ] && \
