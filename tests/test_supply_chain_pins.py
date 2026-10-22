@@ -99,6 +99,7 @@ def test_docker_base_images_are_digest_pinned() -> None:
         (None, "opentelemetry-api", "1.44.0", "1.45.1"),
         (None, "opentelemetry-api", "1.45.0", "1.45.1"),
         ("docs", "mkdocs-material", "9.7.6", "9.7.7"),
+        ("dev", "pip", "26.2.1", "26.2.2"),
     ],
 )
 def test_dependency_security_floors_exclude_affected_versions(
