@@ -10,6 +10,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from primr.qa import label_calibration
 from primr.qa.calibration_judge_agreement import compare_calibration_reports
 from primr.qa.calibration_runner import JudgeSelection, compare_judges, sidecar_path_for
 from primr.qa.label_calibration import CalibrationReport, calibrate_claims, extract_labeled_claims
@@ -28,7 +29,7 @@ def _no_default_egress(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         raise AssertionError("Tests require injected fetch and judge functions")
 
     for name in ("_default_fetch", "_default_judge", "_default_review"):
-        monkeypatch.setattr(f"primr.qa.label_calibration.{name}", blocked)
+        monkeypatch.setattr(label_calibration, name, blocked)
     return
 
 
