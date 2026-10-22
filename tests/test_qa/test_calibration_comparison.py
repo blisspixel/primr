@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock
@@ -24,13 +23,12 @@ Revenue reached $50M in 2025. (Confirmed) [cite: 1]
 
 
 @pytest.fixture(autouse=True)
-def _no_default_egress(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def _no_default_egress(monkeypatch: pytest.MonkeyPatch) -> None:
     def blocked(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("Tests require injected fetch and judge functions")
 
     for name in ("_default_fetch", "_default_judge", "_default_review"):
         monkeypatch.setattr(label_calibration, name, blocked)
-    return
 
 
 def _report(root: Path, name: str = "Acme") -> Path:
