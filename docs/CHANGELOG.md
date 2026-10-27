@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.25] - 2026-10-27
+
+### Security
+
+- Constrain locked and container installs to filelock 4.2.1 or newer
+  (CVE-2026-112907, CVE-2026-112913, CVE-2026-112940), virtualenv 21.14.13 or
+  newer (CVE-2026-115586), and dnspython 2.9.0 or newer (CVE-2026-114605).
+  These are transitive packages reached through tldextract, virtualenv,
+  pip-audit, and recon-tool; pip consumers resolve their own versions.
+- Take the reviewed Python, setuptools, and GitHub Actions updates proposed in
+  #254, #255, and #256, and regenerate both container requirement exports.
+
+### Fixed
+
+- Route OpenAI-only reasoning to GPT-5.6 Terra, OpenAI's named substitute for
+  o4-mini, which shut down on 2026-10-23. o4-mini remains priced for historical
+  accounting and now reports its shutdown and replacement before egress.
+  Replace the `o4mini-flashlite` eval slot with `terra-flashlite`; its cost is
+  a planning figure, not a measurement.
+- Request `gpt-image-2.5-flare` for opt-in OpenAI icon generation after the
+  gpt-image-1 shutdown, and `grok-imagine-image-2.0` at explicit `medium`
+  quality for xAI before the 2026-11-02 retirement of
+  `grok-imagine-image-quality`. Medium keeps the retired slug's intent instead
+  of the provider's low-quality redirect. Image model IDs now live in
+  `config/models.py`.
+- Record the announced 2027-04-01 shutdown of gpt-5.4-nano with gpt-6-luna as
+  its replacement. The OpenAI-only writing default is unchanged until then.
+  OpenRouter's `openai/gpt-4.1-mini` route is unchanged because the gateway
+  still lists it.
+
+### Changed
+
+- Add start-tidy and stop-tidy contributor rules to `CLAUDE.md` (#252).
+
 ## [1.39.24] - 2026-10-22
 
 ### Security

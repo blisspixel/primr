@@ -1,10 +1,14 @@
 """OpenAI standard API rates and context tiers, verified 2026-10-22.
 
+Shutdown dates and replacements verified 2026-10-27.
+
 https://developers.openai.com/api/docs/pricing
 https://developers.openai.com/api/docs/models
+https://developers.openai.com/api/docs/deprecations
 """
 
 from dataclasses import replace
+from datetime import date
 
 from primr.config.model_config import ModelConfig
 
@@ -110,6 +114,8 @@ def build_openai_models() -> dict[str, ModelConfig]:
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.02,
+        expiration_date=date(2027, 4, 1),
+        replacement_model="gpt-6-luna",
     )
     models["OPENAI_O4_MINI"] = ModelConfig(
         name="o4-mini",
@@ -123,6 +129,9 @@ def build_openai_models() -> dict[str, ModelConfig]:
         supports_tools=True,
         supports_multimodal=False,
         cost_per_1m_input_tokens_cached=0.275,
+        deprecated=True,
+        expiration_date=date(2026, 10, 23),
+        replacement_model="gpt-5.6-terra",
     )
     # Standard USD rates; >272K prompts reprice the full request.
     for key, name, display, input_rate, output_rate, cached_rate in (

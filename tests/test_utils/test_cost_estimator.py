@@ -1031,7 +1031,7 @@ class TestGrokTier:
         notes = " ".join(est.notes)
         assert est.mode == "full (OpenAI routed)"
         assert est.deep_research_cost == 0.0
-        assert "o4-mini reasoning" in notes
+        assert "gpt-5.6-terra reasoning" in notes
         assert "gpt-5.4-nano writing" in notes
         assert "gpt-5.4-nano utility" in notes
         assert "Gemini 3.1 Pro" not in notes

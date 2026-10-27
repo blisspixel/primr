@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.39.24"
+version = "1.39.25"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = "Apache-2.0"
@@ -244,8 +244,14 @@ constraint-dependencies = [
     "anyio>=4.14.2",
     "PyJWT>=2.15.1",
     "soupsieve>=2.9.0",
-    # Environment-name activation and POSIX launcher quoting fixes.
-    "virtualenv>=21.14.12",
+    # Environment-name activation, POSIX launcher quoting, and
+    # CVE-2026-115586 fixes.
+    "virtualenv>=21.14.13",
+    # Reached through tldextract, virtualenv, and pip-audit caching.
+    # CVE-2026-112907, CVE-2026-112913, and CVE-2026-112940 are fixed in 4.2.1.
+    "filelock>=4.2.1",
+    # Reached through recon-tool DNS lookups; CVE-2026-114605 is fixed in 2.9.0.
+    "dnspython>=2.9.0",
     # Older vendored parsers import sre_constants, removed in Python 3.15.
     "pip-api>=0.0.35",
     # pip vendors its own CA bundle, independent of application certifi.

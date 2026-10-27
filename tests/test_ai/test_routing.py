@@ -16,6 +16,7 @@ eval generation runner force a specific model for each role per run.
 
 from __future__ import annotations
 
+import itertools
 from unittest.mock import patch
 
 import pytest
@@ -162,12 +163,41 @@ class TestProviderAwareFallbackChain:
             assert pick_model_for_role(Role.UTILITY) == ModelRegistry.OPENAI_GPT_5_4_NANO.name
 
     def test_openai_only_reasoning(self) -> None:
-        """OpenAI-only → o4-mini for reasoning (cheaper than gpt-5.4)."""
+        """OpenAI-only -> GPT-5.6 Terra, OpenAI's named substitute for o4-mini."""
         from primr.config.models import ModelRegistry
 
         env = _scrubbed_env(OPENAI_API_KEY="test-openai")
         with patch.dict("os.environ", env, clear=True):
-            assert pick_model_for_role(Role.REASONING) == ModelRegistry.OPENAI_O4_MINI.name
+            assert pick_model_for_role(Role.REASONING) == ModelRegistry.OPENAI_GPT_5_6_TERRA.name
+
+    def test_retired_o4_mini_names_its_replacement(self) -> None:
+        from datetime import date
+
+        from primr.config.models import ModelRegistry
+
+        retired = ModelRegistry.OPENAI_O4_MINI
+        retired.require_available(date(2026, 10, 22))
+        with pytest.raises(ValueError, match="gpt-5.6-terra"):
+            retired.require_available(date(2026, 10, 23))
+
+    @pytest.mark.parametrize(
+        "keys",
+        [
+            combo
+            for size in range(1, 5)
+            for combo in itertools.combinations(
+                ("XAI_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"), size
+            )
+        ],
+    )
+    def test_default_routes_never_select_a_retired_model(self, keys) -> None:
+        env = _scrubbed_env(**dict.fromkeys(keys, "test-key"))
+        with patch.dict("os.environ", env, clear=True):
+            for role in (Role.UTILITY, Role.WRITING, Role.REASONING):
+                model = pick_model_for_role(role)
+                config = PrimrModels.get_model_config(model)
+                assert config is not None, model
+                config.require_available()
 
     def test_anthropic_only_writing(self) -> None:
         from primr.config.models import ModelRegistry

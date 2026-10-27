@@ -76,7 +76,7 @@ class GrokImageProvider(ImageGenerationProvider):
     API reference: https://docs.x.ai/developers/model-capabilities/imagine
 
     Endpoint: POST https://api.x.ai/v1/images/generations
-    Model:    grok-imagine-image-quality
+    Model:    PrimrModels.XAI_IMAGE_MODEL at PrimrModels.XAI_IMAGE_QUALITY
     Response: {"data": [{"url": "..."} or {"b64_json": "..."}]}
 
     We default to URL response and fetch the bytes (smaller round trips
@@ -91,6 +91,8 @@ class GrokImageProvider(ImageGenerationProvider):
     def generate(self, request: ImageRequest) -> bytes:
         import httpx
 
+        from primr.config.models import PrimrModels
+
         api_key = os.environ.get("XAI_API_KEY")
         if not api_key:
             raise RuntimeError("XAI_API_KEY not set")
@@ -98,8 +100,9 @@ class GrokImageProvider(ImageGenerationProvider):
         prompt = self._build_prompt(request)
         endpoint = "https://api.x.ai/v1/images/generations"
         payload = {
-            "model": "grok-imagine-image-quality",
+            "model": PrimrModels.XAI_IMAGE_MODEL,
             "prompt": prompt,
+            "quality": PrimrModels.XAI_IMAGE_QUALITY,
         }
         with httpx.Client(timeout=120.0) as client:
             response = client.post(
@@ -239,7 +242,7 @@ class GeminiImageProvider(ImageGenerationProvider):
 
 
 class OpenAIImageProvider(ImageGenerationProvider):
-    """OpenAI image generation (gpt-image-1 / DALL-E successor).
+    """OpenAI GPT Image generation using ``PrimrModels.OPENAI_IMAGE_MODEL``.
 
     Uses OPENAI_API_KEY. Lazily imports the SDK so primr installs without
     pulling openai unless this path runs.
@@ -256,10 +259,12 @@ class OpenAIImageProvider(ImageGenerationProvider):
         except ImportError as exc:
             raise RuntimeError("openai SDK not installed; pip install openai") from exc
 
+        from primr.config.models import PrimrModels
+
         client = OpenAI()
         prompt = self._build_prompt(request)
         result = client.images.generate(
-            model="gpt-image-1",
+            model=PrimrModels.OPENAI_IMAGE_MODEL,
             prompt=prompt,
             n=1,
             size="1024x1024",

@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.24
+Current State: v1.39.25
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -83,6 +83,8 @@ browser sandbox defaults. v1.39.24 refreshes current provider catalogs and stand
 prices without promoting new report defaults. It corrects recorded prompt-tier
 costs and gateway price ceilings. v1.39.23 repairs calibration comparison snapshot
 integrity and failure handling without promoting a report-quality gate.
+v1.39.25 patches transitive filelock, virtualenv, and dnspython advisories and
+replaces retired OpenAI and xAI model defaults without promoting a report gate.
 The ordered work and exit criteria live in the [execution brief](docs/NEXT_STEPS.md). A
 candidate version is not a delivery promise and is changed before release if
 the accepted scope requires a different semantic version.
@@ -2204,6 +2206,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.25 | Oct 2026 | **Security and retirement patch.** Raise transitive filelock, virtualenv, and dnspython floors; route OpenAI-only reasoning to GPT-5.6 Terra and replace retired OpenAI and xAI image models with dated, explicit choices. |
 | 1.39.24 | Oct 2026 | **Provider catalog currency.** Register current models and verified direct/gateway/Bedrock rates, enforce supported Claude request parameters, and repair tiered accounting without changing evaluated defaults. |
 | 1.39.23 | Oct 2026 | **Calibration comparison integrity.** Reuse the original claims, cloud verdicts, and captured evidence; reject invalid local plans; exclude failed or changed artifacts from agreement counts. |
 | 1.39.22 | Oct 2026 | **Bounded ingestion.** Bound HTTP buffering and status retries, sitemap expansion and traversal, HTML scoring, and native PDF resources; explicitly enable browser sandbox defaults. |
