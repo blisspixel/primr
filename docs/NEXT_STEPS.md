@@ -1,6 +1,6 @@
 # Next Steps
 
-Released baseline: **v1.39.25**
+Released baseline: **v1.39.26**
 
 Next implementation candidate: **v1.40.0**
 
@@ -37,7 +37,9 @@ product.
 
 ## Current executable card
 
-v1.39.25 is the released baseline. It raises the transitive filelock,
+v1.39.26 is the released baseline. It adds the library-only evaluator
+validation harness described below and takes reviewed dependency updates; no
+judge has been measured with it and it arms no gate. v1.39.25 raises the transitive filelock,
 virtualenv, and dnspython security floors, routes OpenAI-only reasoning to
 GPT-5.6 Terra after the o4-mini shutdown, and replaces retired OpenAI and xAI
 image models. It does not advance the report-quality gate. v1.39.24 refreshes
@@ -64,7 +66,7 @@ independently validated evaluators, before any hard report-quality gate or
 hybrid-routing promotion.
 
 **Why this is next:** the version ladder already places quality claims after
-that corpus. Operator polish through v1.39.25 is the released baseline.
+that corpus. Operator polish through v1.39.26 is the released baseline.
 
 **Exit criteria:**
 
@@ -168,7 +170,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.25
+## Version gates after v1.39.26
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.
