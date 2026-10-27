@@ -232,6 +232,18 @@ class OpenAICompatibleProvider(Provider):
         )
         return self._client
 
+    @property
+    def base_url(self) -> str:
+        """The configured API base URL, for callers that guard it before use."""
+        return self._base_url
+
+    def list_models(self, *, timeout: float | None = None) -> list[Any]:
+        """Return the rows of the free ``GET /models`` endpoint (no generation)."""
+        client = self._get_client()
+        if timeout is not None:
+            client = client.with_options(timeout=timeout)
+        return list(getattr(client.models.list(), "data", []) or [])
+
     def validate_credentials(self) -> CredentialCheck:
         """Auth-only check via the free ``GET /models`` endpoint (no generation)."""
         import time
@@ -242,9 +254,7 @@ class OpenAICompatibleProvider(Provider):
             )
         start = time.monotonic()
         try:
-            client = self._get_client()
-            models = client.models.list()
-            count = len(list(getattr(models, "data", []) or []))
+            count = len(self.list_models())
             latency = int((time.monotonic() - start) * 1000)
             return CredentialCheck(
                 provider=self.name,

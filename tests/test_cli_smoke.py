@@ -8,6 +8,7 @@ They use subprocess.run() to execute the actual CLI commands.
 **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5**
 """
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -33,11 +34,14 @@ class TestCLISmokeTests:
 
         **Validates: Requirements 2.1**
         """
+        # Blank provider keys so doctor's live metadata checks stay offline;
+        # an empty process value outranks .env and the per-user key store.
         result = subprocess.run(
             ["primr", "doctor"],
             capture_output=True,
             timeout=60,
             cwd=str(PROJECT_ROOT),
+            env={**os.environ, "OPENAI_API_KEY": "", "GEMINI_API_KEY": ""},
         )
         stdout = result.stdout.decode()
         # Doctor should run and produce output (even if some checks fail)

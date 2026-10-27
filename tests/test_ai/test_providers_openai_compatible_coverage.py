@@ -451,3 +451,23 @@ def test_billing_exhausted_no_help_link():
         pytest.raises(QuotaExhaustedError, match="credits exhausted"),
     ):
         p.chat([{"role": "user", "content": "x"}], model="grok-4.3", retries=2)
+
+
+def test_list_models_returns_rows_and_exposes_base_url():
+    from primr.ai.providers.openai_compatible import OpenAICompatibleProvider
+
+    provider = OpenAICompatibleProvider(
+        name="openai", base_url="https://api.openai.com/v1", api_key_env="OPENAI_API_KEY"
+    )
+    client = MagicMock()
+    client.models.list.return_value = MagicMock(data=["row-a", "row-b"])
+    provider._client = client
+    assert provider.base_url == "https://api.openai.com/v1"
+    assert provider.list_models() == ["row-a", "row-b"]
+    client.with_options.assert_not_called()
+
+    bounded = MagicMock()
+    bounded.models.list.return_value = MagicMock(data=["row-c"])
+    client.with_options.return_value = bounded
+    assert provider.list_models(timeout=10.0) == ["row-c"]
+    client.with_options.assert_called_once_with(timeout=10.0)

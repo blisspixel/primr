@@ -52,7 +52,10 @@ Azure Foundry (Bicep) and AWS Bedrock (CloudFormation).
 `primr keys test` runs a free, auth-only provider metadata request with no model
 generation or token spend against every configured provider and reports
 per-provider OK/FAIL with latency. `primr keys test <provider>` checks just one.
-This is separate from `primr doctor`, which never makes a live model call.
+This is separate from `primr doctor`, which never makes a model generation
+call. When `OPENAI_API_KEY` is set, doctor makes one free `GET /v1/models`
+request and warns when OpenAI lists a shutdown date that the model registry
+does not record. The check only reports; it never changes routing.
 
 ## Subscription-Backed Agent Hosts
 

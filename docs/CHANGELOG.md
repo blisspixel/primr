@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.27] - 2026-10-27
+
+### Added
+
+- `primr doctor` warns when OpenAI's free model list reports a past or
+  scheduled `shutdown_date` that the model registry does not record, or a
+  different date than it records. The check runs only when `OPENAI_API_KEY`
+  is set, passes the SSRF guard, is bounded to 10 seconds, makes no generation
+  call, and never changes routing (#258). The CLI smoke test now blanks
+  provider keys so the default suite stays offline.
+
 ## [1.39.26] - 2026-10-27
 
 ### Added

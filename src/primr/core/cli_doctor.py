@@ -165,6 +165,50 @@ def _check_provider_availability(warnings_count: int) -> int:
     return warnings_count
 
 
+def _check_openai_shutdowns(warnings_count: int) -> int:
+    """Warn when OpenAI lists a shutdown the model registry does not record.
+
+    One free, time-bounded ``GET /v1/models`` call; report-only, never changes
+    routing.
+    """
+    from primr.ai.model_shutdowns import ShutdownLookupError, check_openai_shutdowns
+
+    try:
+        report = check_openai_shutdowns()
+    except ShutdownLookupError as e:
+        console.warn(f"OpenAI shutdown lookup failed: {e.reason}")
+        return warnings_count + 1
+    except Exception as e:
+        logger.debug("OpenAI shutdown lookup failed", exc_info=True)
+        code = safe_code(type(e).__name__) or "error"
+        console.warn(f"OpenAI shutdown lookup failed: {code}; check network and OPENAI_API_KEY")
+        return warnings_count + 1
+
+    for finding in report.findings:
+        verb = "shut down on" if finding.past else "shuts down on"
+        if finding.status == "unrecorded":
+            recorded = "registry has no date"
+        else:
+            replacement = (
+                f"; replacement {finding.replacement_model}" if finding.replacement_model else ""
+            )
+            recorded = f"registry records {finding.recorded_date}{replacement}"
+        console.warn(f"{finding.model} {verb} {finding.live_date}; {recorded}")
+        warnings_count += 1
+    if not report.findings:
+        console.ok(f"{report.checked} listed OpenAI model(s); no unrecorded shutdowns")
+    if report.unannounced:
+        console.info(
+            "OpenAI announces no shutdown for recorded retirement(s): "
+            + ", ".join(report.unannounced)
+        )
+    if report.unlisted:
+        console.info("Registered but not listed for this key: " + ", ".join(report.unlisted))
+    if report.unlisted_retired:
+        console.info(f"{len(report.unlisted_retired)} recorded retirement(s) no longer listed")
+    return warnings_count
+
+
 def _provider_availability_status(snapshot: ProviderQuotaSnapshot) -> tuple[str, str]:
     """Return sanitized state and detail; never expose local hosts or models."""
     decision = availability_decision(snapshot)
@@ -446,6 +490,10 @@ def run_doctor(*, fix: bool = False) -> int:
 
     console.step("Providers")
     warnings_count = _check_provider_availability(warnings_count)
+
+    if os.environ.get("OPENAI_API_KEY"):
+        console.step("OpenAI Model Lifecycle")
+        warnings_count = _check_openai_shutdowns(warnings_count)
 
     console.step("Dependencies")
     warnings_count = _check_dependencies(warnings_count)

@@ -178,8 +178,17 @@ Primary sources are linked inline with the integration facts they support:
   reasoning now routes to Terra and icon generation requests Flare; o4-mini
   stays priced for history. gpt-5.4-nano shuts down on 2027-04-01 (replacement
   gpt-6-luna) and gpt-4.1-mini on 2027-01-14. The gateway's
-  `openai/gpt-4.1-mini` route stays registered while OpenRouter lists it. A
-  live check of OpenAI `shutdown_date` metadata in `doctor` remains open.
+  `openai/gpt-4.1-mini` route stays registered while OpenRouter lists it.
+- `primr doctor` compares every registered OpenAI ID and the image default
+  with the optional `shutdown_date` (`YYYY-MM-DD` or null) on the free
+  [List models](https://developers.openai.com/api/docs/api-reference/models)
+  rows. It warns on past or scheduled shutdowns the registry lacks and on
+  date mismatches. The call passes the SSRF guard and is bounded to 10
+  seconds. Models missing from the list are named separately from recorded
+  retirements, because absence can also mean the key lacks access. It is
+  report-only; registry edits stay manual and dated.
+  The installed SDK (openai 2.38.0) does not type the field, so it is read as
+  an extra attribute.
 - Web search: `web_search` in the **Responses API** is
   [$10 per 1k calls](https://developers.openai.com/api/docs/pricing#tools)
   plus search-content tokens at model rates. Build new work on Responses; Chat

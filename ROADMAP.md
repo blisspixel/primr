@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.26
+Current State: v1.39.27
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -87,6 +87,7 @@ v1.39.25 patches transitive filelock, virtualenv, and dnspython advisories and
 replaces retired OpenAI and xAI model defaults without promoting a report gate.
 v1.39.26 adds the library-only evaluator validation harness for the v1.40
 quality card; no judge has been measured with it and no gate is armed.
+v1.39.27 makes `primr doctor` flag OpenAI shutdown dates the registry lacks.
 The ordered work and exit criteria live in the [execution brief](docs/NEXT_STEPS.md). A
 candidate version is not a delivery promise and is changed before release if
 the accepted scope requires a different semantic version.
@@ -2208,6 +2209,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.27 | Oct 2026 | **Live retirement check.** `primr doctor` compares registered OpenAI models with the free model list's `shutdown_date` and warns on unrecorded or mismatched shutdowns; report-only. |
 | 1.39.26 | Oct 2026 | **Evaluator validation harness.** Add library-only controlled variants, frozen pre-registration, blind repeated judge passes, Wilson-bounded scoring, and a human review queue for the v1.40 quality card; no judge measured and no gate armed. |
 | 1.39.25 | Oct 2026 | **Security and retirement patch.** Raise transitive filelock, virtualenv, and dnspython floors; route OpenAI-only reasoning to GPT-5.6 Terra and replace retired OpenAI and xAI image models with dated, explicit choices. |
 | 1.39.24 | Oct 2026 | **Provider catalog currency.** Register current models and verified direct/gateway/Bedrock rates, enforce supported Claude request parameters, and repair tiered accounting without changing evaluated defaults. |
