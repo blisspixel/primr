@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add a library-only evaluator validation harness for the v1.40 quality card.
+  Adjudicated clean cases yield controlled variants for nine error categories.
+  Items, pre-registered tolerances, and the generator version are frozen under
+  one digest. Judges run blind across seeded passes; recall, false alarms,
+  abstention, failures, repeat flips, shared errors, and agreement are scored
+  with Wilson intervals. Disagreements, flips, and seeded samples of unanimous
+  approvals and rejections are queued for human review. A decision needs an
+  all-human-adjudicated set, two judges, two passes, and complete human review.
+  It never arms a gate. No judge has been measured with it yet.
+
+### Changed
+
+- Take the reviewed ddgs, hypothesis, mkdocs-material, and starlette updates
+  proposed in #259 and regenerate both container requirement exports.
+
 ## [1.39.25] - 2026-10-27
 
 ### Security

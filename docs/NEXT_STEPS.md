@@ -83,6 +83,14 @@ cycle baseline is empty. The v1.40 quality candidate remains unreleased; corpus
 completeness, independent evaluator validation, and a recorded gate decision
 remain pending.
 
+**Evaluator validation instrument (2026-10-27):** the controlled-variant,
+pre-registration, scoring, shared-error, review-queue, and decision harness in
+`primr.qa.evaluator_validation` exists and is tested on synthetic fixtures.
+It has not measured any judge. The remaining blockers are operator inputs:
+human-adjudicated clean cases drawn from the production corpus, recorded
+tolerances, a free local-judge run (or an approved and capped cloud-judge
+run), and human review of the resulting queue.
+
 ## Follow-through after ownership repair
 
 1. **Make the quality decision defensible.** Complete the curated production
