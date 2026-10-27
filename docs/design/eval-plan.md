@@ -134,6 +134,48 @@ supports measuring factual recall and relational context alongside precision.
 These sources motivate evaluator stress tests; they do not supply universal
 promotion thresholds.
 
+**Instrument (library only, no public command):**
+`primr.qa.evaluator_variants` parses a versioned case file of clean cases. Each
+names the exact supporting span and who adjudicated it (`human`, `agent`, or
+`synthetic`). It builds one controlled variant per category above. Number,
+date, negation, support-removal, and citation-attribution variants are
+mechanical. They skip bounded quantities ("fewer than 5"), already-negated
+claims, and passive participles, where a mutation could leave the claim true
+or ungrammatical. Entity, causal, stale-evidence, and contradiction variants
+need author-supplied text. A variant that cannot be built is reported as
+skipped. `primr.qa.evaluator_validation` then:
+
+1. freezes the items, an explicit `Preregistration` (no default tolerances),
+   and the generator version under one digest. It rejects contradictory items,
+   empty sources, and repeated claim/source pairs, and detects any later edit.
+   Record the digest outside the system before judging.
+2. runs each judge blind over seeded shuffled passes, recording abstention,
+   unparseable answers, errors, and empty sources separately;
+3. scores per-category recall, clean-case false alarms (any clean answer other
+   than yes or abstain), pooled flag precision, unwarranted abstention, judge
+   and retrieval failures, and repeat flips with Wilson intervals, plus errors
+   shared by every judge and pairwise agreement;
+4. queues judge disagreements, repeat flips, and seeded samples of unanimous
+   approvals and unanimous variant rejections for source-grounded human
+   review; and
+5. rebuilds the score and queue from the runs and reports
+   `insufficient_sample`, `incomplete_review`,
+   `fails_preregistered_tolerance`, `inconclusive`, or
+   `meets_preregistered_tolerance` for each judge.
+
+A decision requires an all-human-adjudicated set, a named `human` review
+covering the whole queue, at least two judges, and at least two passes.
+Disputed items require rebuilding and refreezing. No status arms a gate. Case
+files that describe real companies stay in local, gitignored locations; the
+committed fixture is synthetic.
+
+Known limits: each judge call carries one item, so repeat flips measure
+run-to-run consistency, not in-context order effects. Item IDs name the variant
+category, so blind human review needs the queue presented without IDs or
+expected verdicts. No variant yet separates source authority or trust cues
+from claim support. The review record is self-reported and must be kept with
+the operator's evidence.
+
 ---
 
 ## Eval 2 - framed vs unframed (tradecraft Step 4, ~$1.58/company)

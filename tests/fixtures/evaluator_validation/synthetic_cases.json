@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "case_id": "exampleco-revenue",
+      "claim": "ExampleCo reported revenue of $412 million in 2025.",
+      "source_text": "Annual summary. In its 2025 annual report, ExampleCo reported revenue of $412 million, up from the prior year. The company employs staff in three regions.",
+      "support_span": "In its 2025 annual report, ExampleCo reported revenue of $412 million",
+      "adjudication": {
+        "reviewer_kind": "synthetic",
+        "reviewer": "fixture",
+        "reviewed_on": "2026-10-27",
+        "note": "Synthetic test data; not a human adjudication."
+      },
+      "entity_swap": ["ExampleCo", "Acme Corp"],
+      "causal_clause": "driven by its new subscription pricing",
+      "stale_source_text": "Annual summary. In its 2022 annual report, ExampleCo reported revenue of $301 million.",
+      "contradiction": "In a later filing, ExampleCo restated 2025 revenue to $388 million."
+    },
+    {
+      "case_id": "acme-headcount",
+      "claim": "Acme Corp expanded its engineering team to 1,250 people in 2024.",
+      "source_text": "Workforce update. Acme Corp expanded its engineering team to 1,250 people in 2024, according to the company careers page.",
+      "support_span": "Acme Corp expanded its engineering team to 1,250 people in 2024",
+      "adjudication": {
+        "reviewer_kind": "synthetic",
+        "reviewer": "fixture",
+        "reviewed_on": "2026-10-27"
+      }
+    }
+  ]
+}
