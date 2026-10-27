@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.26] - 2026-10-27
+
 ### Added
 
 - Add a library-only evaluator validation harness for the v1.40 quality card.
