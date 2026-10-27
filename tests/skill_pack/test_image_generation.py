@@ -196,3 +196,45 @@ def test_bad_remote_image_falls_back_to_valid_local_icons(monkeypatch):
         with Image.open(io.BytesIO(raw)) as icon:
             assert icon.format == "PNG"
             assert icon.size == expected
+
+
+def _png_b64() -> str:
+    import base64
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (4, 4), "navy").save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def test_grok_image_requests_current_model_with_explicit_quality(monkeypatch) -> None:
+    from primr.skill_pack.image_generation import GrokImageProvider
+
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+    response = MagicMock()
+    response.json.return_value = {"data": [{"b64_json": _png_b64()}]}
+    client = MagicMock()
+    client.__enter__.return_value.post.return_value = response
+    with patch("httpx.Client", return_value=client):
+        rendered = GrokImageProvider().generate(ImageRequest("ExampleCo", "Simple icon", 32, 32))
+
+    assert rendered.startswith(b"\x89PNG")
+    payload = client.__enter__.return_value.post.call_args.kwargs["json"]
+    assert payload["model"] == "grok-imagine-image-2.0"
+    assert payload["quality"] == "medium"
+
+
+def test_openai_image_requests_current_model(monkeypatch) -> None:
+    from primr.skill_pack.image_generation import OpenAIImageProvider
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    client = MagicMock()
+    client.images.generate.return_value = SimpleNamespace(
+        data=[SimpleNamespace(b64_json=_png_b64())]
+    )
+    with patch("openai.OpenAI", return_value=client):
+        rendered = OpenAIImageProvider().generate(ImageRequest("ExampleCo", "Simple icon", 32, 32))
+
+    assert rendered.startswith(b"\x89PNG")
+    assert client.images.generate.call_args.kwargs["model"] == "gpt-image-2.5-flare"

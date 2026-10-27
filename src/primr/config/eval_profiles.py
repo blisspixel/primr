@@ -30,7 +30,7 @@ from primr.config.eval_profile_types import EvalProfileSlot, ProfileRecipe
 # Cloud sub-$1 candidates (the headline group)
 # =============================================================================
 #
-# All combinations keep Grok 4.3 (or o4-mini) for reasoning where
+# All combinations keep Grok 4.3 (or GPT-5.6 Terra) for reasoning where
 # cached-input pricing makes it cheap, and rotate the writing-stage model
 # across the cheapest viable cross-provider options.
 
@@ -153,18 +153,19 @@ _V1_24_0_CLOUD_CANDIDATES = (
         ),
     ),
     EvalProfileSlot(
-        name="o4mini-flashlite",
+        name="terra-flashlite",
         recipe=ProfileRecipe(
-            reasoning="o4-mini",
+            reasoning="gpt-5.6-terra",
             writing="gemini-3.1-flash-lite",
             utility="gemini-3-flash-preview",
         ),
-        estimated_cost_usd=0.55,
+        estimated_cost_usd=1.50,
         description=(
-            "Cross-provider reasoning swap. OpenAI o4-mini reasoning "
-            "($1.10/$4.40 — cheaper output than Grok 4.3) + Gemini 3.1 "
-            "Flash-Lite writing. Tests whether o4-mini matches Grok 4.3 on "
-            "the analytical depth that primr's reasoning stages require."
+            "Cross-provider reasoning swap. OpenAI GPT-5.6 Terra reasoning "
+            "($2/$12, cached input $0.20) + Gemini 3.1 Flash-Lite writing. "
+            "Replaces the o4-mini slot after OpenAI shut that model down on "
+            "2026-10-23. The cost is a planning figure scaled from the Grok "
+            "4.6 slot, not a measurement; re-estimate before any run."
         ),
     ),
 )

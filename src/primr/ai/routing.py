@@ -21,7 +21,7 @@ eventually has to answer:
 
    The split into WRITING and REASONING is what makes the v1.24.0 sub-$1
    eval possible: we want to test recipes that pair an expensive reasoning
-   model (Grok 4.3 cached, o4-mini) with a cheap writing model
+   model (Grok 4.3 cached, GPT-5.6 Terra) with a cheap writing model
    (Gemini 3.1 Flash-Lite, GPT-5.4-nano), and the routing layer needs to
    distinguish those stages so a recipe override can target each independently.
 
@@ -332,7 +332,8 @@ def _pick_reasoning_model(has_openrouter: bool, prefer_openrouter: bool) -> str:
     if has_openrouter:
         return _openrouter_model(ModelRegistry.OPENROUTER_DEEPSEEK_V3_2.name, role=Role.REASONING)
     if os.getenv("OPENAI_API_KEY"):
-        return ModelRegistry.OPENAI_O4_MINI.name
+        # OpenAI's named substitute for o4-mini, which shut down 2026-10-23.
+        return ModelRegistry.OPENAI_GPT_5_6_TERRA.name
     if os.getenv("ANTHROPIC_API_KEY"):
         return ModelRegistry.ANTHROPIC_SONNET.name
     return PrimrModels.PRO_MODEL

@@ -198,6 +198,16 @@ class PrimrModels:
 
     # --- IMAGE MODEL ---
     IMAGE_MODEL = ModelRegistry.GEMINI_NANO_BANANA_2_1.name
+    # Opt-in remote icon providers. These are image endpoints priced per image
+    # or per image token, so they stay out of the text-token pricing registry.
+    # Verified 2026-10-27: gpt-image-1 shut down 2026-10-23 and OpenAI names
+    # gpt-image-2.5-flare as a substitute; xAI retires grok-imagine-image-quality
+    # on 2026-11-02 and serves grok-imagine-image-2.0 at low quality instead.
+    # Medium is the highest documented quality, chosen to keep the retired
+    # slug's intent rather than inherit the auto default (low for generation).
+    OPENAI_IMAGE_MODEL = "gpt-image-2.5-flare"
+    XAI_IMAGE_MODEL = "grok-imagine-image-2.0"
+    XAI_IMAGE_QUALITY = "medium"
 
     # =========================================================================
     # LEGACY ALIASES - For backward compatibility only

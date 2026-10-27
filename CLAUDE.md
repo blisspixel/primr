@@ -280,5 +280,30 @@ version label; include `tests/test_docs_index.py` and
 `main` is the only long-lived branch. Feature branches are short-lived and
 deleted on merge (the repo auto-deletes merged PR branches); don't leave stale
 branches behind. Merge via PR, not direct pushes to `main`.
+
+### Start tidy, stop tidy
+
+Several agent tools may work here, and sessions can end partway through a task.
+
+- **Check first.** Before new work, run `git fetch --prune` and review
+  `git worktree list`, local and remote branches, and open PRs. Finish, merge,
+  or park leftover work instead of starting a parallel attempt. Squash merges
+  hide merged work from ancestry, so check PR state, not only
+  `git branch --merged`.
+- **Checkpoint and hand off.** Commit and push at meaningful checkpoints.
+  Before stopping, leave a short handoff (PR description, commit message, or
+  `.agent/<task>/`) stating what is done and what is next.
+- **Keep the tree clean.** Fixtures belong under `tests/`; scratch scripts,
+  logs, and generated output belong in `.agent/` or a temp directory. Remove
+  scratch artifacts before finishing.
+- **Goal state.** One `main` with CI passing; no work stranded on side
+  branches. Push finished work, update or close PRs, close finished issues.
+- **Remove only with evidence.** Remove a worktree or branch only once its
+  work is merged, contained in `main`, or pushed. Never `--force` a removal;
+  report anything uncertain instead. `git worktree prune` is for entries whose
+  directories are already gone.
+- **Ask when unclear** whether leftover work should be finished, kept, or
+  removed.
+
 An instruction-only refinement does not authorize commits, pushes, publishing,
 or deployment. Preserve the task's authorization and Primr's explicit spend gate.

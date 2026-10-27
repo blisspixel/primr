@@ -171,6 +171,15 @@ Primary sources are linked inline with the integration facts they support:
   its promotion at least through November 21, without publishing an exact end
   date. Do not invent a scheduled price change. Terra remains $2/$12 and Luna
   $0.20/$1.20. The o4-mini cached-input rate is $0.275, not an inferred $0.11.
+- Shutdowns rechecked 2026-10-27 against the
+  [deprecations page](https://developers.openai.com/api/docs/deprecations):
+  o4-mini and gpt-image-1 shut down on 2026-10-23, with GPT-5.6 Terra and
+  `gpt-image-2.5-flare` (or `-sunburst`) as the named substitutes. OpenAI-only
+  reasoning now routes to Terra and icon generation requests Flare; o4-mini
+  stays priced for history. gpt-5.4-nano shuts down on 2027-04-01 (replacement
+  gpt-6-luna) and gpt-4.1-mini on 2027-01-14. The gateway's
+  `openai/gpt-4.1-mini` route stays registered while OpenRouter lists it. A
+  live check of OpenAI `shutdown_date` metadata in `doctor` remains open.
 - Web search: `web_search` in the **Responses API** is
   [$10 per 1k calls](https://developers.openai.com/api/docs/pricing#tools)
   plus search-content tokens at model rates. Build new work on Responses; Chat
@@ -227,6 +236,13 @@ Primary sources are linked inline with the integration facts they support:
 flagship, with a 500K context. Standard input/output/cache rates are $2/$6/$0.50
 below 200,000 prompt tokens and $4/$12/$1 at or above 200,000, applied to the full
 request. Existing Grok 4.3 and 4.5 production pins remain evaluated defaults.
+
+The [release notes](https://docs.x.ai/developers/release-notes) retire
+`grok-imagine-image-quality` on 2026-11-02 and serve `grok-imagine-image-2.0` at
+`low` quality in its place. Opt-in icon generation requests image 2.0 with
+explicit `medium` quality (the highest documented value, rechecked 2026-10-27)
+rather than the `auto` default, which generates at `low`. Per-image prices are
+not part of the text-token registry. Live request acceptance is unverified.
 
 ### OpenRouter
 
