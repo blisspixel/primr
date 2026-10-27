@@ -543,6 +543,7 @@ class TestRunDoctor:
             lambda wc: wc + warnings,
         )
         monkeypatch.setattr(cli_doctor, "_check_dependencies", lambda wc: wc + warnings)
+        monkeypatch.setattr(cli_doctor, "_check_openai_shutdowns", lambda wc: wc + warnings)
         monkeypatch.setattr(cli_doctor, "_check_key_shadowing", lambda wc: wc + warnings)
 
     def test_all_pass_returns_zero(self, monkeypatch):
@@ -667,3 +668,106 @@ def test_check_api_keys_preserves_warnings_count(monkeypatch, warnings):
         _, result_warnings = _check_api_keys(True, warnings)
     # warnings should only stay the same or increase
     assert result_warnings >= warnings
+
+
+# ---------------------------------------------------------------------------
+# _check_openai_shutdowns
+# ---------------------------------------------------------------------------
+
+
+class TestCheckOpenaiShutdowns:
+    @staticmethod
+    def _report(*findings, checked=3, **lists):
+        from primr.ai.model_shutdowns import ShutdownReport
+
+        return ShutdownReport(checked=checked, findings=findings, **lists)
+
+    @staticmethod
+    def _finding(status, live, recorded=None, replacement=None, *, past=False):
+        from datetime import date
+
+        from primr.ai.model_shutdowns import ShutdownFinding
+
+        return ShutdownFinding(
+            model="gpt-5.4",
+            status=status,
+            live_date=date.fromisoformat(live),
+            recorded_date=date.fromisoformat(recorded) if recorded else None,
+            replacement_model=replacement,
+            past=past,
+        )
+
+    @staticmethod
+    def _output(capsys):
+        captured = capsys.readouterr()
+        return " ".join((captured.out + captured.err).split())
+
+    def test_clean_report_is_ok_and_names_unlisted_models(self, capsys):
+        report = self._report(
+            unannounced=("gpt-5.4-mini",),
+            unlisted=("gpt-6-astra",),
+            unlisted_retired=("o4-mini",),
+        )
+        with patch("primr.ai.model_shutdowns.check_openai_shutdowns", return_value=report):
+            warnings = cli_doctor._check_openai_shutdowns(0)
+        out = self._output(capsys)
+        assert warnings == 0
+        assert "3 listed OpenAI model(s); no unrecorded shutdowns" in out
+        assert "announces no shutdown for recorded retirement(s): gpt-5.4-mini" in out
+        assert "Registered but not listed for this key: gpt-6-astra" in out
+        assert "1 recorded retirement(s) no longer listed" in out
+
+    def test_each_finding_is_one_warning_with_tense_by_date(self, capsys):
+        report = self._report(
+            self._finding("unrecorded", "2026-10-01", past=True),
+            self._finding("unrecorded", "2027-02-01"),
+            self._finding("date_mismatch", "2027-03-01", "2027-04-01", "gpt-6-luna"),
+            self._finding("date_mismatch", "2026-10-02", "2027-04-01", past=True),
+        )
+        with patch("primr.ai.model_shutdowns.check_openai_shutdowns", return_value=report):
+            warnings = cli_doctor._check_openai_shutdowns(2)
+        out = self._output(capsys)
+        assert warnings == 6
+        assert "gpt-5.4 shut down on 2026-10-01; registry has no date" in out
+        assert "gpt-5.4 shuts down on 2027-02-01; registry has no date" in out
+        assert (
+            "shuts down on 2027-03-01; registry records 2027-04-01; replacement gpt-6-luna" in out
+        )
+        assert "gpt-5.4 shut down on 2026-10-02; registry records 2027-04-01" in out
+        assert "no unrecorded shutdowns" not in out
+
+    def test_lookup_error_reports_its_fixed_reason(self, capsys):
+        from primr.ai.model_shutdowns import ShutdownLookupError
+
+        with patch(
+            "primr.ai.model_shutdowns.check_openai_shutdowns",
+            side_effect=ShutdownLookupError("ssrf_guard_or_dns"),
+        ):
+            warnings = cli_doctor._check_openai_shutdowns(0)
+        assert warnings == 1
+        assert "OpenAI shutdown lookup failed: ssrf_guard_or_dns" in self._output(capsys)
+
+    def test_unexpected_failure_is_one_warning_without_detail_leak(self, capsys):
+        with patch(
+            "primr.ai.model_shutdowns.check_openai_shutdowns",
+            side_effect=RuntimeError("sk-secret-should-not-print"),
+        ):
+            warnings = cli_doctor._check_openai_shutdowns(0)
+        out = self._output(capsys)
+        assert warnings == 1
+        assert "OpenAI shutdown lookup failed: runtimeerror; check network" in out
+        assert "sk-secret" not in out
+
+    def test_run_doctor_runs_the_check_only_with_an_openai_key(self, monkeypatch):
+        TestRunDoctor()._stub_all_checks(monkeypatch)
+        calls = []
+        monkeypatch.setattr(
+            cli_doctor, "_check_openai_shutdowns", lambda wc: calls.append(wc) or wc
+        )
+        monkeypatch.setattr(cli_doctor, "_check_for_update", lambda: None)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        run_doctor(fix=False)
+        assert calls == []
+        monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
+        run_doctor(fix=False)
+        assert calls == [0]

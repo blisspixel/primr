@@ -1,6 +1,6 @@
 # Next Steps
 
-Released baseline: **v1.39.26**
+Released baseline: **v1.39.27**
 
 Next implementation candidate: **v1.40.0**
 
@@ -37,7 +37,9 @@ product.
 
 ## Current executable card
 
-v1.39.26 is the released baseline. It adds the library-only evaluator
+v1.39.27 is the released baseline. `primr doctor` now warns when OpenAI's
+free model list reports a shutdown date the registry does not record; the
+check is report-only. v1.39.26 adds the library-only evaluator
 validation harness described below and takes reviewed dependency updates; no
 judge has been measured with it and it arms no gate. v1.39.25 raises the transitive filelock,
 virtualenv, and dnspython security floors, routes OpenAI-only reasoning to
@@ -66,7 +68,7 @@ independently validated evaluators, before any hard report-quality gate or
 hybrid-routing promotion.
 
 **Why this is next:** the version ladder already places quality claims after
-that corpus. Operator polish through v1.39.26 is the released baseline.
+that corpus. Operator polish through v1.39.27 is the released baseline.
 
 **Exit criteria:**
 
@@ -170,7 +172,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.26
+## Version gates after v1.39.27
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.
