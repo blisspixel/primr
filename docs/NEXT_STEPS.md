@@ -1,6 +1,6 @@
 # Next Steps
 
-Released baseline: **v1.39.32**
+Released baseline: **v1.39.33**
 
 Next implementation candidate: **v1.40.0**
 
@@ -27,7 +27,10 @@ Do not create another active queue in a design document or issue description.
 Every release must strengthen the same product: a bare company-and-website
 invocation produces an evidence-grounded long-form Strategic Overview and
 selected YAML strategy documents as reliable Markdown and Word artifacts.
-Primr Zero stays the free-first agent-host path. Provider-backed execution
+Primr is a research and consulting-prep tool whose reports mix cited facts with
+reasoned strategy that is usually not public. It is not only a fact checker:
+quality means grounded research plus sharper, more specific, more useful
+strategic thinking, never just more verifiable statements. Primr Zero stays the free-first agent-host path. Provider-backed execution
 stays estimate-first, explicitly approved, and budget-governed.
 
 Architecture, providers, ledgers, memory, and agent protocols are supporting
@@ -37,7 +40,9 @@ product.
 
 ## Current executable card
 
-v1.39.32 is the released baseline. It refocuses v1.40 on making the
+v1.39.33 is the released baseline. It states plainly that Primr's reports mix
+cited facts with reasoned strategy and that Primr is not only a fact checker.
+v1.39.32 refocuses v1.40 on making the
 Strategic Overview, AI Strategy, and skill pack better, checked by side by
 side reads instead of human fact adjudication. In v1.39.31, every default route uses the current
 provider flagship (Grok 4.7, Gemini 3.8 Flash and 4 Argon, Gemini 3.5
@@ -196,7 +201,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.32
+## Version gates after v1.39.33
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.

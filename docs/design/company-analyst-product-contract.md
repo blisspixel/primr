@@ -14,6 +14,30 @@ and Word artifacts.
 primr "Company Name" https://company.example
 ```
 
+## What Primr does
+
+1. **Strategic Overview.** Deep research on the company (its site, job
+   postings, news, recon, and industry analysis) turned into a detailed
+   long-form Company Strategic Overview. It is far more than a list of facts:
+   it explains the business, its market, its tensions and risks, and the
+   questions worth asking.
+2. **AI Strategy.** Everything learned, plus the technology the company appears
+   to use (DNS recon and current platform news), turned into long-form
+   ideation on what the company may already be doing with AI and what most
+   likely makes sense next.
+3. **Skill pack (optional).** Ideation on the company's key roles, with drafted
+   AI agent skills for them.
+
+Facts are cited where sources exist. Strategy and ideas are informed reasoning,
+because companies rarely publish their strategy, so report quality is judged
+by depth, specificity, and usefulness, not by how much can be verified.
+
+Agents use Primr as a tool through its skill or MCP server. Primr Zero is the
+default in an agent host: it keeps the same agentic research and writing
+process and aims for the best output it can, using the host's own model
+allowance (for example Claude Cowork or Copilot Cowork) instead of paid API
+calls.
+
 That invocation is the product. Framing, hypotheses, source receipts,
 capability routing, ledgers, provider recovery, and memory are supporting
 machinery. They are valuable only when they improve the research, the strategic

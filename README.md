@@ -6,16 +6,35 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/blisspixel/primr/badge)](https://scorecard.dev/viewer/?uri=github.com/blisspixel/primr)
 
-**Company name + website → evidence-grounded, long-form strategic reports.**
-Built for agent hosts and the CLI: structured research, strategic insight,
-confidence labels, and durable Word and Markdown artifacts, not a free-form chat
-essay.
+**Company name + website → researched, long-form strategic reports.**
+Built for agent hosts and the CLI: structured research, strategic insight, and
+durable Word and Markdown artifacts, not a free-form chat essay.
 
-Primr gathers public site pages, DNS/recon, hiring signals, and other open
-sources, develops a strategic view of the company, then produces a
-consultant-style Strategic Overview and selected YAML-defined strategy
-documents with citations and Confirmed / Reported / Estimated / Hypothesis
-labels. Point an agent at the repo, or run the CLI. Both paths use the same
+Point Primr at a company name and website and it does three things:
+
+1. **Strategic Overview.** It researches the company in depth: scrapes the
+   site, reads job postings, gathers news, recon, and industry analysis. Then
+   it writes a detailed long-form Company Strategic Overview: what the company
+   does, how it makes money, its market, tensions, risks, and the questions
+   worth asking. That is far more than a list of facts.
+2. **AI Strategy.** It builds on everything learned, plus the technology the
+   company appears to use (from DNS recon and current platform news), to write
+   a long-form AI Strategy. It ideates on what the company may already be
+   doing and on what most likely makes sense for it next.
+3. **Skill pack (optional).** It ideates on the company's key roles and drafts
+   AI agent skills for them.
+
+Facts are cited where sources exist. Strategy and ideas are informed reasoning,
+because companies rarely publish their strategy.
+
+Run it two ways. In a terminal, the CLI does the work with provider APIs after
+an estimate and your approval. In an agent (Claude Code, Claude Cowork, Copilot
+Cowork, Codex, and others), the agent uses Primr as a tool through its skill or
+MCP server, and by default runs **Primr Zero**: the same agentic research and
+writing process, aiming for the best output it can, using the agent you already
+have instead of paid API calls.
+
+Point an agent at the repo, or run the CLI. Both paths use the same
 evidence, uncertainty, and long-form artifact contract, but their execution,
 model ownership, and assurance are different.
 

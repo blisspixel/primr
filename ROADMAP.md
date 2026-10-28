@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.32
+Current State: v1.39.33
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -97,6 +97,8 @@ route to the current provider flagships by owner decision, without a measured
 quality promotion, and discloses scheduled price changes in estimates.
 v1.39.32 refocuses v1.40 on improving the three artifacts directly, checked by
 side by side reads, instead of waiting on human fact adjudication.
+v1.39.33 states plainly that reports mix cited facts with reasoned strategy and
+that Primr is not only a fact checker.
 
 **What is next and why (2026-10-28):** v1.40.0 is the only open release band.
 It was blocked on a person adjudicating every clean case and reviewing every
@@ -2241,6 +2243,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.33 | Oct 2026 | **Product framing.** README, contract, and guides state that reports mix cited, checkable facts with reasoned strategy that is usually not public; Primr is not only a fact checker. |
 | 1.39.32 | Oct 2026 | **Artifact-first quality card.** v1.40 now improves the Strategic Overview, AI Strategy, and skill pack directly, checked by side by side reads; human fact adjudication is no longer a release gate. |
 | 1.39.31 | Oct 2026 | **Current flagship defaults.** Every default route moves to the newest provider model (Grok 4.7, Gemini 3.8 Flash and 4 Argon, GPT-6.1 Terra, Claude 5.5); the GPT-4.1 Mini route retires; estimates disclose scheduled price changes. |
 | 1.39.30 | Oct 2026 | **Authority-versus-support variant.** The evaluator harness tests whether a strong trust cue makes a judge accept a claim whose support was removed; a writer subheading after opening prose is kept. |

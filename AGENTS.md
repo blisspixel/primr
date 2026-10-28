@@ -33,6 +33,13 @@ long-form Strategic Overview and YAML-defined strategy artifacts as reliable
 Word and Markdown files. Architecture, routing, ledgers, memory, and agent
 surfaces are supporting capabilities, not replacement products.
 
+**Primr researches and ideates.** It writes a deep Strategic Overview from
+site, hiring, news, recon, and industry research, then an AI Strategy and an
+optional skill pack that ideate from what it learned. Facts are cited where
+sources exist; strategy is informed reasoning because companies rarely publish
+it. Never frame report quality as fact verification. The hard floors
+(citations resolve, artifacts render, spend is gated) stay.
+
 1. Set up the dev env (`uv sync --locked --all-extras`, then
    `uv run playwright install chromium`) - see
    [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md).
