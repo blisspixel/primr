@@ -35,13 +35,20 @@ ERROR_CATEGORIES = (
     "insufficient_support",
     "omitted_contradiction",
     "citation_attribution",
+    "authority_without_support",
 )
 REVIEWER_KINDS = ("human", "agent", "synthetic")
 SUPPORTED = "supported"
 UNSUPPORTED = "unsupported"
 CASE_SCHEMA_VERSION = 1
 # Bump when a generator changes, so a frozen set records which rules built it.
-GENERATOR_VERSION = 2
+GENERATOR_VERSION = 3
+# Generic trust cue for ``authority_without_support`` when a case names none.
+# It asserts provenance only; it never restores the removed support.
+DEFAULT_AUTHORITY_CUE = (
+    "Verified source: excerpt from the company's audited annual report, "
+    "reviewed by its independent auditors."
+)
 
 _NUMBER_RE = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?(?![\w])")
 _YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
@@ -103,6 +110,7 @@ class CleanCase:
     causal_clause: str | None = None
     stale_source_text: str | None = None
     contradiction: str | None = None
+    authority_cue: str | None = None
 
 
 @dataclass(frozen=True)
@@ -205,6 +213,7 @@ def parse_clean_case(payload: Mapping[str, Any]) -> CleanCase:
         causal_clause=_optional_text(payload, "causal_clause"),
         stale_source_text=_optional_text(payload, "stale_source_text"),
         contradiction=_optional_text(payload, "contradiction"),
+        authority_cue=_optional_text(payload, "authority_cue"),
     )
     if not case.case_id or ":" in case.case_id:
         raise ValueError("case_id must be non-empty and must not contain ':'")
@@ -378,6 +387,16 @@ def build_validation_items(
             "insufficient_support",
             case.claim,
             remainder if remainder.strip() else None,
+            "support span is the whole source",
+        )
+        # Same missing support, now under a strong trust cue: a judge that
+        # accepts it is scoring source authority instead of claim support.
+        cue = case.authority_cue or DEFAULT_AUTHORITY_CUE
+        add(
+            case,
+            "authority_without_support",
+            case.claim,
+            f"{cue} {remainder.strip()}" if remainder.strip() else None,
             "support span is the whole source",
         )
         contradicted = (

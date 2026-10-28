@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.30] - 2026-10-28
+
+### Added
+
+- The evaluator validation harness gains an `authority_without_support`
+  variant: the supporting span is removed and a strong trust cue is
+  prefixed, so a judge that accepts it is scoring source authority instead of
+  claim support. Cases may supply an `authority_cue`; abstaining counts as
+  detection by default. The generator version is now 3, so earlier frozen sets
+  record which rules built them.
+
+### Fixed
+
+- A single-section writer response that opens with prose before a
+  differently titled `##` heading keeps that heading as a `###` subsection
+  instead of losing its title.
+
 ## [1.39.29] - 2026-10-28
 
 ### Changed

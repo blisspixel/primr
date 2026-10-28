@@ -142,8 +142,12 @@ date, negation, support-removal, and citation-attribution variants are
 mechanical. They skip bounded quantities ("fewer than 5"), already-negated
 claims, and passive participles, where a mutation could leave the claim true
 or ungrammatical. Entity, causal, stale-evidence, and contradiction variants
-need author-supplied text. A variant that cannot be built is reported as
-skipped. `primr.qa.evaluator_validation` then:
+need author-supplied text. The `authority_without_support` variant removes
+the support span as `insufficient_support` does, then prefixes a strong trust
+cue (the case's `authority_cue`, or a generic audited-report cue). A judge that
+accepts it is scoring source authority instead of claim support, the effect
+the Trust-Truth Separability preprint reports. Abstaining on it counts as
+detection by default. A variant that cannot be built is reported as skipped. `primr.qa.evaluator_validation` then:
 
 1. freezes the items, an explicit `Preregistration` (no default tolerances),
    and the generator version under one digest. It rejects contradictory items,
@@ -172,8 +176,10 @@ committed fixture is synthetic.
 Known limits: each judge call carries one item, so repeat flips measure
 run-to-run consistency, not in-context order effects. Item IDs name the variant
 category, so blind human review needs the queue presented without IDs or
-expected verdicts. No variant yet separates source authority or trust cues
-from claim support. The review record is self-reported and must be kept with
+expected verdicts. The authority variant tests only the direction where a
+trust cue should not create support; a weak-provenance source that does
+support a claim has no unambiguous expected verdict and is not generated. The
+review record is self-reported and must be kept with
 the operator's evidence.
 
 ---

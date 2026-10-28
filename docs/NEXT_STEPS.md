@@ -1,6 +1,6 @@
 # Next Steps
 
-Released baseline: **v1.39.29**
+Released baseline: **v1.39.30**
 
 Next implementation candidate: **v1.40.0**
 
@@ -37,7 +37,9 @@ product.
 
 ## Current executable card
 
-v1.39.29 is the released baseline. `AGENTS.md` is the single agent guide and
+v1.39.30 is the released baseline. The evaluator harness adds an
+`authority_without_support` variant, so v1.40 judges are also tested on
+whether a trust cue substitutes for support. In v1.39.29, `AGENTS.md` is the single agent guide and
 `CLAUDE.md` imports it; the operator guide is `clients/primr-operator.md`.
 In v1.39.28, Word reports open with the title and
 Executive Summary; recorded collection counts move to one closing note, and
@@ -74,7 +76,7 @@ independently validated evaluators, before any hard report-quality gate or
 hybrid-routing promotion.
 
 **Why this is next:** the version ladder already places quality claims after
-that corpus. Operator polish through v1.39.29 is the released baseline.
+that corpus. Operator polish through v1.39.30 is the released baseline.
 
 **Exit criteria:**
 
@@ -196,7 +198,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.29
+## Version gates after v1.39.30
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.
