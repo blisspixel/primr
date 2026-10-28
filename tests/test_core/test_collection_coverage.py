@@ -101,31 +101,28 @@ def test_unknown_schema_duplicate_identity_and_bad_rows_are_rejected():
 
 
 @pytest.mark.parametrize("title", [None, "ExampleCo"])
-def test_saved_markdown_signature_is_once_beneath_title_and_preserves_first_section(
-    tmp_path, title
-):
+def test_saved_markdown_opens_with_title_and_summary_and_ends_with_the_note(tmp_path, title):
     path = tmp_path / "report.docx"
     summary = CollectionCoverage(3, 1, hiring_postings=1)
-    markdown_to_docx(
-        "# Executive Summary\n\nEvidence remains.\n", path, title=title, coverage=summary
-    )
-    paragraphs = [p.text for p in Document(path).paragraphs]
-    assert paragraphs[1] == "coverage  " + summary.description()
-    assert sum(p.startswith("coverage  ") for p in paragraphs) == 1
-    assert "Evidence remains." in paragraphs
-    if title is None:
-        assert paragraphs[0] == "Executive Summary"
+    body = "## Executive Summary\n\nEvidence remains.\n"
+    markdown = f"# {title}\n\n{body}" if title else body
+    markdown_to_docx(markdown, path, title=title, coverage=summary)
+    paragraphs = [p.text for p in Document(path).paragraphs if p.text.strip()]
+    opening = ["Executive Summary", "Evidence remains."]
+    assert paragraphs[:-1] == ([title, *opening] if title else opening)
+    assert paragraphs[-1] == f"Collection note: {summary.description()}."
+    assert not any(p.startswith("coverage") for p in paragraphs)
 
 
-def test_premium_cover_has_exact_same_counts_beneath_company_title(tmp_path):
+def test_premium_cover_has_no_counts_and_the_note_closes_the_document(tmp_path):
     summary = CollectionCoverage(3, 1, hiring_postings=1)
     builder = DocumentBuilder("ExampleCo", {}, coverage=summary)
-    builder._add_cover_page()
     path = tmp_path / "premium.docx"
-    builder.document.save(path)
+    builder.build().save(path)
     paragraphs = [p.text for p in Document(path).paragraphs if p.text.strip()]
     assert paragraphs[0] == "ExampleCo"
-    assert paragraphs[1] == "coverage  " + summary.description()
+    assert paragraphs[-1] == f"Collection note: {summary.description()}."
+    assert sum(summary.description() in p for p in paragraphs) == 1
 
 
 @pytest.mark.parametrize("json_output", [False, True])
@@ -162,3 +159,19 @@ def test_render_refuses_a_missing_explicit_bundle_before_writing_artifacts(tmp_p
     assert run_render(["render", str(report), "--evidence-bundle", str(tmp_path / "missing")]) == 1
     assert not report.with_suffix(".docx").exists()
     assert not report.with_suffix(".txt").exists()
+
+
+def test_text_word_path_opens_with_title_and_ends_with_the_note(tmp_path):
+    from primr.output.output_utils import save_report_as_docx
+
+    summary = CollectionCoverage(4, 2, blocked_pages=1)
+    txt = tmp_path / "report.txt"
+    txt.write_text(
+        "ExampleCo Strategic Overview\nOctober 27, 2026\n\n## Executive Summary\n\nBody.\n",
+        encoding="utf-8",
+    )
+    path = save_report_as_docx(txt, "ExampleCo", output_dir=tmp_path, coverage=summary)
+    paragraphs = [p.text for p in Document(path).paragraphs if p.text.strip()]
+    assert paragraphs[:2] == ["ExampleCo Strategic Overview", "October 27, 2026"]
+    assert paragraphs[-1] == f"Collection note: {summary.description()}."
+    assert sum(summary.description() in p for p in paragraphs) == 1

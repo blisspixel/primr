@@ -156,9 +156,9 @@ def _parse_batch_sections(
     parsed: list[GeneratedSection] = []
     preamble, blocks = _extract_generated_section_blocks(content)
 
-    for idx, (title, body) in enumerate(blocks):
+    for idx, (title, body, issue) in enumerate(blocks):
         expected_title = expected_sections[idx].name if idx < len(expected_sections) else title
-        parsed.append(_normalize_generated_section_payload(title, body, expected_title))
+        parsed.append(_normalize_generated_section_payload(title, body, expected_title, issue))
 
     if not parsed and content.strip():
         expected_title = expected_sections[0].name if expected_sections else "Section"
@@ -176,6 +176,7 @@ def _parse_batch_sections(
             parsed[0].title,
             preamble + "\n\n" + first_body,
             parsed[0].title,
+            parsed[0].envelope_issue,
         )
 
     return parsed

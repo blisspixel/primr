@@ -1,6 +1,6 @@
 # Next Steps
 
-Released baseline: **v1.39.27**
+Released baseline: **v1.39.28**
 
 Next implementation candidate: **v1.40.0**
 
@@ -37,7 +37,11 @@ product.
 
 ## Current executable card
 
-v1.39.27 is the released baseline. `primr doctor` now warns when OpenAI's
+v1.39.28 is the released baseline. Word reports open with the title and
+Executive Summary; recorded collection counts move to one closing note, and
+writer section envelopes are parsed at the section boundary instead of leaking
+as prose. Ambiguous envelopes withhold the polished DOCX. v1.39.27 makes
+`primr doctor` warn when OpenAI's
 free model list reports a shutdown date the registry does not record; the
 check is report-only. v1.39.26 adds the library-only evaluator
 validation harness described below and takes reviewed dependency updates; no
@@ -68,7 +72,7 @@ independently validated evaluators, before any hard report-quality gate or
 hybrid-routing promotion.
 
 **Why this is next:** the version ladder already places quality claims after
-that corpus. Operator polish through v1.39.27 is the released baseline.
+that corpus. Operator polish through v1.39.28 is the released baseline.
 
 **Exit criteria:**
 
@@ -95,6 +99,20 @@ human-adjudicated clean cases drawn from the production corpus, recorded
 tolerances, a free local-judge run (or an approved and capped cloud-judge
 run), and human review of the resulting queue.
 
+**Next, in order (2026-10-27):**
+
+1. Operator: adjudicate clean cases from real reports locally (a person, not an
+   agent, records `reviewer_kind: human`), and record tolerances and sample
+   minimums in a `Preregistration`. Freeze the set and record its digest
+   before any judge runs.
+2. Run the free local judge and a second judge for at least two passes. A
+   cloud judge needs a fresh estimate, explicit approval, and a cost cap.
+3. A named person reviews the full queue; then record the gate decision.
+
+Why this order: every code prerequisite for the card is shipped, so the only
+honest progress is evidence. Agent adjudication or a lone judge cannot stand
+in for it, and no paid run is authorized by default.
+
 ## Follow-through after ownership repair
 
 1. **Make the quality decision defensible.** Complete the curated production
@@ -106,6 +124,10 @@ run), and human review of the resulting queue.
 2. **Then compare backends.** Use frozen evidence and output contracts, record
    quality, reliability, latency, and measured cost, and make an explicit
    promotion decision. Preserve preview status when evidence is inconclusive.
+
+Maintenance that may ship as patch releases meanwhile: client-facing report
+polish found in real output, the OpenRouter `openai/gpt-4.1-mini` recheck
+before OpenAI removes it on 2027-01-14, and reviewed dependency updates.
 
 The [evaluation plan](design/eval-plan.md) owns measurement design. These steps
 do not authorize paid runs or create another active release card.
@@ -172,7 +194,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.27
+## Version gates after v1.39.28
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.

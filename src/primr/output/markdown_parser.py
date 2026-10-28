@@ -366,6 +366,19 @@ class ArtifactDetector:
                 }
             )
 
+        # Writer section-envelope tags that survived section parsing
+        from primr.qa.report_analyzer import SECTION_ENVELOPE_TAG_RE
+
+        for match in SECTION_ENVELOPE_TAG_RE.finditer(text):
+            artifacts.append(
+                {
+                    "type": "section_envelope",
+                    "match": match.group(),
+                    "context": context,
+                    "position": match.start(),
+                }
+            )
+
         # Check for bullet artifacts at line start
         for match in self.BULLET_ARTIFACT.finditer(text):
             artifacts.append(

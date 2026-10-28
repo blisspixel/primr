@@ -15,7 +15,7 @@ from docx.shared import Inches, Pt
 
 from primr.output.chapter_config import CHAPTER_CONFIG
 from primr.output.citation_processor import CitationProcessor, CitationStyle, SourceCitation
-from primr.output.collection_coverage import CollectionCoverage, add_docx_coverage
+from primr.output.collection_coverage import CollectionCoverage, add_docx_collection_note
 from primr.output.content_pattern_detector import ContentPatternDetector
 from primr.output.executive_summary_generator import ExecutiveSummaryGenerator
 from primr.output.markdown_parser import MarkdownParser
@@ -105,6 +105,8 @@ class DocumentBuilder:
         self._add_table_of_contents()
         self._add_chapters()
         self._add_sources_appendix()
+        if self.coverage is not None:
+            add_docx_collection_note(self.document, self.coverage)
         self._add_headers_footers()
         return self.document
 
@@ -177,9 +179,6 @@ class DocumentBuilder:
         # Company name (large, centered)
         title = self.document.add_heading(self.company_name, level=0)
         title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-
-        if self.coverage is not None:
-            add_docx_coverage(self.document, self.coverage)
 
         # Subtitle
         subtitle = self.document.add_paragraph()

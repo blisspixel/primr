@@ -115,9 +115,9 @@ from primr.core.section_parsing import (
 )
 from primr.core.section_parsing import (
     _parse_single_section,
-)
-from primr.core.section_parsing import (
-    _parse_structured_section_envelopes as _parse_structured_section_envelopes,
+    prefer_section_retry,
+    section_retry_instruction,
+    section_retry_reason,
 )
 from primr.core.section_planning import (
     _HIGH_DEPTH_SECTION_IDS as _HIGH_DEPTH_SECTION_IDS,
@@ -800,20 +800,11 @@ def _write_section_with_retry(
 
     parsed = _parse_single_section(section_content, section)
 
-    # Thin-section retry: if < 50% of target, retry once
-    if parsed.words < word_target * 0.5:
-        logger.warning(
-            "Section '%s' too thin (%d/%d words), retrying",
-            section.name,
-            parsed.words,
-            word_target,
-        )
-        retry_prompt = (
-            f"IMPORTANT: Your previous attempt produced only {parsed.words} words. "
-            f"The minimum target is {word_target} words. Write a substantive, strategist-grade, "
-            f"decision-useful section. If direct evidence is limited, deepen the analysis with explicit "
-            f"inference and strategic implications rather than staying thin.\n\n" + prompt
-        )
+    # Retry once when thin (< 50% of target) or the writer envelope needs review
+    retry_reason = section_retry_reason(parsed, word_target)
+    if retry_reason:
+        logger.warning("Section '%s' %s, retrying", section.name, retry_reason)
+        retry_prompt = section_retry_instruction(parsed, word_target) + "\n\n" + prompt
         try:
             retry_content = call_with_failover(
                 LLMRole.WRITING,
@@ -825,7 +816,7 @@ def _write_section_with_retry(
             )
             if retry_content and retry_content.strip():
                 retry_parsed = _parse_single_section(retry_content, section)
-                if retry_parsed.words > parsed.words:
+                if prefer_section_retry(parsed, retry_parsed):
                     parsed = retry_parsed
         except Exception as retry_err:
             logger.warning("Section '%s' retry failed: %s", section.name, retry_err)

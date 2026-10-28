@@ -11,10 +11,10 @@ from dataclasses import dataclass
 import pytest
 
 from primr.core.section_parsing import (
+    SectionBlock,
     _extract_generated_section_blocks,
     _normalize_generated_section_payload,
     _parse_single_section,
-    _parse_structured_section_envelopes,
 )
 
 
@@ -26,39 +26,44 @@ class _FakeSection:
     id: str = "fake"
 
 
-class TestParseStructuredSectionEnvelopes:
+class TestWellFormedEnvelopes:
+    @staticmethod
+    def _pairs(content):
+        return [
+            (block.title, block.body) for block in _extract_generated_section_blocks(content)[1]
+        ]
+
     def test_parses_single_envelope(self):
         content = "<section><title>Overview</title><body>body text</body></section>"
-        assert _parse_structured_section_envelopes(content) == [("Overview", "body text")]
+        assert self._pairs(content) == [("Overview", "body text")]
 
     def test_parses_multiple_envelopes(self):
         content = (
             "<section><title>One</title><body>first</body></section>"
             "<section><title>Two</title><body>second</body></section>"
         )
-        assert _parse_structured_section_envelopes(content) == [
-            ("One", "first"),
-            ("Two", "second"),
-        ]
+        assert self._pairs(content) == [("One", "first"), ("Two", "second")]
 
     def test_strips_whitespace_in_title(self):
         content = "<section><title>  Spaced   Out  </title><body>x</body></section>"
-        assert _parse_structured_section_envelopes(content) == [("Spaced Out", "x")]
+        assert self._pairs(content) == [("Spaced Out", "x")]
 
-    def test_skips_empty_title(self):
+    def test_empty_title_is_ambiguous_not_guessed(self):
         content = "<section><title></title><body>x</body></section>"
-        assert _parse_structured_section_envelopes(content) == []
+        (block,) = _extract_generated_section_blocks(content)[1]
+        assert block.issue == "ambiguous"
+        assert block.body == content
 
     def test_case_insensitive_tags(self):
         content = "<SECTION><TITLE>Upper</TITLE><BODY>UP</BODY></SECTION>"
-        assert _parse_structured_section_envelopes(content) == [("Upper", "UP")]
+        assert self._pairs(content) == [("Upper", "UP")]
 
     def test_returns_empty_for_no_envelopes(self):
-        assert _parse_structured_section_envelopes("plain text") == []
+        assert self._pairs("plain text") == []
 
     def test_multiline_body_preserved(self):
         content = "<section><title>Multi</title><body>line 1\n\nline 2</body></section>"
-        assert _parse_structured_section_envelopes(content) == [("Multi", "line 1\n\nline 2")]
+        assert self._pairs(content) == [("Multi", "line 1\n\nline 2")]
 
 
 class TestExtractGeneratedSectionBlocks:
@@ -66,13 +71,13 @@ class TestExtractGeneratedSectionBlocks:
         content = "## First\n\nbody1\n\n## Second\n\nbody2"
         preamble, blocks = _extract_generated_section_blocks(content)
         assert preamble == ""
-        assert blocks == [("First", "body1"), ("Second", "body2")]
+        assert blocks == [SectionBlock("First", "body1"), SectionBlock("Second", "body2")]
 
     def test_envelopes_only(self):
         content = "<section><title>A</title><body>x</body></section>"
         preamble, blocks = _extract_generated_section_blocks(content)
         assert preamble == ""
-        assert blocks == [("A", "x")]
+        assert blocks == [SectionBlock("A", "x")]
 
     def test_mixed_envelope_and_heading(self):
         content = (
@@ -80,7 +85,7 @@ class TestExtractGeneratedSectionBlocks:
         )
         preamble, blocks = _extract_generated_section_blocks(content)
         assert preamble == ""
-        assert blocks == [("One", "first body"), ("Two", "second body")]
+        assert blocks == [SectionBlock("One", "first body"), SectionBlock("Two", "second body")]
 
     def test_preserves_source_order(self):
         content = (
@@ -89,7 +94,7 @@ class TestExtractGeneratedSectionBlocks:
             "## Gamma\n\ng-body"
         )
         _, blocks = _extract_generated_section_blocks(content)
-        assert [t for t, _ in blocks] == ["Alpha", "Beta", "Gamma"]
+        assert [block.title for block in blocks] == ["Alpha", "Beta", "Gamma"]
 
     def test_headings_inside_envelope_ignored(self):
         # A '##' inside an envelope's body should not register as its own section.
@@ -103,7 +108,7 @@ class TestExtractGeneratedSectionBlocks:
         content = "Preamble line.\n\n## First\n\nbody"
         preamble, blocks = _extract_generated_section_blocks(content)
         assert "Preamble" in preamble
-        assert blocks == [("First", "body")]
+        assert blocks == [SectionBlock("First", "body")]
 
     def test_no_blocks_returns_no_preamble(self):
         preamble, blocks = _extract_generated_section_blocks("plain text")
@@ -194,13 +199,12 @@ class TestParseSingleSection:
         assert result.title == "Fallback Title"
         assert "plain body" in result.content
 
-    def test_uses_first_block_when_multiple_present(self):
+    def test_later_blocks_become_subsections_instead_of_being_dropped(self):
         content = "## A\nfirst\n\n## B\nsecond"
         section = _FakeSection(name="A")
         result = _parse_single_section(content, section)
-        assert "first" in result.content
-        # Second block content should NOT leak into single-section result.
-        assert "second" not in result.content
+        assert result.content.startswith("first\n\n### B\n\nsecond")
+        assert result.envelope_issue is None
 
     def test_preamble_prepended_to_body(self):
         content = "intro preamble\n\n## A\n\nactual body"

@@ -410,10 +410,6 @@ def save_report_as_docx(
         # Title
         title = document.add_heading(lines[0].strip(), level=0)
         title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-        if coverage is not None:
-            from primr.output.collection_coverage import add_docx_coverage
-
-            add_docx_coverage(document, coverage)
 
         # Date
         date_para = document.add_paragraph(lines[1].strip())
@@ -463,6 +459,11 @@ def save_report_as_docx(
         if current_text_buffer:
             para = document.add_paragraph()
             apply_inline_formatting(para, " ".join(current_text_buffer))
+
+        if coverage is not None:
+            from primr.output.collection_coverage import add_docx_collection_note
+
+            add_docx_collection_note(document, coverage)
 
         document.save(str(docx_path))
         console.ok("DOCX saved")

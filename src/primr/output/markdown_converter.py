@@ -22,7 +22,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
-from primr.output.collection_coverage import CollectionCoverage, add_docx_coverage
+from primr.output.collection_coverage import CollectionCoverage, add_docx_collection_note
 from primr.output.style_engine import StyleEngine
 
 
@@ -462,9 +462,6 @@ def markdown_to_docx(
             run.font.size = Pt(20)
             run.font.name = "Calibri"
 
-    if title and coverage is not None:
-        add_docx_coverage(doc, coverage)
-
     if subtitle:
         p = doc.add_paragraph()
         p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
@@ -480,20 +477,8 @@ def markdown_to_docx(
         content = strip_markdown_header_block(markdown_text)
 
     _render_body_lines(doc, content.split("\n"), allow_h1=True)
-    if not title and coverage is not None:
-        paragraph = add_docx_coverage(doc, coverage)
-        heading = next(
-            (
-                p
-                for p in doc.paragraphs
-                if p.style is not None and p.style.name in {"Title", "Heading 1"}
-            ),
-            None,
-        )
-        if heading is not None:
-            heading._p.addnext(paragraph._p)
-        else:
-            doc._body._body.insert(0, paragraph._p)
+    if coverage is not None:
+        add_docx_collection_note(doc, coverage)
     doc.save(output_path)
     return output_path
 

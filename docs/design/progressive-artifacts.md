@@ -169,8 +169,12 @@ Do not introduce a second orchestrator or a DAG framework for this.
 ## Recorded collection signature
 
 Prep and provider-backed completion show one `coverage` signature immediately
-before their final next step. Word repeats it directly beneath the title. This
-is collection metadata, never a claim-confidence or calibration score.
+before their final next step. Word carries the same counts once, as a muted
+closing `Collection note`, so a client-facing report opens with the title and
+the Executive Summary rather than collection diagnostics (#263 supersedes the
+under-title placement from #229/#236). An unusable or empty collection keeps
+the warning color in that note. This is collection metadata, never a
+claim-confidence or calibration score.
 
 `core.collection_coverage` derives counts from the collector's existing source
 classification. Only nonempty current `first_party` captures enter the

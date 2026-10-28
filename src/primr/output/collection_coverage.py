@@ -125,24 +125,31 @@ def show_collection_coverage(summary: CollectionCoverage, console: CoverageConso
         console.text(line)
 
 
-def add_docx_coverage(document: Document, summary: CollectionCoverage) -> Paragraph:
-    """Add the same factual signature using accessible report colors."""
+def add_docx_collection_note(document: Document, summary: CollectionCoverage) -> Paragraph:
+    """Append the recorded counts as a discreet closing methodology note.
+
+    Client-facing reports open with the title and analysis; collection counts
+    belong after the content, never under the title. The wording and meaning
+    match the terminal signature. A bundle that needs attention keeps the
+    warning color so moving the note never hides unreliable collection.
+    """
     from docx.shared import Pt, RGBColor
 
     from primr.output.style_engine import StyleEngine
 
     paragraph = document.add_paragraph()
-    label = paragraph.add_run("coverage  ")
-    label.font.color.rgb = StyleEngine.ACCENT_COLOR
-    label.font.size = Pt(10)
-    for token in summary.description().split(" "):
-        run = paragraph.add_run(token + " ")
-        run.font.size = Pt(10)
+    label = paragraph.add_run("Collection note: ")
+    label.font.size = Pt(9)
+    label.font.bold = True
+    label.font.color.rgb = StyleEngine.MUTED_COLOR
+    tokens = (summary.description() + ".").split(" ")
+    for index, token in enumerate(tokens):
+        run = paragraph.add_run(token if index == len(tokens) - 1 else token + " ")
+        run.font.size = Pt(9)
         warning = (
             summary.needs_attention
             or (summary.blocked_pages and token.startswith("blocked"))
-            or (summary.redirect_loops and token.rstrip(";,") in {"redirect", "loop", "loops"})
+            or (summary.redirect_loops and token.rstrip(";,.") in {"redirect", "loop", "loops"})
         )
-        run.font.color.rgb = RGBColor(0x85, 0x55, 0x00) if warning else StyleEngine.TEXT_COLOR
-    paragraph.runs[-1].text = paragraph.runs[-1].text.rstrip()
+        run.font.color.rgb = RGBColor(0x85, 0x55, 0x00) if warning else StyleEngine.MUTED_COLOR
     return paragraph
