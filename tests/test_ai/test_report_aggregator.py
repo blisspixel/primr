@@ -74,7 +74,7 @@ class TestReportAggregator:
 
     def test_initialization(self, aggregator: ReportAggregator) -> None:
         """Test aggregator initialization."""
-        assert aggregator.SMOOTHING_MODEL == "gemini-3-flash-preview"
+        assert aggregator.SMOOTHING_MODEL == "gemini-3.8-flash"
 
     def test_build_header(self, aggregator: ReportAggregator) -> None:
         """Test header generation."""

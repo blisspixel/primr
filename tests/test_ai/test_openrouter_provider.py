@@ -91,11 +91,11 @@ def test_request_caps_output_at_registered_model_limit(monkeypatch) -> None:
 
     provider.chat(
         [{"role": "user", "content": "test"}],
-        model=ModelRegistry.OPENROUTER_GPT_4_1_MINI.name,
+        model="deepseek/deepseek-chat",
         max_tokens=65_000,
     )
 
-    assert client.chat.completions.create.call_args.kwargs["max_tokens"] == 32_768
+    assert client.chat.completions.create.call_args.kwargs["max_tokens"] == 16_000
 
 
 def test_zdr_can_be_explicitly_relaxed_but_data_collection_stays_denied(monkeypatch) -> None:
@@ -104,13 +104,13 @@ def test_zdr_can_be_explicitly_relaxed_but_data_collection_stays_denied(monkeypa
 
     provider.chat(
         [{"role": "user", "content": "test"}],
-        model=ModelRegistry.OPENROUTER_GPT_4_1_MINI.name,
+        model=ModelRegistry.OPENROUTER_GPT_6_LUNA.name,
     )
 
     policy = client.chat.completions.create.call_args.kwargs["extra_body"]["provider"]
     assert "zdr" not in policy
     assert policy["data_collection"] == "deny"
-    assert policy["max_price"] == {"prompt": 0.40, "completion": 1.60}
+    assert policy["max_price"] == {"prompt": 0.20, "completion": 0.75}
 
 
 @pytest.mark.parametrize("cost", [None, True, -0.1, "nan", "not-a-number"])

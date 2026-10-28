@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from primr.config.models import PrimrModels
+
 
 class Command(Enum):
     """CLI commands."""
@@ -152,7 +154,7 @@ class CLIConfig:
     eval_auto_stage: bool = True
     eval_llm_judge: bool = False
     eval_judge_provider: str = "grok"
-    eval_judge_model: str = "grok-4.3"
+    eval_judge_model: str = PrimrModels.GROK_MODEL
     eval_judge_models: tuple[str, ...] = ()
     eval_judge_model_list: str | None = None
     eval_judge_base_url: str | None = None

@@ -42,7 +42,7 @@ class TestProTierEvalSlots:
         assert cfg is not None
         assert cfg.provider == "google"
 
-    def test_current_flash_candidates_are_registered_without_routing_change(self):
+    def test_flash_candidates_stay_registered_as_eval_cells(self):
         from primr.config.models import PrimrModels
 
         candidate_36 = get_eval_profile("protier-gemini36flash")
@@ -50,12 +50,12 @@ class TestProTierEvalSlots:
         assert candidate_36.recipe.writing == "gemini-3.6-flash"
         assert candidate_37.recipe.writing == "gemini-3.7-flash"
         assert PrimrModels.get_model_config(candidate_37.recipe.writing) is not None
-        assert PrimrModels.PRO_MODEL == "gemini-3.1-pro-preview"
+        assert PrimrModels.PRO_MODEL == "gemini-4-argon"
 
 
 class TestGrokPromotionCandidates:
     def test_grok_candidates_registered(self):
-        """Versioned flagship candidates exist without changing the hybrid default."""
+        """Versioned Grok eval cells keep their pinned models."""
         names = list_eval_profile_names()
         assert "grok43-flashlite" in names
         assert "grok45-flashlite" in names
@@ -71,13 +71,13 @@ class TestGrokPromotionCandidates:
 
 
 class TestOpenAICurrentCandidate:
-    def test_gpt56_luna_candidate_is_registered_without_routing_change(self):
+    def test_gpt56_luna_candidate_stays_registered_as_eval_cell(self):
         from primr.config.models import PrimrModels
 
         slot = get_eval_profile("grok43-luna")
         assert slot.recipe.writing == "gpt-5.6-luna"
         assert PrimrModels.get_model_config(slot.recipe.writing) is not None
-        assert PrimrModels.GROK_MODEL == "grok-4.3"
+        assert PrimrModels.GROK_MODEL == "grok-4.7"
 
 
 class TestPremiumAnthropicSlots:

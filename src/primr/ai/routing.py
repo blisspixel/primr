@@ -21,8 +21,8 @@ eventually has to answer:
 
    The split into WRITING and REASONING is what makes the v1.24.0 sub-$1
    eval possible: we want to test recipes that pair an expensive reasoning
-   model (Grok 4.3 cached, GPT-5.6 Terra) with a cheap writing model
-   (Gemini 3.1 Flash-Lite, GPT-5.4-nano), and the routing layer needs to
+   model (Grok 4.7, GPT-6.1 Terra) with a cheap writing model
+   (Gemini 3.5 Flash-Lite, GPT-6 Luna), and the routing layer needs to
    distinguish those stages so a recipe override can target each independently.
 
 2. **Which provider talks to that model?** — answered by
@@ -215,7 +215,7 @@ def pick_model_for_role(role: Role | str) -> str:
 
        - UTILITY: GEMINI > OPENROUTER > OPENAI > ANTHROPIC > XAI > FLASH fallback.
        - WRITING: GEMINI > OPENROUTER > OPENAI > ANTHROPIC > XAI > PRO fallback.
-         (v1.24.0 stage-1 winner: gemini-3.1-flash-lite at $0.79/run.)
+         (Gemini 3.5 Flash-Lite; v1.24.0 measured its predecessor at $0.79/run.)
        - REASONING / PRO: XAI > GEMINI > OPENROUTER > OPENAI > ANTHROPIC > PRO fallback.
          (XAI wins on cached-input price when continuous-reasoning session
          lands a high cache hit rate.)
@@ -256,9 +256,9 @@ def pick_model_for_role(role: Role | str) -> str:
     #
     # REASONING / PRO  (analysis, workbook, cross-validation, strategy):
     #   XAI > GEMINI > OPENROUTER > OPENAI > ANTHROPIC > PRO_MODEL fallback
-    #   XAI wins because Grok 4.3's $0.20 cached input is unbeatable when
-    #   the continuous-reasoning session lands a high cache hit rate.
-    #   Without XAI, primr uses each provider's flagship reasoner.
+    #   XAI leads because the continuous-reasoning session lands a high
+    #   cache hit rate on Grok cached input. Every provider defaults to its
+    #   current flagship reasoner (checked 2026-10-28).
 
     has_openrouter = _openrouter_is_ready()
     provider_env = os.getenv("PRIMR_PROVIDER", "").strip().lower()
@@ -285,7 +285,7 @@ def pick_model_for_role(role: Role | str) -> str:
 def _pick_utility_model(has_openrouter: bool, prefer_openrouter: bool) -> str:
     if prefer_openrouter:
         return _openrouter_model(
-            ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name, role=Role.UTILITY
+            ModelRegistry.OPENROUTER_GEMINI_3_5_FLASH_LITE.name, role=Role.UTILITY
         )
     if os.getenv("GEMINI_API_KEY"):
         return os.getenv(
@@ -293,12 +293,12 @@ def _pick_utility_model(has_openrouter: bool, prefer_openrouter: bool) -> str:
         )
     if has_openrouter:
         return _openrouter_model(
-            ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name, role=Role.UTILITY
+            ModelRegistry.OPENROUTER_GEMINI_3_5_FLASH_LITE.name, role=Role.UTILITY
         )
     if os.getenv("OPENAI_API_KEY"):
-        return ModelRegistry.OPENAI_GPT_5_4_NANO.name
+        return ModelRegistry.OPENAI_GPT_6_LUNA.name
     if os.getenv("ANTHROPIC_API_KEY"):
-        return ModelRegistry.ANTHROPIC_HAIKU.name
+        return ModelRegistry.ANTHROPIC_HAIKU_5_5.name
     if os.getenv("XAI_API_KEY"):
         return PrimrModels.GROK_MODEL_WRITING
     return PrimrModels.FLASH_MODEL
@@ -306,15 +306,15 @@ def _pick_utility_model(has_openrouter: bool, prefer_openrouter: bool) -> str:
 
 def _pick_writing_model(has_openrouter: bool, prefer_openrouter: bool) -> str:
     if prefer_openrouter:
-        return _openrouter_model(ModelRegistry.OPENROUTER_GPT_4_1_MINI.name, role=Role.WRITING)
+        return _openrouter_model(ModelRegistry.OPENROUTER_GPT_6_LUNA.name, role=Role.WRITING)
     if os.getenv("GEMINI_API_KEY"):
-        return os.getenv("PRIMR_GEMINI_WRITING_MODEL", ModelRegistry.GEMINI_3_1_FLASH_LITE.name)
+        return os.getenv("PRIMR_GEMINI_WRITING_MODEL", ModelRegistry.GEMINI_3_5_FLASH_LITE.name)
     if has_openrouter:
-        return _openrouter_model(ModelRegistry.OPENROUTER_GPT_4_1_MINI.name, role=Role.WRITING)
+        return _openrouter_model(ModelRegistry.OPENROUTER_GPT_6_LUNA.name, role=Role.WRITING)
     if os.getenv("OPENAI_API_KEY"):
-        return ModelRegistry.OPENAI_GPT_5_4_NANO.name
+        return ModelRegistry.OPENAI_GPT_6_LUNA.name
     if os.getenv("ANTHROPIC_API_KEY"):
-        return ModelRegistry.ANTHROPIC_HAIKU.name
+        return ModelRegistry.ANTHROPIC_HAIKU_5_5.name
     if os.getenv("XAI_API_KEY"):
         return PrimrModels.GROK_MODEL_WRITING
     return PrimrModels.PRO_MODEL
@@ -322,20 +322,23 @@ def _pick_writing_model(has_openrouter: bool, prefer_openrouter: bool) -> str:
 
 def _pick_reasoning_model(has_openrouter: bool, prefer_openrouter: bool) -> str:
     if prefer_openrouter:
-        return _openrouter_model(ModelRegistry.OPENROUTER_DEEPSEEK_V3_2.name, role=Role.REASONING)
+        return _openrouter_model(
+            ModelRegistry.OPENROUTER_DEEPSEEK_V4_1_FLASH_1017.name, role=Role.REASONING
+        )
     if os.getenv("XAI_API_KEY"):
-        return PrimrModels.GROK_MODEL_43
+        return PrimrModels.GROK_MODEL
     if os.getenv("GEMINI_API_KEY"):
         return os.getenv(
             "PRIMR_GEMINI_REASONING_MODEL", os.getenv("AI_REASONING_MODEL", PrimrModels.PRO_MODEL)
         )
     if has_openrouter:
-        return _openrouter_model(ModelRegistry.OPENROUTER_DEEPSEEK_V3_2.name, role=Role.REASONING)
+        return _openrouter_model(
+            ModelRegistry.OPENROUTER_DEEPSEEK_V4_1_FLASH_1017.name, role=Role.REASONING
+        )
     if os.getenv("OPENAI_API_KEY"):
-        # OpenAI's named substitute for o4-mini, which shut down 2026-10-23.
-        return ModelRegistry.OPENAI_GPT_5_6_TERRA.name
+        return ModelRegistry.OPENAI_GPT_6_1_TERRA.name
     if os.getenv("ANTHROPIC_API_KEY"):
-        return ModelRegistry.ANTHROPIC_SONNET.name
+        return ModelRegistry.ANTHROPIC_SONNET_5_5.name
     return PrimrModels.PRO_MODEL
 
 

@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from typing import Any, Protocol
 
 from primr.ai.provider_availability import LocalCapacityBusyError
+from primr.config.models import PrimrModels
 from primr.utils.content_sanitizer import fence_untrusted
 from primr.utils.logging_config import get_logger
 
@@ -140,7 +141,7 @@ Postings follow. Tags in [brackets] like [STALE] are hints — consider them.
     try:
         raw = grok_llm(
             prompt,
-            model=model or "grok-4.3",
+            model=model or PrimrModels.GROK_MODEL,
             temperature=0.3,
             max_tokens=4_000,
             retries=1,

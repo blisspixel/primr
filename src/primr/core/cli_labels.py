@@ -2,7 +2,7 @@
 
 Keep estimate chrome, launch messaging, dry-run headers, and run summaries
 aligned with ``config.models`` / ``docs/design/grok-default-routing.md``:
-hybrid and fast stay on Grok 4.3; ``--grok-tier max`` is Grok 4.5.
+every tier reasons with Grok 4.7; ``--grok-tier max`` also writes with it.
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ import os
 
 # Product tier → short operator label (used inside "full (...)" mode strings).
 GROK_TIER_LABELS: dict[str, str] = {
-    "fast": "Grok 4.3 (low-effort)",
-    "hybrid": "Grok 4.3 hybrid",
-    "max": "Grok 4.5 max",
+    "fast": "Grok 4.7 (low-effort)",
+    "hybrid": "Grok 4.7 hybrid",
+    "max": "Grok 4.7 max",
 }
 
 

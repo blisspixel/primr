@@ -43,8 +43,8 @@ provider API keys listed above.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `AI_RESEARCH_MODEL` | Legacy Gemini-backed research model override | `gemini-3-flash-preview` |
-| `AI_REPORT_MODEL` | Legacy Gemini-backed report model override | `gemini-3.1-pro-preview` |
+| `AI_RESEARCH_MODEL` | Legacy Gemini-backed research model override | `gemini-3.8-flash` |
+| `AI_REPORT_MODEL` | Legacy Gemini-backed report model override | `gemini-4-argon` |
 | `VERBOSE` | Enable verbose output | `false` |
 | `DEBUG` | Enable debug mode | `false` |
 | `PRIMR_INFERENCE_PROFILE` | Runtime capability-routing profile for wired stages. Supported values are `cloud` and `hybrid`. `cloud` is the default; `hybrid` enables the current routed utility-stage pilots. Route metadata is recorded in `_run_state.json`. Prefer the `--inference` CLI flag for normal use. Internal enum values used by tests and evals are not supported configuration. | `cloud` |
@@ -57,8 +57,8 @@ provider API keys listed above.
 | `PRIMR_OPENROUTER_MAX_OUTPUT_TOKENS` | Declared custom OpenRouter model output limit. | `16384` |
 
 Note: Legacy Gemini model override variables are still supported for Gemini-backed stages. Provider-aware routing otherwise uses the model registry and configured provider keys. Current Gemini defaults:
-- `gemini-3-flash-preview` - Best balance of speed and cost for legacy Gemini paths
-- `gemini-3.1-pro-preview` - Maximum Gemini reasoning capability (tiered pricing)
+- `gemini-3.8-flash` - Current stable Flash model; the default for legacy Gemini paths
+- `gemini-4-argon` - Current stable Pro-class model; the default Gemini reasoning model
 
 Gemini 3.1 Pro Preview is the default Pro model. It has tiered pricing: $2/$12 per 1M tokens for prompts ≤200k, $4/$18 for >200k. Most Primr calls stay well under 200k tokens. Cost estimates (`--dry-run`) use conservative high-tier pricing; actual costs are typically lower. Model IDs marked deprecated in the registry are not supported override targets.
 
@@ -164,7 +164,7 @@ provider work.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PRIMR_CONTINUOUS_REASONING` | Controls whether workbook generation (Phase 3) and cross-validation (Phase 5) share one Grok session so the validator inherits the corpus and workbook reasoning the generator produced. FAST and HYBRID use Grok 4.3; MAX uses the version-pinned Grok 4.5 route. FAST differs through lower reasoning effort, not a separate model. Set to `0` / `false` / `no` / `off` to disable. Set to `1` / `true` / `yes` / `on` to force-enable regardless of CLI flags. Unset means use the CLI value, which defaults on. | unset (effectively on via CLI default) |
+| `PRIMR_CONTINUOUS_REASONING` | Controls whether workbook generation (Phase 3) and cross-validation (Phase 5) share one Grok session so the validator inherits the corpus and workbook reasoning the generator produced. Every tier reasons with the version-pinned Grok 4.7 route; MAX also writes with it. FAST differs through lower reasoning effort, not a separate model. Set to `0` / `false` / `no` / `off` to disable. Set to `1` / `true` / `yes` / `on` to force-enable regardless of CLI flags. Unset means use the CLI value, which defaults on. | unset (effectively on via CLI default) |
 
 Notes on continuous reasoning:
 - On by default after the n=3 pilot. Pass `--no-continuous-reasoning` on the CLI to disable for a single run.
@@ -283,8 +283,8 @@ Controls AI model behavior.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `research_model` | str | `gemini-3-flash-preview` | Legacy Gemini-backed research model override |
-| `report_model` | str | `gemini-3.1-pro-preview` | Legacy Gemini-backed report model override |
+| `research_model` | str | `gemini-3.8-flash` | Legacy Gemini-backed research model override |
+| `report_model` | str | `gemini-4-argon` | Legacy Gemini-backed report model override |
 | `max_retries` | int | 3 | Maximum retry attempts |
 | `grade_threshold` | int | 70 | Quality threshold (0-100) |
 | `default_temperature` | float | 1.0 | Model temperature (0.0-2.0) |
@@ -368,9 +368,9 @@ Controls cost estimation. Prices are per 1 million tokens.
 These legacy settings are not the whole estimator for modern routed runs. The
 current default estimate comes from provider routing and strategy settings:
 with xAI plus Gemini configured, the default Strategic Overview plus one
-platform-neutral AI Strategy is typically around `$0.89`; an explicitly
-requested two-platform strategy is typically around `$1.01`; and
-`--no-ai-strategy` is typically around `$0.76-$0.79`. XAI-only defaults remain
+platform-neutral AI Strategy is typically around `$1.24`; an explicitly
+requested two-platform strategy is typically around `$1.42`; and
+`--no-ai-strategy` is typically around `$1.05`. XAI-only defaults remain
 on the higher legacy path.
 Always use `primr --dry-run` as the source of truth.
 

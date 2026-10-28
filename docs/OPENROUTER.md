@@ -121,12 +121,13 @@ The default OpenRouter route uses a balanced role recipe:
 
 | Role | Default model | Input / output per 1M tokens |
 |------|---------------|-------------------------------|
-| Utility | `google/gemini-3.1-flash-lite` | `$0.25 / $1.50` |
-| Writing | `openai/gpt-4.1-mini` | `$0.40 / $1.60` |
-| Reasoning | `deepseek/deepseek-v3.2` | `$0.269 / $0.40` |
+| Utility | `google/gemini-3.5-flash-lite` | `$0.30 / $2.50` |
+| Writing | `openai/gpt-6-luna` | `$0.10 / $0.50` (`$0.20 / $0.75` above 272K) |
+| Reasoning | `deepseek/deepseek-v4.1-flash-1017` | `$0.30 / $1.20` (highest scheduled rate) |
 
-The default full report plus AI Strategy dry run displayed about `$1.07` on
-2026-10-12 (`$1.0655` before two-decimal display). Prompt-cache savings are not
+The default full report plus AI Strategy dry run estimated about `$0.67` on
+2026-10-28, down from about `$1.07` with the previous GPT-4.1 Mini and
+DeepSeek V3.2 recipe. Prompt-cache savings are not
 assumed, and OpenRouter credit-purchase fees are not included. The command's
 live dry-run is authoritative because selected features, token plans, pricing,
 and historical floors can change.
@@ -139,11 +140,14 @@ Primr supports an expanded set of pre-priced, verified models through OpenRouter
 |---|---|---|---|
 | Google | `google/gemini-3.8-flash` | `$0.75 / $3.75` | Writing, Reasoning |
 | Google | `google/gemini-3.7-flash` | `$0.75 / $3.75` | Writing, Reasoning |
-| Google | `google/gemini-3.1-flash-lite` | `$0.25 / $1.50` | Default utility |
+| Google | `google/gemini-3.5-flash-lite` | `$0.30 / $2.50` | Default utility |
+| Google | `google/gemini-3.1-flash-lite` | `$0.25 / $1.50` | Previous utility default |
 | Google | `google/gemini-2.5-flash-lite` | `$0.10 / $0.40` | Explicit override; current catalog lists no retirement date; not the default |
 | OpenAI | `openai/gpt-5.4-mini` | `$0.75 / $4.50` | Writing, Utility |
 | OpenAI | `openai/gpt-5.4-nano` | `$0.20 / $1.25` | Utility |
-| OpenAI | `openai/gpt-4.1-mini` | `$0.40 / $1.60` | Writing |
+| OpenAI | `openai/gpt-6.1-terra` | `$1.00 / $5.00` | Reasoning |
+| OpenAI | `openai/gpt-6-luna` | `$0.10 / $0.50` | Default writing |
+| OpenAI | `openai/gpt-4.1-mini` | `$0.40 / $1.60` | Unavailable; OpenAI shuts it down 2027-01-14 (use `openai/gpt-6-luna`) |
 | Anthropic | `anthropic/claude-sonnet-4.6` | `$3.00 / $15.00` | Reasoning |
 | Anthropic | `anthropic/claude-haiku-4.5` | `$1.00 / $5.00` | Writing, Utility |
 | DeepSeek | `deepseek/deepseek-v3.2` | `$0.269 / $0.40` | Reasoning |

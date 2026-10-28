@@ -567,15 +567,13 @@ class AIClient:
                     inp_price, out_price = PrimrModels.get_price(model_name)
                 except KeyError:
                     active_pro = PrimrModels.get_active_pro_model()
-                    inp_price = active_pro.cost_per_1m_input_tokens
-                    out_price = active_pro.cost_per_1m_output_tokens
+                    inp_price, out_price, _ = active_pro.standard_rates()
                 input_cost += (in_tok / 1_000_000) * inp_price
                 output_cost += (out_tok / 1_000_000) * out_price
         else:
             # Fallback to active Pro model pricing (conservative)
             active_pro = PrimrModels.get_active_pro_model()
-            inp_price = active_pro.cost_per_1m_input_tokens
-            out_price = active_pro.cost_per_1m_output_tokens
+            inp_price, out_price, _ = active_pro.standard_rates()
             input_cost = (self.total_input_tokens / 1_000_000) * inp_price
             output_cost = (self.total_output_tokens / 1_000_000) * out_price
             total_cost = input_cost + output_cost

@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from primr.ai.client import AIClient, TokenUsage, llm, llm_fast, reset_client
+from primr.config.model_config import ModelConfig
 from primr.utils.errors import AIError
 
 
@@ -325,7 +326,15 @@ def test_usage_summary_with_per_call_cost(client):
 def test_usage_summary_no_usage_uses_pro_fallback(client):
     client.total_input_tokens = 1_000_000
     client.total_output_tokens = 1_000_000
-    fake_pro = SimpleNamespace(cost_per_1m_input_tokens=2.0, cost_per_1m_output_tokens=4.0)
+    fake_pro = ModelConfig(
+        name="fake-pro",
+        display_name="Fake Pro",
+        provider="google",
+        cost_per_1m_input_tokens=2.0,
+        cost_per_1m_output_tokens=4.0,
+        max_input_tokens=1_000_000,
+        max_output_tokens=65_536,
+    )
     with patch("primr.config.models.PrimrModels.get_active_pro_model", return_value=fake_pro):
         summary = client.get_usage_summary()
     assert summary["input_cost"] == pytest.approx(2.0)

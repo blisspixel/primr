@@ -19,7 +19,10 @@ from primr.config.models import (
     PrimrModels,
     TokenCostBreakdown,
 )
-from primr.utils.cost_estimate_policy import cache_write_estimate_notes
+from primr.utils.cost_estimate_policy import (
+    cache_write_estimate_notes,
+    scheduled_price_change_notes,
+)
 from primr.utils.cost_estimate_policy import (
     deep_path_hiring_overhead as _deep_path_hiring_overhead,
 )
@@ -111,11 +114,11 @@ class CostEstimate:
 # =============================================================================
 # Backward-compatible pricing aliases (derived from models.py)
 # =============================================================================
-GEMINI_3_PRO_INPUT_PRICE_SMALL = PrimrModels.get_price(PrimrModels.PRO_MODEL)[0]  # 2.00
-GEMINI_3_PRO_OUTPUT_PRICE_SMALL = PrimrModels.get_price(PrimrModels.PRO_MODEL)[1]  # 12.00
+GEMINI_3_PRO_INPUT_PRICE_SMALL = PrimrModels.get_price(PrimrModels.PRO_MODEL)[0]
+GEMINI_3_PRO_OUTPUT_PRICE_SMALL = PrimrModels.get_price(PrimrModels.PRO_MODEL)[1]
 
-GEMINI_3_FLASH_INPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[0]  # 0.50
-GEMINI_3_FLASH_OUTPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[1]  # 3.00
+GEMINI_3_FLASH_INPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[0]
+GEMINI_3_FLASH_OUTPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[1]
 
 GOOGLE_SEARCH_PRICE_PER_1000 = SEARCH_COST_PER_QUERY * 1000  # 35.00
 
@@ -720,7 +723,9 @@ def estimate_cost(
             f"Estimate uses conservative (>{threshold_k}k) tier. "
             "Actual cost may be lower."
         )
-    notes.extend(cache_write_estimate_notes([active_pro.name, lite_strategy_model]))
+    priced_models = [PrimrModels.FLASH_MODEL, active_pro.name, lite_strategy_model]
+    notes.extend(cache_write_estimate_notes(priced_models))
+    notes.extend(scheduled_price_change_notes(priced_models))
     if sonnet_5_tokenizer_adjusted:
         notes.append("Claude token estimates include a 30% tokenizer safety factor.")
     if lite_strategy_tokenizer_adjusted:
@@ -821,8 +826,8 @@ def _estimate_fast_mode_cost(
     # everywhere (no Gemini writing). For ``fast`` and ``hybrid`` tiers, defer
     # the writing model to the cross-provider router so the estimate matches
     # what the live pipeline actually runs (the v1.24.0 sub-$1 default uses
-    # gemini-3.1-flash-lite for bulk writing when GEMINI_API_KEY is set).
-    # The router for REASONING already returns Grok 4.3 when XAI_API_KEY is
+    # Gemini 3.5 Flash-Lite for bulk writing when GEMINI_API_KEY is set).
+    # The router for REASONING already returns Grok 4.7 when XAI_API_KEY is
     # set, which is what every supported tier uses for reasoning.
     tier_reasoning_model, tier_writing_model = PrimrModels.get_grok_models(GrokTier(grok_tier))
     if grok_tier == "max":
@@ -850,7 +855,7 @@ def _estimate_fast_mode_cost(
 
     # Costs: price each bucket using the resolved model. Pre-run estimates do
     # not assume prompt-cache hits. Pass prompt_tokens so ≥200k long-context
-    # surcharges (Grok 4.3/4.5) apply when stage input estimates are large.
+    # surcharges (Grok 4.3 and later) apply when stage input estimates are large.
     utility_breakdown = PrimrModels.calculate_cost_breakdown(
         utility_model, flash_in, flash_out, prompt_tokens=flash_in, force_input_price_ceiling=True
     )
@@ -952,6 +957,7 @@ def _estimate_fast_mode_cost(
         "Hiring signals via ATS / careers page (~$0.01, +1-2 min; skip with PRIMR_SKIP_HIRING_SIGNALS=1)"
     )
     notes.extend(cache_write_estimate_notes([utility_model, reasoning_model, writing_model]))
+    notes.extend(scheduled_price_change_notes([utility_model, reasoning_model, writing_model]))
     if utility_tokenizer_adjusted or reasoning_tokenizer_adjusted or writing_tokenizer_adjusted:
         notes.append("Claude token estimates include a 30% tokenizer safety factor.")
     if _supports_cached_input_pricing(utility_model, reasoning_model, writing_model):

@@ -1,5 +1,9 @@
 """Curated OpenRouter rates verified against its public models API, 2026-10-22.
 
+GPT-6.1 Terra and Gemini 3.5 Flash Lite rows, and the GPT-4.1 Mini
+retirement, were checked against the same API and OpenAI's deprecations
+page on 2026-10-28.
+
 https://openrouter.ai/api/v1/models
 Time-dependent DeepSeek prices use the maximum published scheduled rate as an
 estimate and request-price ceiling. Native provider billing remains authoritative.
@@ -16,6 +20,9 @@ _ModelConfig = TypeVar("_ModelConfig")
 OPENROUTER_EXPIRATIONS = dict.fromkeys(
     ("google/gemini-2.5-flash:batch", "google/gemini-2.5-pro:batch"), date(2026, 10, 20)
 )
+# OpenAI shuts gpt-4.1-mini down on 2027-01-14 and names gpt-6-luna as its
+# replacement; Primr stops selecting the route now and keeps it for accounting.
+OPENROUTER_EXPIRATIONS["openai/gpt-4.1-mini"] = date(2027, 1, 14)
 
 
 def build_openrouter_models(
@@ -39,6 +46,9 @@ def build_openrouter_models(
         ),
         model_config_type(
             name="openai/gpt-4.1-mini",
+            expiration_date=OPENROUTER_EXPIRATIONS["openai/gpt-4.1-mini"],
+            replacement_model="openai/gpt-6-luna",
+            available=False,
             display_name="OpenRouter: GPT-4.1 Mini",
             provider="openrouter",
             supports_thinking=False,
@@ -99,6 +109,19 @@ def build_openrouter_models(
             cost_per_1m_input_tokens=0.25,
             cost_per_1m_output_tokens=1.5,
             cost_per_1m_input_tokens_cached=0.025,
+            max_input_tokens=1048576,
+            max_output_tokens=65536,
+        ),
+        model_config_type(
+            name="google/gemini-3.5-flash-lite",
+            display_name="OpenRouter: Gemini 3.5 Flash Lite",
+            provider="openrouter",
+            supports_thinking=True,
+            supports_tools=True,
+            supports_multimodal=True,
+            cost_per_1m_input_tokens=0.3,
+            cost_per_1m_output_tokens=2.5,
+            cost_per_1m_input_tokens_cached=0.03,
             max_input_tokens=1048576,
             max_output_tokens=65536,
         ),
@@ -384,6 +407,26 @@ def build_openrouter_models(
             supports_multimodal=True,
             cost_per_1m_input_tokens_write_ceiling=2.5,
             cost_per_1m_input_tokens_write_ceiling_high=5.0,
+        ),
+        model_config_type(
+            name="openai/gpt-6.1-terra",
+            display_name="OpenAI: GPT-6.1 Terra",
+            provider="openrouter",
+            cost_per_1m_input_tokens=1.0,
+            cost_per_1m_output_tokens=5.0,
+            cost_per_1m_input_tokens_cached=0.05,
+            max_input_tokens=1050000,
+            max_output_tokens=128000,
+            cost_per_1m_input_tokens_high=2.0,
+            cost_per_1m_output_tokens_high=7.5,
+            cost_per_1m_input_tokens_cached_high=0.1,
+            tier_threshold_tokens=272000,
+            tier_threshold_inclusive=True,
+            supports_thinking=True,
+            supports_tools=True,
+            supports_multimodal=True,
+            cost_per_1m_input_tokens_write_ceiling=1.25,
+            cost_per_1m_input_tokens_write_ceiling_high=2.5,
         ),
         model_config_type(
             name="openai/gpt-6-luna",

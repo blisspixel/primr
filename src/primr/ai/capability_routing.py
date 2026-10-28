@@ -239,6 +239,7 @@ class BackendCapabilities:
         """Build a capability row from the existing model registry metadata."""
 
         kind = BackendKind.LOCAL if model.provider == "ollama" else BackendKind.CLOUD_API
+        input_rate, output_rate, _ = model.standard_rates()
         return cls(
             backend_id=model.name,
             kind=kind,
@@ -250,8 +251,8 @@ class BackendCapabilities:
             supports_deep_research=supports_deep_research,
             supports_structured_output=supports_structured_output,
             latency_class=latency_class,
-            input_cost_per_million=model.cost_per_1m_input_tokens,
-            output_cost_per_million=model.cost_per_1m_output_tokens,
+            input_cost_per_million=input_rate,
+            output_cost_per_million=output_rate,
             available=available and not model.deprecated,
             metadata={"provider": model.provider, "display_name": model.display_name},
         )

@@ -61,8 +61,8 @@ def get_grok_session_usage() -> dict[str, int]:
     """Return cumulative token usage for the current session.
 
     ``cached_input_tokens`` is the subset of ``input_tokens`` served from the
-    provider's prompt cache. This is load-bearing on the sub-$1 default (Grok 4.3
-    cached input at $0.20/M), so it is threaded through to usage records.
+    provider's prompt cache. Cached input is billed well below live input on
+    the default Grok reasoner, so it is threaded through to usage records.
     """
     with _session_lock:
         return {
@@ -209,7 +209,7 @@ def _get_provider() -> XAIProvider:
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
-_DEFAULT_MODEL = "grok-4.3"
+_DEFAULT_MODEL = PrimrModels.GROK_MODEL
 
 
 def _is_billing_exhausted(error: Exception) -> bool:
@@ -284,7 +284,7 @@ def grok_llm(
     Args:
         prompt: The user prompt to send.
         model: Model ID. ``None`` selects the default
-               (``grok-4.3``). Use
+               (``grok-4.7``). Use
                ``grok-4.20-non-reasoning`` for writing tasks.
         temperature: Sampling temperature.
         max_tokens: Maximum output tokens.
@@ -292,7 +292,7 @@ def grok_llm(
         system_prompt: Optional system message prepended before the user message.
         reasoning_effort: Optional reasoning effort level ("low", "medium", "high").
             Used to differentiate FAST tier (low) from HYBRID tier (default).
-            Only effective on models that support reasoning effort (e.g. grok-4.3).
+            Only effective on models that support reasoning effort (e.g. grok-4.7).
 
     Returns:
         The assistant's text response.
@@ -317,7 +317,7 @@ def grok_llm(
     # call xAI with a non-Grok model ID. The function name stays grok_llm for
     # back-compat but it now acts as a generic chat dispatcher when needed.
     # Production reasoning-tier calls without an override still hit the xAI
-    # path below since they resolve to grok-4.3 / grok-4.20-NR.
+    # path below since they resolve to grok-4.7 / grok-4.20-NR.
     from primr.config.models import PrimrModels as _PrimrModels
 
     _model_config = _PrimrModels.get_model_config(model)

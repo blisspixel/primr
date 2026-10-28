@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from primr.config.models import PrimrModels
+
 
 def add_eval_arguments(parser: argparse.ArgumentParser) -> None:
     """Register arguments owned by the `primr --eval` workflow."""
@@ -107,8 +109,8 @@ def add_eval_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--eval-judge-model",
         type=str,
-        default="grok-4.3",
-        help="Model name for LLM judge",
+        default=PrimrModels.GROK_MODEL,
+        help=f"Model name for LLM judge (default: {PrimrModels.GROK_MODEL})",
     )
     parser.add_argument(
         "--eval-judge-models",

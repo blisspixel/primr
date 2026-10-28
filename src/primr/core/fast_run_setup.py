@@ -63,7 +63,7 @@ def resolve_fast_run_setup(
 
     # Cross-provider writing routing (v1.24.4 fix): for FAST/HYBRID the
     # estimator already prices writing via pick_model_for_role(Role.WRITING),
-    # which prefers gemini-3.1-flash-lite when GEMINI_API_KEY is set. Until
+    # which prefers Gemini Flash-Lite when GEMINI_API_KEY is set. Until
     # this fix, perform_fast_research kept using the Grok-tier writer
     # (grok-4.20-non-reasoning), so a max_estimated_cost_usd cap approved
     # against a ~$0.79 Gemini estimate could let through a real ~$5.09 Grok
@@ -123,8 +123,8 @@ def resolve_fast_run_setup(
             f"reasoning={_active_recipe.reasoning})"
         )
 
-    # Determine reasoning_effort for the FAST tier — grok-4.3 supports
-    # low/medium/high effort levels. FAST uses "low" to reduce cost/latency;
+    # Determine reasoning_effort for the FAST tier: grok-4.7 supports
+    # low/medium/high/xhigh effort levels. FAST uses "low" to reduce cost/latency;
     # HYBRID and MAX use the default (no explicit effort = model decides).
     reasoning_config = PrimrModels.get_model_config(grok_reasoning)
     grok_reasoning_effort: str | None = (

@@ -80,9 +80,9 @@ def list_eval_profiles() -> tuple[EvalProfileSlot, ...]:
 def _register_builtin_profiles() -> None:
     """Register the three legacy profile slots. Called at module init."""
     for name, description in (
-        ("full", "Default Grok 4.3 hybrid pipeline (reasoning + writing + strategy)"),
+        ("full", "Default Grok 4.7 hybrid pipeline (reasoning + writing + strategy)"),
         ("lite", "Premium pipeline with Pro instead of Deep Research for strategy"),
-        ("fast", "Grok 4.3 low-effort + 4.20-non-reasoning bulk writing"),
+        ("fast", "Grok 4.7 low-effort + 4.20-non-reasoning bulk writing"),
     ):
         register_eval_profile(
             EvalProfileSlot(

@@ -48,14 +48,16 @@ class QASystemConfig:
 
     def _get_default_models(self) -> dict[str, QAModelConfig]:
         """Get default model configurations."""
-        from ..config.models import ModelRegistry, PrimrModels
+        from ..config.models import PrimrModels
 
+        qa_model = PrimrModels.ALL_MODELS[PrimrModels.QA_MODEL]
+        reasoning_model = PrimrModels.ALL_MODELS[PrimrModels.REASONING_MODEL]
         return {
             PrimrModels.QA_MODEL: QAModelConfig(
                 name=PrimrModels.QA_MODEL,
-                display_name=ModelRegistry.GEMINI_3_FLASH.display_name,
+                display_name=qa_model.display_name,
                 provider="google",
-                cost_per_1k_tokens=ModelRegistry.GEMINI_3_FLASH.cost_per_1m_input_tokens / 1000,
+                cost_per_1k_tokens=PrimrModels.get_price(qa_model.name)[0] / 1000,
                 max_tokens=65536,
                 supports_json_mode=True,
                 recommended_for=["general", "fast", "analysis"],
@@ -63,9 +65,9 @@ class QASystemConfig:
             ),
             PrimrModels.REASONING_MODEL: QAModelConfig(
                 name=PrimrModels.REASONING_MODEL,
-                display_name=ModelRegistry.GEMINI_3_PRO.display_name,
+                display_name=reasoning_model.display_name,
                 provider="google",
-                cost_per_1k_tokens=ModelRegistry.GEMINI_3_PRO.cost_per_1m_input_tokens / 1000,
+                cost_per_1k_tokens=PrimrModels.get_price(reasoning_model.name)[0] / 1000,
                 max_tokens=65536,
                 supports_json_mode=True,
                 recommended_for=["complex", "detailed", "technical"],

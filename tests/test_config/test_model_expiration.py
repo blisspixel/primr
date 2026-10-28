@@ -112,8 +112,8 @@ def test_default_roles_are_available_and_utility_estimate_uses_successor(monkeyp
         model.require_available()
         model.require_available(date(2026, 10, 21))
     utility = pick_model_for_role(Role.UTILITY)
-    assert utility == "google/gemini-3.1-flash-lite"
-    assert PrimrModels.calculate_cost(utility, 1_000_000, 1_000_000) == 1.75
+    assert utility == "google/gemini-3.5-flash-lite"
+    assert PrimrModels.calculate_cost(utility, 1_000_000, 1_000_000) == pytest.approx(2.80)
 
 
 def test_direct_role_overrides_and_pilot_judge_share_settings(monkeypatch):
@@ -146,7 +146,7 @@ def test_direct_runtime_routes_honor_generic_and_role_specific_overrides(monkeyp
     assert pick_model_for_role(Role.UTILITY) == "gemini-3.5-flash-lite"
     assert pick_model_for_role(Role.REASONING) == "gemini-3.8-flash"
     assert pick_model_for_role(Role.PRO) == "gemini-3.8-flash"
-    assert pick_model_for_role(Role.WRITING) == "gemini-3.1-flash-lite"
+    assert pick_model_for_role(Role.WRITING) == "gemini-3.5-flash-lite"
     for role, variable in (
         (Role.UTILITY, "UTILITY"),
         (Role.WRITING, "WRITING"),

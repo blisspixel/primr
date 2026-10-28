@@ -1,7 +1,59 @@
-# Grok default routing (4.3 default, 4.5 pin, 4.6 candidate)
+# Default model routing (current flagships)
 
-Decision record for which xAI model Primr uses by default, why the MAX tier is
-version-pinned, and how a current flagship earns promotion.
+Decision record for which models Primr uses by default, why each tier stays
+version-pinned, and how the defaults move when providers ship new models.
+
+## Decision update (2026-10-28, supersedes the binding decision below)
+
+The project owner directed that defaults track each provider's current
+flagship instead of waiting for a paid quality comparison per release. This is
+an owner decision, not a measured promotion: report quality on the new
+defaults has not been scored against the previous ones.
+
+Sources checked on 2026-10-28: the xAI, Gemini, OpenAI, and Claude model
+catalogs, OpenAI pricing and deprecations, and the OpenRouter models API.
+
+| Role | Previous default | Current default |
+|------|------------------|-----------------|
+| Grok reasoning, every tier | `grok-4.3` (MAX: `grok-4.5`) | `grok-4.7` |
+| Grok writing, FAST and HYBRID | `grok-4.20-non-reasoning` | unchanged (xAI's only non-reasoning model) |
+| Gemini Flash (utility) | `gemini-3-flash-preview` | `gemini-3.8-flash` (stable) |
+| Gemini Pro (reasoning, premium) | `gemini-3.1-pro-preview` | `gemini-4-argon` (stable) |
+| Gemini writing | `gemini-3.1-flash-lite` | `gemini-3.5-flash-lite` |
+| OpenAI utility and writing | `gpt-5.4-nano` | `gpt-6-luna` |
+| OpenAI reasoning | `gpt-5.6-terra` | `gpt-6.1-terra` |
+| Anthropic utility and writing | `claude-haiku-4-5` | `claude-haiku-5-5` |
+| Anthropic reasoning | `claude-sonnet-5` | `claude-sonnet-5-5` |
+| OpenRouter utility / writing / reasoning | `google/gemini-3.1-flash-lite` / `openai/gpt-4.1-mini` / `deepseek/deepseek-v3.2` | `google/gemini-3.5-flash-lite` / `openai/gpt-6-luna` / `deepseek/deepseek-v4.1-flash-1017` |
+| LLM judge | `grok-4.3` | `grok-4.7` |
+
+Free estimator dry-runs (complete mode, no historical cache), before and after:
+
+| Keys | Before | After |
+|------|--------|-------|
+| xAI + Gemini, HYBRID | $0.76 ($0.89 with AI Strategy) | $1.05 ($1.24) |
+| xAI + Gemini, MAX | $8.53 ($9.93) | $8.53 ($9.93) |
+| xAI only | $5.09 | $5.18 |
+| Gemini only | $0.89 | $1.07 |
+| OpenAI only | $1.05 | $1.24 |
+| Anthropic only | $4.71 | $3.20 |
+| Premium | $4.21 | $4.14 |
+
+This is the documented price-floor change the promotion path below allows:
+the HYBRID default moves from about $0.76 to about $1.05. About $0.20 comes
+from Gemini 3.5 Flash-Lite writing output ($2.50 versus $1.50 per 1M) and
+about $0.11 from Grok 4.7 reasoning. Gemini 4 Argon rates rise to $4/$20 on
+2026-12-01 and Gemini 3.8 Flash to $1.50/$7.50 on 2027-01-01; estimates now
+disclose such scheduled changes so an approval made before the date is not
+silently repriced. Grok 4.7 has a 500k context window, half of Grok 4.3's,
+so the analysis fallback chain keeps Grok 4.3 as its 1M-context second step.
+
+Rules that still hold: tiers name exact versions, never provider aliases;
+superseded models stay registered and priced for historical accounting and
+explicit selection; retired models are marked unavailable with their
+replacement; and `tests/test_ai/test_routing.py` fails if any key combination
+routes a default role to a model outside the current flagship set. The
+historical record below explains the earlier eval-gated policy.
 
 ## Context
 
@@ -77,7 +129,7 @@ Published list prices (docs.x.ai):
 with a **smaller** context window. MAX is expensive mainly because it routes
 **writing** through Grok as well, not only reasoning.
 
-## Decision (binding until an eval flips it)
+## Decision (2026-08, superseded on 2026-10-28)
 
 1. **Default hybrid/fast reasoning stays `grok-4.3`.** The product promise is a
    cost-aware brief with an honest dry-run, not “always the newest flagship.”

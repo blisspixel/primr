@@ -1,10 +1,8 @@
-"""Current Gemini evaluation candidates are registered but not defaulted.
+"""Current Gemini models are registered, priced, and the defaults are current.
 
-Model-selection policy: register flagship / newer models so they can be
-selected explicitly or eval-gated in, but never silently promote one to a
-default tier (defaults change only after an eval on output $/1M). These pins
-guard both halves of that: the new ids must be resolvable and priced, and they
-must NOT be the active FLASH/PRO defaults.
+Model-selection policy: every newer model must be resolvable and priced so the
+cost gate can quote it, and the FLASH/PRO defaults track the newest stable
+Flash-class and Pro-class models rather than a superseded preview.
 """
 
 from __future__ import annotations
@@ -37,11 +35,12 @@ def test_new_gemini_model_is_registered_and_priced(model: str) -> None:
     assert PrimrModels.calculate_cost(model, 100_000, 20_000) > 0
 
 
-@pytest.mark.parametrize("model", NEW_GEMINI_MODELS)
-def test_new_gemini_model_is_not_a_default_tier(model: str) -> None:
-    # Registered != defaulted. A repoint of FLASH_MODEL / PRO_MODEL is eval-gated.
-    assert model != PrimrModels.FLASH_MODEL
-    assert model != PrimrModels.PRO_MODEL
+def test_default_tiers_are_the_latest_stable_gemini_models() -> None:
+    assert PrimrModels.FLASH_MODEL == "gemini-3.8-flash"
+    assert PrimrModels.PRO_MODEL == "gemini-4-argon"
+    for model in (PrimrModels.FLASH_MODEL, PrimrModels.PRO_MODEL):
+        assert "preview" not in model
+        assert PrimrModels.get_model_config(model).available
 
 
 def test_argon_has_synchronous_limits_and_scheduled_standard_cache_prices() -> None:
@@ -115,7 +114,14 @@ def test_retired_configured_utility_route_stops_during_selection(monkeypatch):
 def test_aliases_and_restricted_legacy_models_do_not_advertise_as_flagships():
     assert PrimrModels.is_latest_model("gemini-4-argon")
     assert PrimrModels.is_latest_model("gemini-3.8-flash")
-    for name in ("gemini-3.7-flash", "gemini-3.5-flash", "gemini-3-pro-preview", "gemini-2.5-pro"):
+    for name in (
+        "gemini-3.7-flash",
+        "gemini-3.5-flash",
+        "gemini-3-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-3.1-pro-preview",
+        "gemini-2.5-pro",
+    ):
         assert PrimrModels.get_model_config(name) is not None
         assert not PrimrModels.is_latest_model(name)
 

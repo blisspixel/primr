@@ -175,8 +175,8 @@ class PrimrModels:
     # =========================================================================
     # PRIMARY MODELS - UPDATE THESE TO CHANGE MODELS GLOBALLY
     # =========================================================================
-    FLASH_MODEL = DEFAULT_FLASH_MODEL  # Cheap - $0.50/$3 per 1M
-    PRO_MODEL = DEFAULT_PRO_MODEL  # Smart - $2/$12 (≤200k) | $4/$18 (>200k)
+    FLASH_MODEL = DEFAULT_FLASH_MODEL  # Gemini 3.8 Flash - $0.75/$3.75 per 1M
+    PRO_MODEL = DEFAULT_PRO_MODEL  # Gemini 4 Argon - $2/$10 per 1M
     DEEP_RESEARCH_AGENT = ModelRegistry.DEEP_RESEARCH_AGENT  # Autonomous 12+ page reports
 
     # =========================================================================
@@ -226,13 +226,14 @@ class PrimrModels:
     FALLBACK_MODELS: dict = {}  # Empty - no fallbacks
 
     # --- GROK MODELS (xAI - for fast mode) ---
-    GROK_MODEL = ModelRegistry.GROK_4_3.name  # 4.3 hybrid/fast default (sub-$1 recipe)
+    GROK_MODEL = ModelRegistry.GROK_4_7.name  # 4.7 flagship, reasoning in every tier
     GROK_MODEL_WRITING = (
         ModelRegistry.GROK_4_20_NR_NEW.name
-    )  # 4.20 non-reasoning — replaces retired 4.1-fast-nr
-    GROK_MODEL_43 = ModelRegistry.GROK_4_3.name  # 4.3 — hybrid/fast reasoning default
-    GROK_MODEL_45 = ModelRegistry.GROK_4_5.name  # 4.5, evaluated MAX-tier pin
-    GROK_MODEL_46 = ModelRegistry.GROK_4_6.name  # 4.6, current flagship candidate
+    )  # 4.20 non-reasoning, the current xAI non-reasoning model
+    GROK_MODEL_43 = ModelRegistry.GROK_4_3.name  # 4.3, previous value default
+    GROK_MODEL_45 = ModelRegistry.GROK_4_5.name  # 4.5, previous MAX-tier pin
+    GROK_MODEL_46 = ModelRegistry.GROK_4_6.name  # 4.6, previous flagship
+    GROK_MODEL_47 = ModelRegistry.GROK_4_7.name  # 4.7, current flagship
     # Legacy 4.20 constants — kept for back-compat and resume of in-flight runs.
     # New code should use a versioned constant; routing changes remain eval-gated.
     GROK_MODEL_420 = ModelRegistry.GROK_4_20_REASONING.name
@@ -314,21 +315,21 @@ class PrimrModels:
     def get_grok_models(cls, tier: GrokTier) -> tuple[str, str]:
         """Return (reasoning_model, writing_model) for the given Grok tier.
 
-        Tier mapping (August 2026):
-        FAST: grok-4.3 (reasoning_effort=low) + grok-4.20-non-reasoning
-        HYBRID: grok-4.3 + grok-4.20-non-reasoning  (default; measured sub-$1)
-        MAX: grok-4.5 + grok-4.5  (evaluated pin; higher cost, re-estimate)
+        Tier mapping (October 2026):
+        FAST: grok-4.7 (reasoning_effort=low) + grok-4.20-non-reasoning
+        HYBRID: grok-4.7 + grok-4.20-non-reasoning  (default)
+        MAX: grok-4.7 + grok-4.7  (flagship writing too; higher cost, re-estimate)
 
         FAST and HYBRID use the same models; the difference is in
         reasoning_effort (low for FAST, default/high for HYBRID), handled by
         the caller.
         """
         if tier == GrokTier.FAST:
-            return (cls.GROK_MODEL_43, cls.GROK_MODEL_WRITING)
+            return (cls.GROK_MODEL, cls.GROK_MODEL_WRITING)
         if tier == GrokTier.HYBRID:
-            return (cls.GROK_MODEL_43, cls.GROK_MODEL_WRITING)
-        # GrokTier.MAX - evaluated premium pin, not an automatic latest alias
-        return (cls.GROK_MODEL_45, cls.GROK_MODEL_45)
+            return (cls.GROK_MODEL, cls.GROK_MODEL_WRITING)
+        # GrokTier.MAX - pinned version, not an automatic latest alias
+        return (cls.GROK_MODEL, cls.GROK_MODEL)
 
     @classmethod
     def _resolve_config(cls, model_name: str) -> ModelConfig | None:
@@ -377,6 +378,7 @@ class PrimrModels:
         latest_models = {
             ModelRegistry.OPENAI_GPT_6_ASTRA.name,
             ModelRegistry.OPENAI_GPT_6_1_SOL.name,
+            ModelRegistry.OPENAI_GPT_6_1_TERRA.name,
             ModelRegistry.OPENAI_GPT_6_LUNA.name,
             ModelRegistry.ANTHROPIC_FABLE_5_1.name,
             ModelRegistry.ANTHROPIC_OPUS_5_5.name,
@@ -386,9 +388,6 @@ class PrimrModels:
             ModelRegistry.GEMINI_4_ARGON.name,
             ModelRegistry.GEMINI_3_8_FLASH.name,
             ModelRegistry.GEMINI_3_5_FLASH_LITE.name,
-            ModelRegistry.GEMINI_3_1_PRO.name,
-            ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS.name,
-            ModelRegistry.GEMINI_3_FLASH.name,
             ModelRegistry.GEMINI_3_PRO_IMAGE_STABLE.name,
             ModelRegistry.GEMINI_NANO_BANANA_2_1.name,
             ModelRegistry.DEEP_RESEARCH_AGENT,
@@ -606,7 +605,7 @@ class PrimrModels:
 
         Reads ``get_settings().ai.pro_model`` (which honours the
         ``AI_REASONING_MODEL`` env-var) and falls back to the default
-        GEMINI_3_PRO config when the resolved name isn't in ALL_MODELS.
+        PRO_MODEL config when the resolved name isn't in ALL_MODELS.
         """
         from primr.config.settings import get_settings
 
@@ -614,7 +613,7 @@ class PrimrModels:
         config = cls.ALL_MODELS.get(active_name)
         if config is not None:
             return config
-        # Unknown model name — default to GEMINI_3_PRO
+        # Unknown model name: default to PRO_MODEL
         return cls.ALL_MODELS[cls.PRO_MODEL]
 
     @classmethod
