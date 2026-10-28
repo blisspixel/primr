@@ -60,9 +60,9 @@ file between those locations without adapting it.
 | Client | What it supports | What to do |
 |---|---|---|
 | **Kiro** (recommended path) | Kiro Skills follow the open [agentskills.io](https://agentskills.io) standard - the same `SKILL.md` format Claude Code uses. | Copy [`../claude-code/skills/primr/SKILL.md`](../claude-code/skills/primr/SKILL.md) and the entire `references/` directory to `~/.kiro/skills/primr/` (global) or `.kiro/skills/primr/` (workspace). Kiro auto-loads it on-demand based on the description. |
-| **Kiro** (alternative) | Steering files at `~/.kiro/steering/` or `.kiro/steering/`. AGENTS.md is auto-detected at workspace root. | Drop [`../AGENTS.md`](../AGENTS.md) at the user's workspace root. It loads always, not on-demand - fine for projects where primr is the main tool, heavier than needed for general-purpose workspaces. |
-| **Windsurf** | `.windsurfrules` at project root, plain markdown, merged with global rules. No skill auto-loading. | Reference AGENTS.md from `.windsurfrules`: `See @AGENTS.md for primr usage guidance.` Or paste the AGENTS.md content directly into `.windsurfrules`. |
-| **Cursor** | `.cursor/rules/*.md` with frontmatter (`description`, `globs`, `alwaysApply`). | Drop AGENTS.md content into `.cursor/rules/primr.md` with `description: ...` matching the skill description. |
+| **Kiro** (alternative) | Steering files at `~/.kiro/steering/` or `.kiro/steering/`. AGENTS.md is auto-detected at workspace root. | Copy [`primr-operator.md`](primr-operator.md) to the user's workspace root as `AGENTS.md`. It loads always, not on-demand - fine for projects where primr is the main tool, heavier than needed for general-purpose workspaces. |
+| **Windsurf** | `.windsurfrules` at project root, plain markdown, merged with global rules. No skill auto-loading. | Copy [`primr-operator.md`](primr-operator.md) to the workspace root as `AGENTS.md` and reference it from `.windsurfrules`: `See @AGENTS.md for primr usage guidance.` Or paste its content directly into `.windsurfrules`. |
+| **Cursor** | `.cursor/rules/*.md` with frontmatter (`description`, `globs`, `alwaysApply`). | Drop the [`primr-operator.md`](primr-operator.md) content into `.cursor/rules/primr.md` with `description: ...` matching the skill description. |
 | **VS Code + Copilot** | Project Agent Skills in `.github/skills`, `.claude/skills`, or `.agents/skills`; personal skills in `~/.copilot/skills` or `~/.agents/skills`. `.github/copilot-instructions.md` remains an always-loaded fallback. | Prefer the complete Agent Skill directory. Use `copilot-instructions.md` only when the selected Copilot surface does not support skills. |
 
 ## Primr Zero skill placement
@@ -89,7 +89,7 @@ The provider-backed operating guidance currently lives in two manually aligned
 forms:
 
 - [`../claude-code/skills/primr/SKILL.md`](../claude-code/skills/primr/SKILL.md) - skill frontmatter and paths relative to its packaged references for Claude Code and Kiro skill auto-loading.
-- [`../AGENTS.md`](../AGENTS.md) - aligned operating guidance with repository-root reference paths and no skill frontmatter, for tools that do not have a skill format.
+- [`primr-operator.md`](primr-operator.md) - aligned operating guidance with absolute reference links and no skill frontmatter, for tools that do not have a skill format. Copy it into a workspace as `AGENTS.md`. (The repository root `AGENTS.md` is primr's development contract, not this guide.)
 
 If you contribute changes to one, mirror them into the other.
 

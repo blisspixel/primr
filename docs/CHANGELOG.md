@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.29] - 2026-10-28
+
+### Changed
+
+- `AGENTS.md` is now the single source of agent guidance: the root file holds
+  the development contract formerly in `CLAUDE.md`, and `CLAUDE.md` is exactly
+  `@AGENTS.md`, the import Claude Code needs to load it. The operate-primr
+  guide moved to `clients/primr-operator.md`; copy it into a workspace as
+  `AGENTS.md`. Its reference links are now absolute. The `primr://context`
+  MCP resource reads `AGENTS.md` and reports `context_map_path: "AGENTS.md"`
+  (#264).
+
 ## [1.39.28] - 2026-10-27
 
 ### Changed

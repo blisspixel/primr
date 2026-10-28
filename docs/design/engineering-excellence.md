@@ -48,23 +48,24 @@ below is the last mile, not a turnaround.
 
 ## Net-new workstreams
 
-### 1. `CLAUDE.md` - the anti-slop contract  (free) - SHIPPED
+### 1. `AGENTS.md` - the anti-slop contract  (free) - SHIPPED
 
 A dev-facing spec that every coding agent and human reads before contributing.
 The 2026 standard (agents.md; spec-driven development) is that the spec is the
 *constraint the generator is held to*, not documentation written after.
 
-**Why `CLAUDE.md` and not `AGENTS.md` here (June 2026 standard).** The
-cross-tool open standard is `AGENTS.md` (native in Codex, Cursor,
-Copilot, Windsurf, Gemini CLI); Claude Code still does **not** read `AGENTS.md`
-natively - it reads `CLAUDE.md` (issue #6235 open with 5k+ reactions). The
-usual best practice is "`AGENTS.md` as source of truth + a thin `CLAUDE.md`
-that imports it via `@AGENTS.md`." **But primr's root `AGENTS.md` is already
-taken** - it is a deliberate, synced *product* artifact (the agents.md-format
-twin of the operate-primr skill, referenced by `clients/README.md`). So the
-dev contract lives in `CLAUDE.md` (Claude Code's native file, and the agent
-actually building primr), with a one-line disambiguation header added to
-`AGENTS.md` pointing dev-agents here. Contents:
+**Why `AGENTS.md`, imported by `CLAUDE.md` (#264, October 2026).** The
+cross-tool open standard is `AGENTS.md` (native in Codex, Cursor, Copilot,
+Windsurf, Gemini CLI). Claude Code reads `CLAUDE.md` and loads `AGENTS.md`
+only when `CLAUDE.md` imports it with `@AGENTS.md`; a prose pointer or link
+does not load it. The contract first lived in `CLAUDE.md` because the root
+`AGENTS.md` was the operate-primr product guide. Two files with their own
+rules drift, and the copy a given harness does not read goes stale, so the
+contract now lives in the root `AGENTS.md`, `CLAUDE.md` is exactly
+`@AGENTS.md`, and the operator guide moved to `clients/primr-operator.md`,
+which users copy into their own workspace as `AGENTS.md`. Tool settings
+(permissions, hooks) stay in each tool's configuration, not in prose.
+Contents:
 
 - **The single seams, named, with their allowed exceptions:** async via
   `utils.async_utils.run_sync` (not raw `asyncio.run`); outbound HTTP via the
@@ -83,9 +84,10 @@ actually building primr), with a one-line disambiguation header added to
 
 Validation: free - it is documentation that the fitness functions (workstream
 2) then *enforce*, so it cannot rot into aspirational prose. SHIPPED as the
-committed root `CLAUDE.md` (un-ignored from `.gitignore`, which previously
-treated it as local-only); CONTRIBUTING points to it; a fitness test asserts
-both it and `AGENTS.md` exist.
+committed root contract, now `AGENTS.md` with a one-line `CLAUDE.md` import;
+CONTRIBUTING points to it; a fitness test asserts that `CLAUDE.md` is exactly
+`@AGENTS.md`, that `AGENTS.md` carries the contract sections, and that the
+operator guide exists.
 
 ### 2. Architectural fitness functions  (free) - PARTIALLY SHIPPED
 

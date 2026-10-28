@@ -55,6 +55,6 @@ cost behavior are documented in `docs/RUN_MODES.md`.
   policy.
 - Async-to-sync calls use `primr.utils.async_utils.run_sync`.
 - Console, logging, configuration, and atomic state writes use the shared seams
-  named in the root `CLAUDE.md`.
+  named in the root `AGENTS.md`.
 - MCP and A2A background job ownership stays in their transport packages; core
   supplies research operations and artifacts.

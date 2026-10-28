@@ -12,7 +12,7 @@ from scripts.sync_primr_operator_skill import mirrors_match as operator_mirrors_
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLAUDE_SKILL = REPO_ROOT / "claude-code" / "skills" / "primr" / "SKILL.md"
-AGENT_GUIDE = REPO_ROOT / "AGENTS.md"
+AGENT_GUIDE = REPO_ROOT / "clients" / "primr-operator.md"
 README = REPO_ROOT / "README.md"
 AGENT_INTEGRATION = REPO_ROOT / "docs" / "AGENT_INTEGRATION.md"
 PROJECT_SKILL_ROOT = REPO_ROOT / ".claude" / "skills"

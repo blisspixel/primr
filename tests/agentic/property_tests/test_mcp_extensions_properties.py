@@ -100,14 +100,14 @@ def test_context_resource_structure():
 
     Validates: Requirements 7.7
     """
-    claude_md_path = Path("CLAUDE.md")
-    if not claude_md_path.exists():
-        pytest.skip("CLAUDE.md not found")
+    agents_md_path = Path("AGENTS.md")
+    if not agents_md_path.exists():
+        pytest.skip("AGENTS.md not found")
 
     # Import the extraction function
     from primr.mcp_server.agentic_resources import _extract_context_summary
 
-    content = claude_md_path.read_text(encoding="utf-8")
+    content = agents_md_path.read_text(encoding="utf-8")
     summary = _extract_context_summary(content)
 
     # Should have expected keys

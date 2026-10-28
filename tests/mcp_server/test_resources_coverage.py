@@ -396,7 +396,7 @@ class TestAgenticResources:
         assert isinstance(data, dict)
 
     @pytest.mark.asyncio
-    async def test_context_missing_claude_md(self, server, monkeypatch, tmp_path):
+    async def test_context_missing_agents_md(self, server, monkeypatch, tmp_path):
         monkeypatch.chdir(tmp_path)
         data = await _read(server, "primr://context")
         assert data["error"] == "context_not_found"
@@ -404,7 +404,7 @@ class TestAgenticResources:
     @pytest.mark.asyncio
     async def test_context_present(self, server, monkeypatch, tmp_path):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "CLAUDE.md").write_text(
+        (tmp_path / "AGENTS.md").write_text(
             "# Title\n\n## Quick Start\n\nDo things.\n\n## Other\n\nNEVER do bad things.\n",
             encoding="utf-8",
         )

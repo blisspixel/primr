@@ -3345,11 +3345,11 @@ Research memory for a specific company.
 
 #### primr://context
 
-CLAUDE.md context-map summary for development agents. `quick_start` is a string containing at most the first 1,000 characters of that section, or `null` when the section is absent.
+AGENTS.md context-map summary for development agents (CLAUDE.md only imports AGENTS.md). `quick_start` is a string containing at most the first 1,000 characters of that section, or `null` when the section is absent.
 
 ```json
 {
-  "context_map_path": "CLAUDE.md",
+  "context_map_path": "AGENTS.md",
   "summary": {
     "sections": [
       "Quick Start",

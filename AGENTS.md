@@ -1,296 +1,313 @@
-# AGENTS.md - primr
+# AGENTS.md - the contract for building primr
 
-This file is portable agent guidance in the [agents.md](https://agents.md) format. AI coding tools that auto-detect `AGENTS.md` (Kiro, OpenAI Codex, Jules, Aider, others) load it automatically. Tools that don't (Claude Code, Cursor, Windsurf) can reference or include it from their own rules / skill files.
+You are working **on the primr codebase**. This file is the development
+contract and context map: read it before writing code. It is the single
+canonical guide for any contributor (human or agent). Tools that read the
+[agents.md](https://agents.md) format load it natively; Claude Code loads it
+through the one-line `CLAUDE.md` import (`@AGENTS.md`). Keep agent guidance
+here, not in a second file, and keep tool settings (permissions, hooks) in
+each tool's own configuration rather than in prose.
 
-> **Operating primr vs. building primr.** This file is for agents that *operate* the primr CLI/MCP to do research. If you are an agent (or human) here to *change primr's source code*, read [`CLAUDE.md`](CLAUDE.md) - the development contract - not this file.
+> **Operating primr is a different guide.** To *use* the primr CLI or MCP for
+> research, read [`clients/primr-operator.md`](clients/primr-operator.md), the
+> operator guide that users copy into their own workspace as `AGENTS.md`.
+> This file is about *changing primr's source*.
 
-If you are an AI agent reading this in a primr-aware project: this is how to
-route and operate Primr without making the user learn its internal commands.
+The bar: code any human or AI could admire - tidy, consistent, secure,
+well-tested. We are not making slopware. The rules below exist because
+AI-assisted code reliably regresses on exactly these axes (duplication,
+inconsistent patterns, stale APIs, silent insecurity) unless held to a
+contract.
 
-Primr has two serious research paths. **Primr Zero** combines deterministic
-Primr collection with the current agent host's research and reasoning. The
-**provider-backed pipeline** adds Primr-managed model synthesis,
-cross-validation, strategy generation, and rendering after an estimate and
-explicit spend approval. Both aim for useful strategic artifacts; the
-host-powered path is not a renamed scrape mode or a deliberately worse
-application.
+## Quick Start
 
-## Agent-host default
+primr turns a company name and website into sourced, long-form strategic
+reports. It is a CLI-first, local-first Python package (`src/` layout), an LLM
+API **client** + adaptive scraper + MCP/A2A agent - it trains and serves no
+models. To work on it:
 
-When a request is addressed to an agent host, keep the public invocation
-simple:
+The enduring product boundary is the
+[`Company Analyst Product Contract`](docs/design/company-analyst-product-contract.md):
+the bare company-and-website invocation must produce exceptional researched,
+long-form Strategic Overview and YAML-defined strategy artifacts as reliable
+Word and Markdown files. Architecture, routing, ledgers, memory, and agent
+surfaces are supporting capabilities, not replacement products.
+
+1. Set up the dev env (`uv sync --locked --all-extras`, then
+   `uv run playwright install chromium`) - see
+   [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md).
+2. Put code in the package that owns it (see Architecture Pointers). Use the
+   existing **seam** rather than inventing a second way to do the same thing.
+3. Before opening a PR, run the Verification Commands and re-read the Negative
+   Constraints. New code ships with tests; the coverage ratchet only rises.
+
+Three rules in one breath: **one way to do each thing; no new giant files;
+verify current APIs (never trust training memory).** Everything below expands
+these.
+
+## Working loop and evidence
+
+Start with the README, product contract, `docs/NEXT_STEPS.md`, and the relevant
+roadmap/design sections. Check the working tree, recent changes, owning source,
+callers, tests, `pyproject.toml`, `uv.lock`, and affected CI jobs before editing.
+Source, configuration, tests, and release history outrank stale prose. Keep one
+bounded objective and explicit acceptance criteria; do not reopen the stack or
+expand into an unrelated cleanup. Ask about consequential product ambiguity,
+not routine reversible implementation choices.
+
+Use the package map and recompute the AST import graph in
+`tests/test_architecture.py` when changing ownership or dependencies. Inspect
+the actual symbols and callers; cached indexes and old audit counts can be
+stale. Verify version-sensitive decisions against current primary sources,
+distinguishing the locked baseline, stable upstream releases, and previews.
+Record durable conclusions in the owning design doc, not this file.
+
+Implement through the existing seam, run focused checks, inspect failures, fix
+their cause, then run the broader gate and review the diff. When the same class
+of issue occurs repeatedly, fix the system rather than only the local instance:
+improve the shared abstraction, types, schemas, or tests so the error class
+cannot recur. Do not pass by weakening types, schemas, assertions, coverage,
+or security controls. The mypy baseline enforces `check_untyped_defs = True`
+globally; `mypy.ini` owns its growing strict allowlist; new boundaries need
+precise signatures and should join the allowlist where practical.
+
+Use autonomy according to consequence and reversibility: research, inspection,
+AST analysis, local reversible edits, unit tests, and isolated worktree branches
+proceed with high autonomy. Mutating production systems, spending budget,
+publishing releases, or deleting data require explicit user approval.
+
+Match evidence to the claim: MCP changes need real transport tests; portable
+plugins need installed-layout and persistent-state checks; generated artifacts
+need generator and package checks; report changes need rendered artifacts and
+source-grounded evaluation. Structural tests cannot establish semantic quality,
+and judge agreement needs independent correctness checks. Seek independent
+review for security or lifecycle changes after self-review.
+
+Keep planned, implemented, tested, shipped, deployed, and measured behavior
+distinct. Record exact verification and remaining limits; baseline CI does not
+prove an unpushed patch. Treat every completed task as an update to project
+state, not merely a patch of code: update tests, documentation, architecture
+records, and `docs/CHANGELOG.md` under `[Unreleased]` before calling work
+complete. Use the existing gitignored `.agent/<task>/` for scratch research,
+logs, indexes, and a resumable handoff with scope, decisions, changed paths,
+checks, and blockers. Never store secrets there. Durable knowledge belongs in
+source, tests, or owning docs.
+
+## Language and runtime choices
+
+Primr is Python-first, not Python-only. Python owns research orchestration,
+provider integration, scraping policy, report generation, and the public
+package because ecosystem leverage and iteration speed dominate there. A
+different language or runtime is introduced only at a narrow, versioned seam
+after an optimized Python baseline and production-shaped profile show a
+material end-to-end benefit.
+
+Use the smallest boundary that satisfies the requirement:
+
+| Requirement | Preferred boundary |
+|-------------|--------------------|
+| Cancellation, crash containment, resource limits | Supervised Python child process or one-job container |
+| Deterministic CPU or memory hotspot | Optional Rust accelerator after differential and packaging gates |
+| Independently scaled multi-user admission | Service boundary; Go only after measured control-plane load |
+| Local model execution | External OpenAI-compatible server; no embedded runtime without a measured kernel |
+
+Do not add a language for architectural symmetry, popularity, or a
+microbenchmark alone. A proposal must include the bounded capability, current
+baseline, target, production-shaped corpus, correctness oracle, supported
+platform artifacts, observability and failure semantics, fallback, rollback,
+security review, and maintenance cost. Base Primr must remain installable and
+functional without a native compiler. The binding decision record and current
+adoption gates live in
+[`docs/design/runtime-language-boundaries.md`](docs/design/runtime-language-boundaries.md).
+
+## Architecture Pointers
+
+`src/` layout, one package per concern. `config/` is close to a leaf (avoid
+new `core/ai/data` imports). Design docs live in
+[`docs/design/`](docs/design/README.md); the full standards are in
+[ROADMAP → Engineering Standards](ROADMAP.md#engineering-standards--toolchain).
+
+<details>
+<summary>Package map - where things live</summary>
+
+- `core/` - pipeline orchestration, CLI, research agent, strategy
+- `ai/` - LLM clients, providers, routing, deep research
+- `data/` - scraping engine (`data/scraping/`), hiring signals, fallback sources
+- `pipeline/` - recovery policy, retries, failover, and model circuit breakers
+- `prompts/` - YAML prompt composition, shared rules, and strategy registry
+- `output/` - report/strategy rendering (MD/TXT/DOCX), validation
+- `qa/` - report analysis, calibration, scoring
+- `agentic/` - hypothesis tracking, hooks, subagents, orchestrator
+- `skill_pack/` - skill-pack planning/authoring/validation
+- `config/` - settings, env, model registry, validation (keep near-leaf)
+- `utils/` - shared seams (below); not a dumping ground
+- `mcp_server/`, `a2a/`, `api/` - agent / HTTP surfaces
+
+</details>
+
+## Use the one seam - don't invent a sixth way
+
+The fastest way to rot a codebase is N ways to do one thing. Before reaching
+for a library or pattern, use the existing seam.
+
+<details>
+<summary>Seam table - use these, not the alternatives</summary>
+
+| Need | Use | Not |
+|------|-----|-----|
+| Run async from sync | `utils.async_utils.run_sync` | bare `asyncio.run` / `get_event_loop` |
+| Console output | `utils.console.get_console()` | `print(` in library code |
+| Logging | `utils.logging_config.get_logger(__name__)` | `logging.getLogger` / `print` |
+| Config / settings | `config/` (`settings`, `env`, `models`) | ad-hoc `os.environ` reads |
+| JSON | stdlib `json` | orjson / ujson / simplejson |
+| Atomic file write | `utils.atomic_io` | raw `open(...,'w')` for state files |
+| Model IDs / pricing | `config/models.py` registry | hardcoded model strings |
+| Outbound HTTP | the scraping-tier clients / `data.http_client` | a *new* HTTP client |
+| MCP HTTP trust | SDK transport security + `config.mcp` allowlists | ad-hoc Origin checks or trusted forwarded headers |
+| Local MCP/A2A jobs | `LocalJobSupervisor` + `SingleJobStore` | a second worker, scheduler, or lifecycle journal |
+
+HTTP is deliberately multi-client (browser → curl_cffi → httpx → requests →
+urllib) for scrape-tier evasion - that set is **closed**. A sixth client is a
+reviewed exception, not a default. If you genuinely need a new pattern, add the
+seam *and* migrate callers - don't leave two ways behind.
+
+</details>
+
+## Negative Constraints
+
+What NOT to do. These are gated or will fail review:
+
+- **NEVER add a second way** to do something that already has a seam (above).
+- **NEVER let a monster file grow.** A new file over ~800 lines needs a split
+  plan; the large files (`research_agent.py`, `cli.py`, `deep_research.py`, …)
+  are pinned by `tests/test_architecture.py` and may not grow - split instead
+  of raising the ceiling.
+- **NEVER trust training memory for "now."** Verify the current library
+  version, API signature, and model ID (against `uv.lock` / `config/models.py`
+  / current docs) before using them. Stale/deprecated APIs and hallucinated
+  packages are a top AI-code failure mode - assume your recall is six months
+  stale and confirm.
+- **NEVER bypass the SSRF guard.** Every outbound URL goes through
+  `utils.security.is_safe_url` (validated post-redirect); untrusted scraped
+  text entering a prompt is fenced via `utils.content_sanitizer.fence_untrusted`.
+  No secrets in code, logs, or fixtures.
+- **NEVER launch a billable run without an estimate + explicit approval** -
+  primr runs cost real money and time; the cost gate is non-negotiable (this is
+  the operate-side contract in `clients/primr-operator.md`, restated here as a
+  design boundary).
+- **NEVER turn primr into a daemon / always-on watcher** - it is **single-job**
+  by design (URL in, artifact out). Loops and scheduling live on the consumer
+  side; do not add a background watcher to the core.
+- **NEVER put real company data** anywhere that ships (docs, fixtures, commit
+  messages) - use `Acme Corp` / `ExampleCo` / `acme.example`. See CONTRIBUTING.
+- **NEVER add non-human authorship or provenance lines** to commits, PR bodies, or
+  comments. Avoid coauthor trailers, AI-generation credits, or tool-credit
+  language for any AI, bot, or automation tool. Every commit reads as a human
+  engineer's work.
+- **Keep dependencies justified:** never add an unimported or dead dependency
+  to `pyproject.toml`. Heavy libraries used for narrow peripheral workflows
+  belong in optional extras; core dependencies must be lean, safe, and imported.
+- **Keep writing professional:** no emojis, em dashes, or en dashes in new
+  documentation, comments, generated text, commits, PRs, or delegated output.
+
+## Verification Commands
+
+Use the existing environment with `--no-sync` during verification to avoid
+implicit environment changes. Setup changes install dependencies; do not hide
+them in a test command. `primr doctor` is optional environment diagnosis, not
+proof of report quality or a substitute for tests.
 
 ```bash
-primr "Company" https://company.example
+uv run --no-sync primr --version
+uv run --no-sync pytest tests/test_architecture.py -q
 ```
 
-Treat that bare company-and-URL request, "run Primr," and "build a full
-dossier" as **Primr Zero by default**. Use the `primr-zero` skill and run
-`primr prep` internally when a shell is available. Do not make the user choose
-between `prep`, `scrape`, and `full`, and do not ask for spend approval for the
-zero-model-call collection. Disclose its public network activity, then
-continue.
-
-Route to the provider-backed pipeline only when the user explicitly asks for
-paid, metered, provider-backed, or premium Primr; supplies a dollar budget;
-asks to use provider API keys; or provides provider-only CLI modifiers such as
-`--premium`, `--mode`, `--platform`, `--strategy-type`, or
-`--no-ai-strategy`. Configured API keys are capability, not consent to spend.
-
-This is an agent-routing rule, not a CLI compatibility change. When a human
-runs `primr "Company" https://company.example` directly in a terminal, the
-existing provider-backed CLI behavior remains unchanged and requires the
-normal estimate and approval discipline.
-
-## When this is the right tool
-
-Use Primr Zero when the user wants substantial Primr research without explicit
-provider-spend intent:
-
-- "Run Primr on ExampleCo" / "primr ExampleCo https://example.co"
-- "Build me the full strategic dossier for ExampleCo"
-- "Use this repository to research ExampleCo"
-- "Build the fullest dossier you can for $0 using my existing agent plan"
-
-Use the provider-backed pipeline when paid intent is explicit:
-
-- "Run the paid Primr pipeline on ExampleCo"
-- "Use my provider API keys after showing me the estimate"
-- "Run premium Primr with a budget of $5"
-- "Generate the paid AI strategy module for the ExampleCo report"
-- "Refresh ExampleCo with the provider-backed pipeline"
-
-**Do not** use primr for:
-
-- A quick pre-call brief with no API budget - use the host's built-in web search and reasoning. primr is wrong for "give me two paragraphs on Acme."
-- DNS / tenant / email-security only - use `primr recon company.com`, which is
-  keyless and standalone. A host-native passive lookup is also fine when Primr
-  is not installed.
-- Reviewing an existing primr report's quality - still primr (`run_qa` MCP tool or `primr --qa <company>` CLI), but invoke that path directly without estimating a new run.
-
-If the user is ambiguous ("research ExampleCo"), use the host's normal quick
-research path. If the user names Primr or points the agent at this repository,
-use the Agent-host default above. A vague research request must never trigger
-billable Primr.
-
-## Before first invocation
-
-Resolve a working Primr launcher before the first call in a session. For Primr
-Zero, provider configuration is irrelevant:
+<details>
+<summary>Local release gate (same test scope and coverage floor as primary CI)</summary>
 
 ```bash
-primr --version
+uv run --no-sync ruff check src/primr/
+uv run --no-sync ruff format --check src/ tests/
+uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'
+uv run --no-sync mkdocs build --strict
+uv run --no-sync bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q
+uv run --no-sync pip-audit
+PRIMR_VALIDATE_SDIST=1 uv run --no-sync pytest tests/test_release_integrity.py::test_built_sdist_matches_release_inventory -q
+GEMINI_API_KEY=fake-key-for-ci-tests uv run --no-sync pytest -q tests/test_core/test_resume_recovery.py tests/test_core/test_research_agent_resume.py tests/test_data/test_scrape_resume.py --cov=primr.core.cli --cov=primr.core.research_agent --cov=primr.data.scrape --cov-fail-under=13 --cov-report=term
+GEMINI_API_KEY=fake-key-for-ci-tests uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81
 ```
 
-If the current workspace is a Primr source checkout and `primr` is not on
-`PATH`, try `uv run --no-sync primr --version`. When that succeeds, use
-`uv run --no-sync primr` anywhere these instructions show `primr`. If neither
-launcher works during Primr Zero, continue with the host-native research
-fallback when the host can search the web. You may offer installation, but do
-not block useful work on it and do not install or sync an environment without
-approval. A provider-backed request does require a working Primr installation.
+The assignments above are POSIX syntax. In PowerShell use, for example,
+`$env:GEMINI_API_KEY = 'fake-key-for-ci-tests'` before the command. Keep real
+provider calls out of local tests; integration/manual runs require their normal
+approval. The full command combines the five coverage shards in
+`.github/workflows/ci.yml`; CI runs them sequentially with `--cov-append` and
+enforces 81 percent only on the combined result. Use those exact shards when
+isolating failures, not new exclusions. The separate recovery floor is 13
+percent, not a replacement for global coverage. Non-primary interpreters omit
+coverage; Windows/macOS CI also excludes the existing `timing` marker. Container
+builds, Trivy, and other platform lanes remain separate CI evidence.
 
-Before a provider-backed run, also check its configuration:
+For portable plugin changes also run
+`uv run --no-sync python scripts/sync_agent_plugin.py --check` and
+`uv run --no-sync pytest tests/test_agent_plugin.py -q`. Fix the generator before
+regenerating output. Dependency changes must regenerate both container lock
+exports using the CI-pinned uv version; see `docs/CONTRIBUTING.md`.
 
-```bash
-primr doctor
-```
+Then ask the slop question: **did this add a second way to do something that
+already has a seam?** If yes, fix it before review. Don't lower the coverage
+ratchet; don't add a new `ignore_errors` mypy module (the strict allowlist only
+grows). Pin load-bearing invariants with Hypothesis property tests.
 
-For an explicitly provider-backed request where Primr is not installed:
+</details>
 
-> "Primr isn't installed. It's a Python CLI from github.com/blisspixel/primr. For this provider-backed run, use `pipx install primr` on Python 3.11+, then run `primr init`. Want me to walk through it?"
+## CLI verb convention
 
-Wait for explicit approval before running `pip install`. For Primr Zero, if
-installation is declined or unavailable, proceed with the host-native fallback
-and disclose the unavailable Primr collectors. If `primr doctor`
-reports missing keys, do not attempt to set them yourself. Missing keys block
-provider-backed research, but they do not block `primr prep` or `primr recon`.
+New user-facing capabilities are **noun/verb subcommands**
+(`primr <command> [args] [--modifiers]`), matching `recon`/`keys`/`mcp`/
+`skills`/`update`. Flags are modifiers, not commands. Legacy flag-commands
+(`--qa`, `--eval`, …) keep back-compat aliases; don't add new ones.
 
-## Detecting MCP vs CLI
+## Git / PR
 
-Choose Primr Zero versus provider-backed execution before choosing transport.
-Primr Zero collection uses `primr prep`; never call a billable MCP research
-tool as a substitute. For an explicitly provider-backed request, look at your
-available-tools list:
+Branch off `main`; keep PRs focused; update `docs/CHANGELOG.md` under
+`[Unreleased]` for user-facing changes; keep the single version source of truth
+consistent (`pyproject` ↔ `__init__.__version__` ↔ ROADMAP "Current State" ↔
+`CITATION.cff`, pinned by `tests/test_release_integrity.py`). Also update
+`claude-code/.claude-plugin/plugin.json` and regenerate `agent-plugin/plugin.json`
+with `python scripts/sync_agent_plugin.py`; run `tests/test_agent_plugin.py`
+alongside the release integrity tests so plugin/package versions stay aligned.
+Update the released baseline in `docs/NEXT_STEPS.md` and the OpenClaw image
+version label; include `tests/test_docs_index.py` and
+`tests/openclaw/test_dockerfile.py` in release metadata validation.
 
-- If you see `mcp__primr__*` tools (`mcp__primr__estimate_run`, `mcp__primr__research_company`, etc.) → **prefer MCP**. It returns structured objects, exposes job state via resources, and the cost gate is enforced server-side.
-- Otherwise → fall back to the `primr` CLI. Same workflow, file-based artifacts.
+`main` is the only long-lived branch. Feature branches are short-lived and
+deleted on merge (the repo auto-deletes merged PR branches); don't leave stale
+branches behind. Merge via PR, not direct pushes to `main`.
 
-Do not call an MCP tool speculatively to test connectivity. To get from CLI-only to MCP, the user adds primr to their host's MCP config (the snippet is `{ "command": "primr", "args": ["mcp"] }`; see the `clients/` directory in the primr repo for per-host paths).
+### Start tidy, stop tidy
 
-In an Agent Plugins v1 client, skills may still load when the MCP component is
-unsupported or cannot start. Primr's portable `mcp.json` uses the bare `primr`
-executable token, so that component requires Primr to be installed and
-discoverable through the client's executable search rules. Treat an unavailable
-server as skill-only operation, not as approval to substitute another billable
-tool.
+Several agent tools may work here, and sessions can end partway through a task.
 
-## Zero-cost host handoff (precedes billable modes)
+- **Check first.** Before new work, run `git fetch --prune` and review
+  `git worktree list`, local and remote branches, and open PRs. Finish, merge,
+  or park leftover work instead of starting a parallel attempt. Squash merges
+  hide merged work from ancestry, so check PR state, not only
+  `git branch --merged`.
+- **Checkpoint and hand off.** Commit and push at meaningful checkpoints.
+  Before stopping, leave a short handoff (PR description, commit message, or
+  `.agent/<task>/`) stating what is done and what is next.
+- **Keep the tree clean.** Fixtures belong under `tests/`; scratch scripts,
+  logs, and generated output belong in `.agent/` or a temp directory. Remove
+  scratch artifacts before finishing.
+- **Goal state.** One `main` with CI passing; no work stranded on side
+  branches. Push finished work, update or close PRs, close finished issues.
+- **Remove only with evidence.** Remove a worktree or branch only once its
+  work is merged, contained in `main`, or pushed. Never `--force` a removal;
+  report anything uncertain instead. `git worktree prune` is for entries whose
+  directories are already gone.
+- **Ask when unclear** whether leftover work should be finished, kept, or
+  removed.
 
-Treat a bare Primr company-and-URL request in an agent host, any request for a
-free version, zero cost, no API key or API spend, or use of an existing Claude,
-Codex, Copilot, Gemini, Cowork, or other agent plan as a request for **Primr
-Zero**. This routing decision takes precedence over the billable cost gate and
-applies even after a paid estimate was shown, declined, or cancelled. Stop the
-paid workflow before continuing. Never answer "there is no free tier": the
-provider-backed Primr pipeline has no free mode, but Primr Zero is a supported
-workflow.
-
-Tell the user that Primr Zero uses keyless `primr prep` collection with zero
-Primr model calls, followed by research and synthesis in the current agent
-host. Only describe the complete workflow as zero incremental spend after
-verifying that the host is plan-backed and will not bill API usage or
-overages.
-
-If the dedicated `primr-zero` skill is available, use it. If it is unavailable,
-stale, or cannot be loaded from the current skill, do not deny the free path or
-stall. With shell access, follow this inline fallback:
-
-```bash
-primr --version
-primr prep "Company" https://company.example --dry-run
-primr prep "Company" https://company.example
-```
-
-The dry run must report `$0.00` and zero model calls. The real command performs
-public network requests, emits a bounded evidence bundle and portable skill,
-and fails closed against model egress even when keys are configured. Disclose
-the network activity, but do not require spend approval for this zero-dollar
-collection. Read the emitted `prep_manifest.json`, `source_index.json`,
-`research_packet.md`, and `HOST_WORKFLOW.md` in that order, then follow the
-emitted `primr-zero/SKILL.md` for host research, writing, and QA. Never pass
-host OAuth tokens or cookies into Primr, and never switch to a paid run
-silently.
-
-Without shell access, or when the Primr launcher is unavailable and installation
-is declined or cannot proceed, use the host's supported web research and file
-tools to follow the same Primr Zero report contract. Do not stall on the missing
-launcher. Disclose that Primr DNS, browser-backed collection, ATS adapters,
-scrape traces, and local artifact QA were unavailable. If the host cannot
-research the web, ask for a prep bundle or source files instead of writing from
-model memory.
-
-`--mode scrape` is still a billable provider-backed mode, typically around
-`$0.10`. It is not Primr Zero and must not be presented as the free or cheapest
-available path when the user asked for `$0`.
-
-## The billable cost gate (non-negotiable)
-
-primr runs cost real money and real time. **Never** launch a run without:
-
-1. **Estimating first.** MCP integrated research: `estimate_run(company_url=..., mode=..., platforms=[one_platform], strategy_type="ai")`. Additional platforms and non-AI modules use `estimate_strategy` plus `generate_strategy` after the base report. CLI: append `--dry-run` to the exact command you intend to run. For an existing report, use `primr --ai-strategy-only REPORT --dry-run`; it defaults to the ~$1 lite (Pro reasoning) engine, with `--deep-research` (~$2.50/task) as the thorough opt-in. Execution repeats the quote and still requires explicit approval.
-2. **Reporting the estimate** verbatim - quoted dollars and minutes, plus what mode and what strategy.
-3. **Getting explicit user approval** in the conversation. "Want me to launch it?" → wait for "yes" / "go" / equivalent. A user asking *"how much would it cost"* is **not** approval.
-
-If the user pushes back on cost or asks whether a free version exists, offer
-the Primr Zero route above first. Only if they explicitly prefer a cheaper
-provider-backed run should you suggest `scrape` (~$0.10) or
-`--no-ai-strategy` (around ~$0.76-$0.79 on the measured xAI plus Gemini
-recipe), then re-estimate. If they want premium depth, surface `--premium`
-and report its live estimate instead of a static price.
-
-MCP enforces this gate with estimate-bound tokens and caps. The CLI prompts by
-default; an agent must still report the estimate and obtain approval before it
-passes `--skip-confirm` for noninteractive execution.
-
-The presence of a configured provider API key never satisfies approval. Paid
-intent chooses this path; the estimate and explicit approval authorize the
-specific run.
-
-## Provider-backed workflow
-
-1. **Estimate.** `estimate_run` (MCP) or `primr "Name" url --dry-run [flags]` (CLI). Capture the cost, time, page count, planned strategy.
-2. **Approve.** Quote the estimate, ask for go-ahead. Stop. Do not proceed without an explicit "yes."
-3. **Launch.** MCP: `research_company(company_name=..., company_url=..., mode=..., platform=..., destination=...)` returns `job_id`. CLI: after approval, replace `--dry-run` with `--skip-confirm` in the exact quoted command. Use a prompt only for a foreground human terminal run. Note the `job_id` or output directory.
-4. **Don't block.** Runs take 35-120 minutes. Tell the user the job is running and what file path will hold the report. Do not poll synchronously in a loop.
-5. **Resume on next turn.** When the user comes back ("is the Acme report done?"), check `primr://research/status` or `check_jobs` (MCP), or look for the markdown file at `output/<company>/<Company>_Strategic_Overview_<MM-DD-YYYY>.md` (CLI). If still running, report the stage and `stage_progress_percent`.
-6. **Confirm completion, then hand off.** If using MCP, read `primr://output/artifacts/by_job/{job_id}` first to list the owned job's artifacts without loading report body content. If QA ran, read `primr://output/qa_summary/by_job/{job_id}` for compact score/status/count metadata. Read `primr://output/usage_summary/by_job/{job_id}` when you need cost, timing, approval, or artifact-count metadata without loading the full manifest. Completed measurable jobs report run-scoped `actual_cost_usd`; cancellations and otherwise unmeasurable terminal paths can report null. Never present an estimate or approved ceiling as actual spend. Read `primr://output/source_summary/by_job/{job_id}` when you need citation/source appendix counts, domains, missing citations, or duplicate URL metadata without loading report body content. Read `primr://output/trace_summary/by_job/{job_id}` when you need scrape trace health, tier attempts, latency, block, HTTP status, or validation metadata without loading URLs, raw trace entries, or page content. Read `primr://output/verification_summary/by_job/{job_id}` when you need claim verification trust score, claim counts, status counts, first-party downgrade counts, or source-reference counts without loading raw claims, source URLs, search queries, explanations, or report body content. Read `primr://output/calibration_summary/by_job/{job_id}` when you need label-calibration counts, inference source-copy counts, evidence-review count buckets, judge provenance, or judge-agreement metadata without loading raw claims, source URLs, evidence reviews, rationales, or report body content. MCP resource reads and A2A skill calls are audit-logged without raw URI query values, raw resource bodies, raw message text, raw results, or caller ids. Then read the report path or preview needed for the handoff. Do NOT dump the full report into the conversation - it's ~21k words. Summarize the executive summary, list the section count, and offer downstream actions (see [downstream handoff](claude-code/skills/primr/references/downstream-handoff.md)).
-
-## Mode, tier, platform, strategy
-
-primr exposes four orthogonal levers. Default is `full` mode, recon-driven platform selection, default `--grok-tier`, and the built-in AI Strategy module unless `--no-ai-strategy` is passed.
-
-For the full decision matrix - when to pick each, cost and time per combination, multi-platform behavior - see [modes and strategies](claude-code/skills/primr/references/modes-and-strategies.md). One-liner heuristics:
-
-- **Mode**: `full` for almost everything. `scrape` if external research isn't needed. `deep` if the site is blocked. `premium` only when the user asks for board-grade depth.
-- **Platform**: omit unless the user requests an ecosystem emphasis. Use `--platform azure`, `--platform aws`, `--platform gcp`, or `--platform private` for one strategy. `--platform ms` is the explicit `azure private` shorthand and produces two artifacts, so re-estimate it accordingly. The flag affects the AI strategy module, not the core report.
-- **Strategy type**: omit for the default Strategic Overview plus AI Strategy. Pass `--no-ai-strategy` for the base report only. Use an active type reported by `primr --list-strategies` or `primr://strategies/available`, such as `customer_experience`, `modern_security_compliance`, or `data_fabric_strategy`. Use `primr skills`, not `--ai-strategy-only`, for the Skills pack workflow.
-
-## Provider selection and OpenRouter routing
-
-When provider-backed execution is approved, primr supports direct providers (xAI, Gemini, OpenAI, Anthropic, Bedrock) or a unified OpenRouter gateway.
-
-If `OPENROUTER_API_KEY` is present and active, prefer OpenRouter by default (`PRIMR_OPENROUTER_PREFERRED=1` or `PRIMR_PROVIDER=openrouter`):
-- **Single-key coverage**: satisfies utility (Gemini 3.1 Flash Lite), writing (GPT-4.1 mini), and reasoning (DeepSeek V3.2) without requiring separate provider credentials.
-- **Cost**: on 2026-10-12 the default full-run dry run displays about $1.07 (estimator total $1.0655). Prompt-cache savings are not assumed, and OpenRouter credit-purchase fees are not included. Quote the live `primr --dry-run` figure.
-- **Privacy and safety**: enforces Zero Data Retention (ZDR) endpoints and strict per-token price caps.
-- **Artifact gate compliance**: passes all publication quality gates, generating clean Markdown and Word (.docx) deliverables.
-
-## Custom strategies
-
-primr discovers any YAML file dropped into `<install>/prompts/strategies/` (or the user's override path). Author one when the user wants a recurring deliverable that doesn't fit the built-ins (e.g., "FinOps assessment for retail clients", "M&A integration playbook").
-
-For the schema and a worked example, see [custom strategy YAML](claude-code/skills/primr/references/custom-strategy-yaml.md). Keep custom strategies in version control; do not edit a built-in YAML in place.
-
-## Async monitoring
-
-Long runs are the common case. Pick the lightest async pattern your host supports - never poll synchronously in a tight loop.
-
-**Preferred, in rough order:**
-
-1. **Background launch with completion notification.** If your host can run a command in the background and notify you when it exits, use that to launch primr. For an approved standard provider-backed CLI run, the background command must include `--skip-confirm`; never rely on an interactive prompt or pipe `y` into it. The experimental `primr orchestrate` command instead requires an approved `--max-cost <usd>` ceiling. You get one event ~45 min later when the run finishes. This is the cleanest pattern.
-2. **Stream phase markers from the log.** If your host can tail a file and emit one event per matching line, watch the run log for the phase boundaries (`PHASE`, `Complete`, `Error`) - about 6-8 events across a full run. Right density for "is it making progress?" without polling noise.
-3. **Schedule a single early sanity check at ~5 minutes.** Most failures (rejected key, scrape pilot fails, no external sources) surface in the first phase. A one-shot check at +5min catches those before the user wastes 45 minutes.
-4. **Fallback (no async primitives at all).** Tell the user "I'll check back in about an hour" and stop. When the next turn arrives, read state first (`check_jobs` / `primr://research/status` / the report file at `output/<company>/<Company>_Strategic_Overview_<MM-DD-YYYY>.md`), then summarize.
-
-**On every follow-up turn, regardless of how you got there:** read state first. Never claim done until the report file exists *and* `check_jobs` reports `status: completed`. On failure, read `primr://output/manifest/latest` if available - it contains the audit trail (estimate, approval, execution, error). Surface the failure cause; do not silently re-launch.
-
-**What not to do:**
-
-- Don't poll in a tight loop or with sub-minute sleeps. primr stages take minutes; sub-minute polling burns context for no information.
-- Don't promise a heartbeat cadence the host can't actually deliver. If you can't schedule wake-ups, "check back in an hour" is honest; "I'll update you every 10 minutes" is not.
-- Don't treat the absence of completion as failure. A run that's been going 60 minutes is probably fine; check the log for the most recent phase marker before assuming the worst.
-
-## Output handling
-
-Reports land in `output/<company_slug>/`:
-
-- `<Company>_Strategic_Overview_<date>.md` - primary deliverable
-- `<Company>_AI_Strategy_<date>.md` - produced by default (unless `--no-ai-strategy`), or when another `--strategy-type` module is selected
-- `scraped_content.txt`, `insights.json`, `dossier.json` - pipeline intermediates
-- `run_manifest.json` - audit trail
-
-When the user asks "what did we get": for MCP, prefer `primr://output/artifacts/by_job/{job_id}` as the first inventory read; it returns file names, paths, sizes, hashes, timestamps, classifications, and missing-file state without report body content. If QA artifacts are attached, use `primr://output/qa_summary/by_job/{job_id}` for compact QA score/status/count metadata without detailed QA body text. Use `primr://output/usage_summary/by_job/{job_id}` for compact cost, timing, approval, and artifact-count metadata without full manifest content. Completed measurable jobs report run-scoped `actual_cost_usd`; cancellations and otherwise unmeasurable terminal paths can report null. Never present an estimate or approved ceiling as actual spend. Use `primr://output/source_summary/by_job/{job_id}` for compact citation/source appendix counts, domains, missing citations, duplicate URLs, and source URLs without report body content. Use `primr://output/trace_summary/by_job/{job_id}` for compact scrape trace counts, tier health, latency, block, HTTP status, and validation metadata without URLs, raw trace entries, or page content. Use `primr://output/verification_summary/by_job/{job_id}` for compact claim verification trust score, claim counts, status counts, first-party downgrade counts, and source-reference counts without raw claims, source URLs, search queries, explanations, or report body content. Use `primr://output/calibration_summary/by_job/{job_id}` for compact label-calibration counts, inference source-copy counts, evidence-review count buckets, judge provenance, and judge-agreement metadata without raw claims, source URLs, evidence reviews, rationales, or report body content. MCP resource reads and A2A skill calls are audit-logged with hashed payload values, without raw URI query values, resource bodies, message text, raw results, or caller ids. Then list the artifacts, quote the executive summary, and note section count. Do not dump the full markdown unless they ask for the full text. Offer to convert to DOCX: provider-backed `full` runs write `.md` and `.docx` by default, and for any host-written or Markdown-only report run `primr render <file>.md` to produce a matching `.docx` (+`.txt`) at $0 with no model calls or network. This gives the Primr Zero / host-assisted path the same deliverable set (Strategic Overview + AI Strategy, each `.md` and `.docx`) as a paid run. Or feed the Markdown to a downstream consumer.
-
-## Downstream handoff
-
-primr's outputs are inputs to the rest of the user's toolchain. Do not let a report sit unused. When a run completes, proactively offer the next step the user is likely to need.
-
-For the mapping (Strategic Overview → which next action, AI Strategy module → which next action, hypotheses → which next action), see [downstream handoff](claude-code/skills/primr/references/downstream-handoff.md).
-
-## Hypothesis memory
-
-primr persists durable research memory per company. Before launching a new run on a company you've researched before:
-
-- MCP: call `get_hypotheses(company=...)` and read `primr://memory/<company>` to see what's already known.
-- After the run completes, the pipeline saves new hypotheses automatically. If the user asks you to record a finding from a customer conversation, use `save_hypothesis(company=..., hypothesis_id=..., claim=..., confidence=..., evidence=...)`.
-
-Display confidence levels honestly (`untested`, `validated`, `invalidated`, `confirmed`). Do not promote hypotheses without new evidence.
-
-## How to talk about primr's output
-
-primr's voice is **hedged strategic analysis with cited sources**. Mirror that:
-
-- Surface confidence annotations the report already carries - don't strip them.
-- Quote sources from the citation appendix when the user pushes on a specific claim.
-- Say "primr's analysis suggests…" rather than asserting findings as facts; the report is one input, not ground truth.
-- If the user asks a question the report doesn't cover, say so - do not extrapolate beyond what's written.
-
-## Hard rules
-
-- **Cost gate.** Never launch a billable run without a fresh estimate and explicit approval in the same conversation turn.
-- **No synchronous waits.** Long runs are async; check state on the next turn.
-- **No silent retries.** A failed run gets reported back to the user with the manifest's error context - they decide whether to re-run.
-- **No re-estimating against an active job.** If `check_jobs` shows the company already running, surface that and ask if they want to monitor it instead of starting a parallel run.
-- **Defer behaviorally, not by skill name.** For vague "research X" requests with no budget, use the host's web search and reasoning. For DNS-only work, use `primr recon` when Primr is installed and a host-native passive lookup otherwise. For quality checks on an existing report, use `run_qa` directly without a new estimate.
-- **Never edit built-in strategy YAMLs.** Custom strategies live in the user's override path; built-ins ship with the package.
+An instruction-only refinement does not authorize commits, pushes, publishing,
+or deployment. Preserve the task's authorization and Primr's explicit spend gate.
