@@ -8,7 +8,7 @@ primr exposes four orthogonal levers. Picking the right combination keeps cost a
 
 | Mode | What it does | Time | Cost | Pick when |
 |------|--------------|------|------|-----------|
-| `full` (default) | Site corpus + external research + structured report + one integrated AI Strategy | 34-53 min | ~$0.89 | Almost everything. The default for "research Acme." |
+| `full` (default) | Site corpus + external research + structured report + one integrated AI Strategy | 34-53 min | ~$1.24 | Almost everything. The default for "research Acme." |
 | `scrape` | Site corpus + provider-synthesized insights, no external research | 2-5 min | ~$0.10 | The user only cares what the company says about itself; external context not needed; cost-sensitive scoping pass. |
 | `deep` | Hiring evidence + Deep Research dossier + sequential Flash report + one AI Strategy | 32-62 min | Current static plan ~$5.38; use dry-run | Site is hard-blocked or the user wants third-party, analyst, and news-driven context without the Premium collection stage. |
 | `premium` | Structured evidence + Deep Research dossier + sequential Flash report + one AI Strategy | 74-132 min | Current static plan ~$6.71; use dry-run | User explicitly asked for maximum provider-backed depth and accepted the live quote. Do not pick this by default. |
@@ -27,14 +27,12 @@ Heuristics:
 
 | Tier | What it does | Cost (full mode) |
 |------|--------------|------|
-| `fast` | Grok 4.3 (reasoning_effort=low) with the routed writing provider | Re-estimate |
-| `hybrid` (default) | Grok 4.3 for reasoning + Gemini 3.1 Flash-Lite writing when Gemini is configured | ~$0.76-$0.89 by default |
-| `max` | Grok 4.5 everywhere (version-pinned high-cost tier; re-estimate) | ~$9.93 with the default strategy |
+| `fast` | Grok 4.7 (reasoning_effort=low) with the routed writing provider | Re-estimate |
+| `hybrid` (default) | Grok 4.7 for reasoning + Gemini 3.5 Flash-Lite writing when Gemini is configured | ~$1.05-$1.24 by default |
+| `max` | Grok 4.7 everywhere (version-pinned high-cost tier; re-estimate) | ~$9.93 with the default strategy |
 
 `fast` saves tokens on reasoning (low effort). `max` uses the version-pinned
-Grok 4.5 route for every Grok stage and costs materially more than hybrid.
-Grok 4.6 is registered for evaluation but is not silently promoted into this
-product tier. Only pick `max` when the user explicitly requests it and has
+Grok 4.7 route for every Grok stage and costs materially more than hybrid. Only pick `max` when the user explicitly requests it and has
 approved the exact quote.
 
 ## Platform
@@ -97,8 +95,8 @@ Heuristics:
 
 Cost compounding is roughly additive on the strategy lever, multiplicative on the mode/tier lever. Examples:
 
-- `primr "Acme" url` -> ~$0.89, ~34-53 min, Overview + one integrated AI Strategy.
-- `primr "Acme" url --no-ai-strategy` -> ~$0.76-$0.79, ~31-47 min, Strategic Overview only.
+- `primr "Acme" url` -> ~$1.24, ~34-53 min, Overview + one integrated AI Strategy.
+- `primr "Acme" url --no-ai-strategy` -> ~$1.05, ~31-47 min, Strategic Overview only.
 - `primr "Acme" url --platform ms` -> re-estimate, Overview + separate Azure and private-infrastructure AI Strategies.
 - `primr "Acme" url --premium --platform ms` -> re-estimate, premium Overview + separate premium Azure and private-infrastructure AI Strategies.
 
