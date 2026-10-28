@@ -33,6 +33,14 @@ long-form Strategic Overview and YAML-defined strategy artifacts as reliable
 Word and Markdown files. Architecture, routing, ledgers, memory, and agent
 surfaces are supporting capabilities, not replacement products.
 
+**Primr is a research and consulting-prep tool, not only a fact checker.**
+Reports mix cited, checkable facts from the company's site and public sources
+with reasoned strategy, which companies rarely publish and which usually cannot
+be verified. Do not invent facts, and do not frame report quality as
+verification or propose fact-checking gates as product work; improve research
+grounding, insight, specificity, and usefulness. The hard floors (citations
+resolve, artifacts render, spend is gated) stay.
+
 1. Set up the dev env (`uv sync --locked --all-extras`, then
    `uv run playwright install chromium`) - see
    [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md).

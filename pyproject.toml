@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.39.32"
-description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
+version = "1.39.33"
+description = "Turn a company name and website into researched, long-form strategic reports for consulting prep. Adaptive scraping + AI research and strategic synthesis."
 readme = "README.md"
 license = "Apache-2.0"
 # Support maintained CPython releases; use the newest stable in development.

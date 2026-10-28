@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.33] - 2026-10-28
+
+### Changed
+
+- The README, product contract, agent guide, operator guide, and package
+  description now state plainly that Primr is a research and consulting-prep
+  tool whose reports mix cited facts from public sources with reasoned
+  strategy that companies rarely publish. It is not only a fact checker:
+  quality is judged by research grounding, insight, specificity, and
+  usefulness, not by how much can be verified.
+
 ## [1.39.32] - 2026-10-28
 
 ### Changed

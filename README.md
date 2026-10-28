@@ -6,16 +6,26 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/blisspixel/primr/badge)](https://scorecard.dev/viewer/?uri=github.com/blisspixel/primr)
 
-**Company name + website → evidence-grounded, long-form strategic reports.**
-Built for agent hosts and the CLI: structured research, strategic insight,
-confidence labels, and durable Word and Markdown artifacts, not a free-form chat
-essay.
+**Company name + website → researched, long-form strategic reports.**
+Built for agent hosts and the CLI: structured research, strategic insight, and
+durable Word and Markdown artifacts, not a free-form chat essay.
+
+**Primr is a research and consulting-prep tool, and its reports are a mix.**
+The research is grounded: Primr scrapes the company's site and gathers public
+evidence, cites it, and does not invent facts. Facts that can be checked, such
+as what the company sells, who leads it, and what it is hiring for, are
+sourced. Strategy usually is not public, so the strategic view, tensions,
+implications, AI opportunities, and discovery questions are reasoned inference
+built on that research. That inference is the point of the report, and it is
+labeled as inference rather than presented as fact. Primr is not only a fact
+checker: a report that lists verified facts without a strategic view has
+failed.
 
 Primr gathers public site pages, DNS/recon, hiring signals, and other open
 sources, develops a strategic view of the company, then produces a
 consultant-style Strategic Overview and selected YAML-defined strategy
-documents with citations and Confirmed / Reported / Estimated / Hypothesis
-labels. Point an agent at the repo, or run the CLI. Both paths use the same
+documents such as an AI Strategy. Sources are cited where they exist, and
+labels separate what a source states from what Primr infers or proposes. Point an agent at the repo, or run the CLI. Both paths use the same
 evidence, uncertainty, and long-form artifact contract, but their execution,
 model ownership, and assurance are different.
 
