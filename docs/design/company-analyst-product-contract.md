@@ -228,7 +228,7 @@ public company, a company in visible strategic transition, a company with
 conflicting or derivative sources, and a stable company where diminishing
 returns matter.
 
-Blind, whole-report evaluation should measure:
+Side by side reads of whole reports should consider:
 
 - company understanding and research completeness;
 - governing-thesis quality and falsifiability;
@@ -251,19 +251,12 @@ The unit of quality is the report, not a count of verified claims. A report
 that lists correct facts without interpretation, implication, or a governing
 view is a failure, and the evaluation must be able to say so.
 
-Evaluators earn trust on known-answer tests, not on a person re-checking facts.
-Before a judge's scores count, it must rank real reports above controlled
-degradations of themselves whose expected ranking is known by construction: a
-fact-list version stripped of analysis, a padded version that adds length
-without content, a genericized version, a version without tensions or
-counterevidence, and a version carrying another company's analysis. Judges
-come from at least two model families, run blind with order swapped, and are
-held to pre-registered tolerances. Disagreements go to an independent agent
-adjudicator recorded as agent adjudication, never as human review.
-
-Human readers are valuable and optional. An owner may review reports, record
-feedback, and veto a promotion, but no release waits on a person validating
-facts.
+Strategic analysis is reasoned judgment, so no evaluator can fully score it.
+Changes are checked by reading whole outputs side by side for the same
+companies, blind where practical, and keeping what reads better. Model judges
+are a second opinion, not a verdict, and a judge that prefers a longer or more
+fact-dense report over a sharper one is not trusted. No release waits on a
+person validating facts.
 
 Any promoted route, including local and agentic harnesses, must satisfy the
 same artifact contract. Routes may differ in measured quality, assurance,
@@ -325,7 +318,7 @@ test. Product development then proceeds through measured slices:
 
 ```text
 architecture ownership
--> validated, automated report-quality baseline
+-> side by side report-quality baseline
 -> company working model in shadow mode
 -> adversarial thesis and next-action evaluation
 -> breadth-preserving diagnostic deepening
@@ -335,9 +328,7 @@ architecture ownership
 -> repeat-engagement memory only after demonstrated report lift
 ```
 
-No product-quality promotion bypasses the representative corpus, the
-validated judges, and pre-registered tolerances, and no paid evaluation
-bypasses the estimate, approval, and cost cap.
+No paid evaluation or run bypasses the estimate, approval, and cost cap.
 
 ## Change control
 

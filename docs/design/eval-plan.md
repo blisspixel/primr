@@ -106,21 +106,13 @@ labels and the report-only decision when required.
 
 ### Validate the evaluators
 
-Ground truth comes from construction, not from a person re-checking facts.
-Human review is optional input and never a release gate.
+This protocol is optional diagnostic tooling, not a release gate.
 
-**Report-level judges (primary).** The quality measure compares whole reports.
-Validate each report judge on controlled degradations of real local reports
-whose expected ranking is known: a fact-list variant (facts kept,
-interpretation, implication, and the governing view removed), a padded variant
-(repetition and length, no new content), a genericized variant (specific
-names, numbers, and mechanisms replaced by boilerplate), a variant without
-tensions, counterevidence, or unknowns, and a cross-company variant. Present
-pairs blind with order swapped, use judges from at least two model families,
-and require each judge to prefer the original within pre-registered
-tolerances. A judge that prefers the padded or fact-list variant is measuring
-length or claim count, not analysis, and fails. This instrument is planned for
-v1.40 and not yet built.
+**Whole outputs.** Strategy analysis is reasoned judgment, so report quality
+is checked by reading before and after outputs for the same companies side by
+side, blind where practical. Model judges are an optional second opinion. A
+judge that prefers a longer or more fact-dense report over a sharper one is
+measuring length or claim count, not analysis.
 
 **Claim-support judges (diagnostic).** Freeze clean cases and controlled
 variants before judging. A clean case is accepted when its support span
@@ -189,8 +181,8 @@ detection by default. A variant that cannot be built is reported as skipped. `pr
 
 The shipped harness currently requires an all-human-adjudicated set and a
 named `human` review covering the whole queue, plus at least two judges and
-two passes. v1.40 changes it to accept verbatim-span and independent-agent
-adjudication, keeping agent and human records distinct.
+two passes. Those requirements apply only to its own decision status; no
+release depends on it.
 Disputed items require rebuilding and refreezing. No status arms a gate. Case
 files that describe real companies stay in local, gitignored locations; the
 committed fixture is synthetic.
