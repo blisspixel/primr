@@ -106,7 +106,25 @@ labels and the report-only decision when required.
 
 ### Validate the evaluators
 
-Freeze human-adjudicated clean cases and controlled variants before judging.
+Ground truth comes from construction, not from a person re-checking facts.
+Human review is optional input and never a release gate.
+
+**Report-level judges (primary).** The quality measure compares whole reports.
+Validate each report judge on controlled degradations of real local reports
+whose expected ranking is known: a fact-list variant (facts kept,
+interpretation, implication, and the governing view removed), a padded variant
+(repetition and length, no new content), a genericized variant (specific
+names, numbers, and mechanisms replaced by boilerplate), a variant without
+tensions, counterevidence, or unknowns, and a cross-company variant. Present
+pairs blind with order swapped, use judges from at least two model families,
+and require each judge to prefer the original within pre-registered
+tolerances. A judge that prefers the padded or fact-list variant is measuring
+length or claim count, not analysis, and fails. This instrument is planned for
+v1.40 and not yet built.
+
+**Claim-support judges (diagnostic).** Freeze clean cases and controlled
+variants before judging. A clean case is accepted when its support span
+appears verbatim in the captured source.
 Cover wrong numbers/entities/dates, negation, stale evidence, unsupported causal
 claims, insufficient independent support, omitted contradictions, and incorrect
 citation attribution. Keep these cases separate from the production report
@@ -115,9 +133,11 @@ abstention and retrieval-failure rates, and uncertainty intervals. Pre-register
 error tolerances and the minimum usable sample for each decision. Missing
 evidence is not a correct verdict, and high precision cannot excuse low coverage.
 
-Blind model/provider identity, test order sensitivity, and obtain source-grounded
-human review of consequential disagreements **and a pre-registered random sample
-of unanimous approvals**. Record shared errors as well as agreement. Assess
+Blind model/provider identity, test order sensitivity, and send consequential
+disagreements **and a pre-registered random sample of unanimous approvals** to
+an independent agent adjudicator from a model family not used as a judge,
+recorded as `agent` adjudication and never described as human review. Record
+shared errors as well as agreement. Assess
 claim support separately from source authority and stylistic trust cues; do not
 count correlated scores as independent confirmation.
 
@@ -167,15 +187,17 @@ detection by default. A variant that cannot be built is reported as skipped. `pr
    `fails_preregistered_tolerance`, `inconclusive`, or
    `meets_preregistered_tolerance` for each judge.
 
-A decision requires an all-human-adjudicated set, a named `human` review
-covering the whole queue, at least two judges, and at least two passes.
+The shipped harness currently requires an all-human-adjudicated set and a
+named `human` review covering the whole queue, plus at least two judges and
+two passes. v1.40 changes it to accept verbatim-span and independent-agent
+adjudication, keeping agent and human records distinct.
 Disputed items require rebuilding and refreezing. No status arms a gate. Case
 files that describe real companies stay in local, gitignored locations; the
 committed fixture is synthetic.
 
 Known limits: each judge call carries one item, so repeat flips measure
 run-to-run consistency, not in-context order effects. Item IDs name the variant
-category, so blind human review needs the queue presented without IDs or
+category, so blind adjudication needs the queue presented without IDs or
 expected verdicts. The authority variant tests only the direction where a
 trust cue should not create support; a weak-provenance source that does
 support a claim has no unambiguous expected verdict and is not generated. The

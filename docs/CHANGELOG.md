@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The v1.40 quality card no longer waits on a person adjudicating facts. Report
+  quality is measured on whole reports by blind pairwise judges, which earn
+  trust by ranking real reports above known-answer degradations of themselves,
+  including a fact-list version stripped of analysis and a padded version.
+  Claim-label checks stay as diagnostics, disagreements go to an independent
+  agent adjudicator recorded as such, and human review is optional input. The
+  product contract, roadmap, next steps, and evaluation plan record the change.
+
 ## [1.39.31] - 2026-10-28
 
 ### Changed

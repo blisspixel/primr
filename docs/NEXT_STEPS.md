@@ -73,62 +73,84 @@ report-quality or backend-promotion gate. The additional security review confine
 agent artifact reuse by current-job ownership, bounds HTTP body expansion,
 protects Windows scrape paths, and repairs QA and cloud-runner integration.
 
-### v1.40.0 candidate: epistemic and analyst-quality readiness
+### v1.40.0 candidate: automated, validated report-quality measurement
 
-**Objective:** make the bare company-and-website run fully decidable, with
-independently validated evaluators, before any hard report-quality gate or
-hybrid-routing promotion.
+**Objective:** measure whether a bare company-and-website run produces a better
+or worse Strategic Overview, using evaluators whose correctness is established
+by construction rather than by a person checking facts. The unit of quality is
+the whole report: its company understanding, insight, specificity, coherence,
+and decision usefulness. Claim-level label checks remain diagnostics inside
+that measurement, not the definition of quality.
 
-**Why this is next:** the version ladder already places quality claims after
-that corpus. Operator polish through v1.39.31 is the released baseline.
+**Why this is next:** every later quality and backend decision needs a trusted
+instrument, and the previous card could not finish because it required human
+adjudication of every clean case and a named human review of every queue.
+That gate also pulled the measure toward countable labeled claims instead of
+the analysis the product contract asks for. Known-answer variants built from
+real reports supply ground truth without a human in the loop.
 
 **Exit criteria:**
 
-- The production corpus for the bare company-and-website run is fully decidable.
-- Evaluators are independently validated.
-- A recorded gate decision follows that evidence.
+1. **Report-level judge validation.** From real local reports, build
+   controlled degraded variants whose expected ranking is known by
+   construction, including:
+   - a fact-list variant that keeps the facts and removes interpretation,
+     implication, and the governing view;
+   - a padded variant that adds repetition and length without new content, so
+     a judge that rewards verbosity fails;
+   - a genericized variant that replaces company-specific names, numbers, and
+     mechanisms with boilerplate;
+   - a variant with tensions, counterevidence, and unknowns removed; and
+   - a cross-company variant that swaps in analysis written for another
+     company.
+
+   Blind, order-swapped pairwise judges from at least two model families must
+   prefer the original over each variant within pre-registered tolerances.
+2. **Claim-support judge validation without a human gate.** Clean cases are
+   accepted when their support span appears verbatim in the captured source;
+   controlled claim variants keep their constructed expected verdicts. Judge
+   disagreements and sampled unanimous answers go to an independent agent
+   adjudicator from a model family not used as a judge, recorded as `agent`,
+   never as human review.
+3. **Recorded baseline.** Score the current default recipe against the frozen
+   v1.24.0-era recipe on representative companies with the validated judges,
+   and record the decision. Any paid run needs a fresh estimate, explicit
+   approval, and a cost cap.
+
+Hard floors stay automated and blocking throughout: fabricated or unresolvable
+citations, invalid Markdown or Word artifacts, spend and egress limits.
 
 **Explicitly outside this card:** report prompt changes, provider promotion,
-paid evaluation, a deterministic prose-quality gate, a lone LLM judge, memory,
-and a new public command.
+unapproved paid evaluation, a deterministic prose-quality gate, a lone LLM
+judge, memory, and a new public command.
 
-**Implementation status (2026-10-22):** the maintenance ownership work is
-complete: section, trust, and strategy stages receive explicit callbacks, the
-legacy section pipeline has one canonical owner, and the first-party import
-cycle baseline is empty. The v1.40 quality candidate remains unreleased; corpus
-completeness, independent evaluator validation, and a recorded gate decision
-remain pending.
+**Human review is optional input.** An owner or reader who reviews reports or
+queues contributes recorded feedback and can veto a decision, but no release
+waits on a person adjudicating facts.
 
-**Evaluator validation instrument (2026-10-27):** the controlled-variant,
-pre-registration, scoring, shared-error, review-queue, and decision harness in
-`primr.qa.evaluator_validation` exists and is tested on synthetic fixtures.
-It has not measured any judge. The remaining blockers are operator inputs:
-human-adjudicated clean cases drawn from the production corpus, recorded
-tolerances, a free local-judge run (or an approved and capped cloud-judge
-run), and human review of the resulting queue.
+**Implementation status (2026-10-28):** `primr.qa.evaluator_validation` and
+`primr.qa.evaluator_variants` validate claim-support judges on synthetic
+fixtures and currently require all-human adjudication and a named human
+review. Remaining code: accept verbatim-span and independent-agent
+adjudication in that harness, and add the report-level variant generator and
+pairwise validation. No judge has been measured yet.
 
-**Next, in order (2026-10-27):**
+**Next, in order (2026-10-28):**
 
-1. Operator: adjudicate clean cases from real reports locally (a person, not an
-   agent, records `reviewer_kind: human`), and record tolerances and sample
-   minimums in a `Preregistration`. Freeze the set and record its digest
-   before any judge runs.
-2. Run the free local judge and a second judge for at least two passes. A
-   cloud judge needs a fresh estimate, explicit approval, and a cost cap.
-3. A named person reviews the full queue; then record the gate decision.
+1. Change the claim harness decision rules to the adjudication model above,
+   keeping agent and human records distinct.
+2. Add the report-level variant generator and blind pairwise validation,
+   tested on synthetic reports.
+3. Run free local judges on variants of the operator's local reports, kept
+   local and never committed, then record the validation result.
+4. Run the baseline comparison under an approved, capped estimate and record
+   the decision.
 
-Why this order: every code prerequisite for the card is shipped, so the only
-honest progress is evidence. Agent adjudication or a lone judge cannot stand
-in for it, and no paid run is authorized by default.
+## Follow-through after v1.40
 
-## Follow-through after ownership repair
-
-1. **Make the quality decision defensible.** Complete the curated production
-   corpus and validate the evaluators against independently reviewed evidence.
-   Audit sampled unanimous decisions as well as disagreements; measure known
-   error detection, material-fact coverage, abstention, and shared errors. A
-   measured regression floor is distinct from an acceptable analyst-quality
-   bar. Sparse reports must not invent Confirmed claims to become decidable.
+1. **Use the instrument to improve the report.** The contract's next slices
+   (the company working model in shadow mode, then working-model-informed
+   writing) advance only when the validated pairwise measure shows lift.
 2. **Then compare backends.** Use frozen evidence and output contracts, record
    quality, reliability, latency, and measured cost, and make an explicit
    promotion decision. Preserve preview status when evidence is inconclusive.
@@ -209,7 +231,7 @@ hold, not because a date or effort estimate was written down.
 
 | Candidate | Capability gate | Depends on |
 |-----------|-----------------|------------|
-| **v1.40** | Fully decidable epistemic and analyst-quality corpus, independently validated evaluators, followed by a recorded gate decision | Stable report contract and quality instrumentation |
+| **v1.40** | Whole-report quality measurement with judges validated on known-answer variants, plus a recorded baseline decision | Stable report contract and quality instrumentation |
 | **v1.41** | Measured host-versus-cloud promotion decision and honest single-provider full-report execution | v1.40 measurements |
 | **v1.42** | Durable agent job lifecycle and remaining MCP/A2A control-plane parity | Stable provider execution and existing authorization contract |
 | **v1.43** | Governed run history, retention/deletion/export, evidence anchors, and a shadow finding/inference ledger | v1.40 measurements and v1.42 consumption boundaries |
@@ -262,6 +284,7 @@ the next executable card. Correct the release record before starting new work.
 
 Use free local validation first. Deterministic checks guard spend, egress,
 filesystem writes, schemas, citation resolution, version integrity, and other
-prose-invariant structure. Content quality requires pre-registered,
-agreement-validated evaluation plus human review. Every paid evaluation or run
-requires an exact estimate, explicit approval, and a cost cap.
+prose-invariant structure. Content quality is measured by pre-registered,
+blind, whole-report evaluation whose judges are validated on known-answer
+variants. Human review is optional input, not a gate. Every paid evaluation or
+run requires an exact estimate, explicit approval, and a cost cap.
