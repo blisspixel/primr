@@ -14,42 +14,23 @@ and Word artifacts.
 primr "Company Name" https://company.example
 ```
 
-## What Primr is, and what it is not
+## What Primr does
 
-Primr is a research and consulting-prep tool. It researches a company from its
-website and other public sources, then reasons from that research to a
-strategic view, so a consultant, seller, or strategist walks into an
-engagement with grounded facts, a sharp point of view, real tensions to test,
-and good questions to ask.
+1. **Strategic Overview.** Deep research on the company (its site, job
+   postings, news, recon, and industry analysis) turned into a detailed
+   long-form Company Strategic Overview. It is far more than a list of facts:
+   it explains the business, its market, its tensions and risks, and the
+   questions worth asking.
+2. **AI Strategy.** Everything learned, plus the technology the company appears
+   to use (DNS recon and current platform news), turned into long-form
+   ideation on what the company may already be doing with AI and what most
+   likely makes sense next.
+3. **Skill pack (optional).** Ideation on the company's key roles, with drafted
+   AI agent skills for them.
 
-A Primr report is deliberately a mix of two kinds of content:
-
-- **Researched facts.** What the company does, sells, says, and hires for,
-  drawn from its site and public sources, cited, and checkable where a source
-  exists. Primr does not invent facts.
-- **Reasoned strategy.** Companies rarely publish their strategy. The
-  governing view, strategic tensions, implications, AI Strategy
-  recommendations, and discovery questions are inference built on the
-  research. They are the main value of the report and usually cannot be
-  confirmed from public sources.
-
-**Primr is not only a fact checker, and its quality is never defined by how
-many of its statements can be verified.** A report made only of checkable facts
-has failed; so has strategy that ignores or contradicts the research.
-
-What this means in practice:
-
-- Ground facts in cited sources, and make the strategic reasoning visible: show
-  which evidence a view rests on and say plainly when the report reasons beyond
-  it.
-- Judge a report by its insight, specificity, coherence, and usefulness for the
-  engagement, not by how much of it can be verified.
-- Do not hedge every sentence, and do not demand confirmation of ideas.
-- Strategy documents such as the AI Strategy are proposals. Their
-  recommendations are rated by how safe or speculative they are, never as
-  Confirmed or Reported.
-- Hard floors stay automated: citations resolve, artifacts render, and spend
-  is gated. Beyond those floors there is no fact-verification gate.
+Facts are cited where sources exist. Strategy and ideas are informed reasoning,
+because companies rarely publish their strategy, so report quality is judged
+by depth, specificity, and usefulness, not by how much can be verified.
 
 That invocation is the product. Framing, hypotheses, source receipts,
 capability routing, ledgers, provider recovery, and memory are supporting
