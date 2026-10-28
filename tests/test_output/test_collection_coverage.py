@@ -10,7 +10,7 @@ from docx import Document
 
 from primr.output.collection_coverage import (
     CollectionCoverage,
-    add_docx_coverage,
+    add_docx_collection_note,
     show_collection_coverage,
 )
 from primr.utils.console import Console, TerminalCapabilities
@@ -76,13 +76,25 @@ def test_public_or_archived_sources_are_not_counted_as_first_party():
         CollectionCoverage(2, 3)
 
 
-def test_word_signature_is_the_same_once_under_title():
+def test_word_note_keeps_the_terminal_counts_after_the_content():
     summary = CollectionCoverage(14, 14, 2, 1, 3, True)
     document = Document()
     document.add_heading("ExampleCo", level=0)
-    add_docx_coverage(document, summary)
+    document.add_paragraph("Analysis.")
+    add_docx_collection_note(document, summary)
     buffer = BytesIO()
     document.save(buffer)
     loaded = Document(buffer)
-    assert loaded.paragraphs[1].text == "coverage  " + summary.description()
-    assert sum("coverage" in paragraph.text for paragraph in loaded.paragraphs) == 1
+    assert loaded.paragraphs[-1].text == f"Collection note: {summary.description()}."
+    assert loaded.paragraphs[1].text == "Analysis."
+    assert not any(p.text.startswith("coverage") for p in loaded.paragraphs)
+
+
+@pytest.mark.parametrize(
+    ("summary", "warned"), [(CollectionCoverage(0, 0), True), (CollectionCoverage(3, 3), False)]
+)
+def test_word_note_keeps_warning_color_when_collection_needs_attention(summary, warned):
+    from docx.shared import RGBColor
+
+    paragraph = add_docx_collection_note(Document(), summary)
+    assert (paragraph.runs[-1].font.color.rgb == RGBColor(0x85, 0x55, 0x00)) is warned

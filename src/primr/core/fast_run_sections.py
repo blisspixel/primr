@@ -31,6 +31,8 @@ from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from primr.output.final_artifact import GeneratedSection
     from primr.pipeline.executor import RecoveryExecutor
     from primr.prompts.loader import SectionConfig
@@ -119,6 +121,37 @@ class SectionWritingResult:
     total_words: int = 0
     expected_sections: int = 0
     report_complete: bool = False
+
+
+def _warn_envelope_review(section: GeneratedSection) -> None:
+    """Tell the operator when writer envelope recovery needs a human look."""
+    from primr.core.section_parsing import ENVELOPE_AMBIGUOUS, ENVELOPE_TRUNCATED
+
+    if section.envelope_issue == ENVELOPE_TRUNCATED:
+        console.warn(f"  {section.title}: writer output was truncated; review before sending")
+    elif section.envelope_issue == ENVELOPE_AMBIGUOUS:
+        console.warn(
+            f"  {section.title}: writer envelope is ambiguous; kept verbatim and Word output withheld"
+        )
+
+
+def _cohere_unless_ambiguous(
+    sections: list[GeneratedSection],
+    report_content: str,
+    cohere: Callable[[str], str],
+) -> str:
+    """Run the coherence pass unless a section kept an ambiguous envelope.
+
+    An ambiguous writer envelope is kept verbatim so the ship gate withholds
+    the DOCX; a model rewrite must not tidy it into a guessed repair.
+    """
+    from primr.core.section_parsing import ENVELOPE_AMBIGUOUS
+
+    if any(section.envelope_issue == ENVELOPE_AMBIGUOUS for section in sections):
+        console.warn("Skipping coherence pass: an ambiguous writer envelope is kept for review")
+        return report_content
+    with console.timed_operation("Running coherence pass"):
+        return cohere(report_content)
 
 
 def _report_completion(
@@ -322,6 +355,7 @@ def write_report_sections(
                 seen_titles.add(title_key)
                 written_sections.append(parsed)
                 console.ok(f"  {parsed.title} ({parsed.words:,} words)")
+                _warn_envelope_review(parsed)
             else:
                 sec_name = part_sections[local_idx].name
                 console.warn(f"  {sec_name} — skipped (failed or empty)")
@@ -352,6 +386,7 @@ def write_report_sections(
             written_sections.insert(0, exec_parsed)
             executive_summary_written = True
             console.ok(f"  {exec_parsed.title} ({exec_parsed.words:,} words)")
+            _warn_envelope_review(exec_parsed)
         else:
             console.warn("  Executive Summary — skipped (failed or empty)")
 
@@ -374,8 +409,11 @@ def write_report_sections(
     report_content = _assemble_fast_report(company_label, website, written_sections)
 
     # Coherence pass: deduplicate and smooth transitions
-    with console.timed_operation("Running coherence pass"):
-        report_content = cohere_report(company_label, website, report_content, model=writing_model)
+    report_content = _cohere_unless_ambiguous(
+        written_sections,
+        report_content,
+        lambda content: cohere_report(company_label, website, content, model=writing_model),
+    )
 
     _record_report_sections_route(
         folder_path,

@@ -29,6 +29,33 @@ SCAFFOLDING_PROHIBITION_GUIDANCE = (
 )
 
 
+# Writer-stage section envelope tags (``<section><title>..</title><body>..``).
+# Section parsing recovers well-formed and safely recoverable envelopes; any tag
+# that still reaches a report means recovery was ambiguous. This is an
+# unambiguous internal-token leak, so it backs the blocking ship gate and the
+# DOCX artifact detector, not the shrinking non-blocking scaffolding scan.
+# Only envelope-structural tags count: ``<section>``, ``</section>``,
+# ``</title>``, ``</body>``. A report about a website may mention an opening
+# ``<title>`` or ``<body>`` element in prose; real leaked envelopes always carry
+# one of the structural tags. Code spans and fenced blocks are exempt.
+SECTION_ENVELOPE_TAG_RE = re.compile(r"</?section\s*>|</(?:title|body)\s*>", re.IGNORECASE)
+_INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+
+
+def _envelope_scan_view(content: str) -> str:
+    return _INLINE_CODE_RE.sub("", _CODE_FENCE_RE.sub("", content))
+
+
+def count_section_envelope_markers(content: str) -> int:
+    """Count writer envelope tags left in report prose, outside code."""
+    return len(SECTION_ENVELOPE_TAG_RE.findall(_envelope_scan_view(content)))
+
+
+def has_section_envelope_markers(content: str) -> bool:
+    """Return whether writer envelope tags remain in prose, outside code."""
+    return SECTION_ENVELOPE_TAG_RE.search(_envelope_scan_view(content)) is not None
+
+
 def scan_scaffolding_leakage(content: str) -> dict:
     """Scan a report string for leaked internal scaffolding markers.
 

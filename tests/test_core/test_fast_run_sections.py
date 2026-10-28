@@ -25,7 +25,7 @@ def _sec(sec_id: str, name: str, part: int) -> SimpleNamespace:
 
 
 def _parsed(title: str, words: int = 100) -> SimpleNamespace:
-    return SimpleNamespace(title=title, words=words)
+    return SimpleNamespace(title=title, words=words, envelope_issue=None)
 
 
 @pytest.fixture

@@ -19,7 +19,6 @@ from primr.core.research_agent import (
     _normalize_generated_section_payload,
     _parse_batch_sections,
     _parse_single_section,
-    _parse_structured_section_envelopes,
 )
 from primr.prompts.loader import SectionConfig
 
@@ -902,10 +901,12 @@ class TestGeneratedSectionNormalization:
             "<section><title>SWOT Analysis</title><body>SWOT body.\n\nWhat to validate: Confirm SWOT.</body></section>"
         )
 
-        parsed = _parse_structured_section_envelopes(content)
+        from primr.core.section_parsing import _extract_generated_section_blocks
 
-        assert parsed[0][0] == "Executive Summary"
-        assert parsed[1][0] == "SWOT Analysis"
+        _, parsed = _extract_generated_section_blocks(content)
+
+        assert [block.title for block in parsed] == ["Executive Summary", "SWOT Analysis"]
+        assert [block.issue for block in parsed] == [None, None]
 
     def test_parse_single_section_prefers_structured_envelope(self):
         class ExpectedSection:

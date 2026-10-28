@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.27
+Current State: v1.39.28
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -88,6 +88,20 @@ replaces retired OpenAI and xAI model defaults without promoting a report gate.
 v1.39.26 adds the library-only evaluator validation harness for the v1.40
 quality card; no judge has been measured with it and no gate is armed.
 v1.39.27 makes `primr doctor` flag OpenAI shutdown dates the registry lacks.
+v1.39.28 opens Word reports with the title and Executive Summary, moves
+collection counts to a closing note, and repairs leaked writer section markup.
+
+**What is next and why (2026-10-27):** v1.40.0 is the only open release band,
+and its remaining blockers are evidence, not code. The evaluator validation
+harness exists but has measured nothing; v1.40 needs human-adjudicated cases
+from real reports (kept local, never committed), recorded tolerances, a free
+local judge plus a second judge, and human review of the queue. Building more
+quality machinery first would only add unmeasured code. v1.41 backend
+comparison then depends on that measured bar and on approved, capped paid
+runs. Until those inputs exist, work stays in the parallel patch lanes:
+client-facing report polish, provider currency (recheck OpenRouter
+`openai/gpt-4.1-mini` before OpenAI removes it on 2027-01-14), and reviewed
+dependency updates.
 The ordered work and exit criteria live in the [execution brief](docs/NEXT_STEPS.md). A
 candidate version is not a delivery promise and is changed before release if
 the accepted scope requires a different semantic version.
@@ -915,6 +929,14 @@ The cleanup cuts shipped in v1.24.2 fixed the dominant leak vectors at the canon
 - **Eval-harness wiring - DONE.** `model_eval` computes a `scaffolding_leaks` per-report metric and a `total_scaffolding_leaks` per-profile aggregate, surfaced in a new scorecard `## Artifact Drift` section (clean/DRIFT status per profile) and a `scaffolding_leaks` CSV column - so the regression is tracked every eval run instead of via ad-hoc offline scans.
 
 Decision principle: final shipping artifacts must read as deliverables, not as internal scaffolding - but the mechanism is **upstream prompting + an eval metric (`writer_output_clean`), not a growing scanner.** The scaffolding-leak scan is a shrinking backstop: it must not gain new marker cases (that is the regex treadmill - see the standing rule above and [`agentic-balance.md`](docs/design/agentic-balance.md)). A healthy run is 0 leaks because the writer doesn't emit them, not because the scanner caught them. **DONE - the ship-time block is demoted:** the scaffolding-leak scan is now a non-blocking `warnings` channel in `_validate_output_markdown` - a leak is surfaced (logged) and eval-tracked (`## Artifact Drift`) but no longer withholds the DOCX. Blocking is reserved for structural/referential validity (citation resolution, duplicate/empty sections) and unambiguous internal-token leaks (raw `[Source:]`/`[Workbook:]`), which stay gated. Content quality is the prompt's job, measured by eval - not a gate.
+
+Writer section envelopes (#263) follow the same principle at the parsing
+boundary rather than in a cleanup regex. `core.section_parsing` parses each
+`<section>` envelope as valid, safely recoverable (missing body tags), truncated
+(text kept, one envelope retry, operator warning), or ambiguous (kept verbatim).
+Envelope tags reaching a final artifact are an unambiguous internal-token leak:
+the ship gate withholds the DOCX, keeps Markdown for review, and never strips
+them. They are deliberately absent from the non-blocking scaffolding scan.
 
 ### 2. Artifact Pipeline Hardening
 
@@ -2209,6 +2231,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.28 | Oct 2026 | **Client-ready report opening.** Word reports open with the title and Executive Summary, collection counts move to a closing note, and writer section envelopes are parsed as valid, recovered, truncated, or ambiguous instead of leaking as prose. |
 | 1.39.27 | Oct 2026 | **Live retirement check.** `primr doctor` compares registered OpenAI models with the free model list's `shutdown_date` and warns on unrecorded or mismatched shutdowns; report-only. |
 | 1.39.26 | Oct 2026 | **Evaluator validation harness.** Add library-only controlled variants, frozen pre-registration, blind repeated judge passes, Wilson-bounded scoring, and a human review queue for the v1.40 quality card; no judge measured and no gate armed. |
 | 1.39.25 | Oct 2026 | **Security and retirement patch.** Raise transitive filelock, virtualenv, and dnspython floors; route OpenAI-only reasoning to GPT-5.6 Terra and replace retired OpenAI and xAI image models with dated, explicit choices. |

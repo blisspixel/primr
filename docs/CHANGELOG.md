@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.28] - 2026-10-27
+
+### Changed
+
+- Client-facing Word reports open with the title and the Executive Summary.
+  Recorded collection counts move from beneath the title to one muted closing
+  `Collection note` in every Word path (Markdown conversion, premium builder,
+  and text conversion), with unchanged wording and meaning. Terminal coverage
+  output is unchanged. This supersedes only the under-title placement from
+  #229/#236 (#263).
+
+### Fixed
+
+- Writer section envelopes are parsed at the section-parsing boundary instead of
+  leaking as report prose. An envelope missing its body tags, or its closing
+  section tag after a closed body, is repaired. A truncated envelope keeps its
+  text, earns one retry, and warns the operator. An envelope without a title,
+  or with nested structural tags, is kept verbatim, the coherence pass is
+  skipped so no model rewrite guesses a repair, and the polished DOCX is
+  withheld with the Markdown kept for review. Only structural envelope tags
+  outside code count, so prose or code that mentions an HTML `<title>` element
+  does not block a report. Repeated title lines and headings around an envelope
+  no longer duplicate the section title (#263).
+- Single-section writer responses no longer drop later `##` blocks silently;
+  they are kept as `###` subsections. A `## References` block is moved last,
+  so the existing references policy removes only it.
+
 ## [1.39.27] - 2026-10-27
 
 ### Added

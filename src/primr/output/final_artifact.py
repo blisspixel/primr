@@ -44,6 +44,8 @@ class GeneratedSection:
     words: int
     validate_line: str
     citation_numbers: list[int] = field(default_factory=list)
+    # Writer envelope recovery outcome; see ``core.section_parsing``.
+    envelope_issue: str | None = None
 
     def to_markdown(self) -> str:
         return f"## {self.title}\n\n{self.content}".strip()

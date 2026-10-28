@@ -112,7 +112,8 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
     assert run_render(["render", str(report), "--evidence-bundle", str(result.bundle_dir)]) == 0
     paragraphs = [p.text for p in Document(report.with_suffix(".docx")).paragraphs]
     assert paragraphs[0] == "Executive Summary"
-    assert paragraphs[1] == "coverage  " + summary.description()
+    assert paragraphs[1] == "Source-grounded body."
+    assert paragraphs[-1] == f"Collection note: {summary.description()}."
     # Older published bundles bind raw character counts without capture digests.
     # The existing reader verifies their framing; coverage must retain support.
     import hashlib

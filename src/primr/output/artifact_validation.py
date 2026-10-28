@@ -168,6 +168,21 @@ def _scan_scaffolding_leakage_issues(markdown_content: str, threshold: int) -> l
     return issues
 
 
+def _scan_section_envelope_issues(markdown_content: str) -> list[str]:
+    """Block shipping when writer section-envelope tags reach the artifact.
+
+    Deliberately detection-only, with no auto-strip cleaner: recovery belongs
+    at the section-parsing boundary, which repairs only unambiguous envelopes.
+    A tag that still arrives here marks ambiguous recovery, so the polished
+    DOCX is withheld and the Markdown is kept for review instead of stripping
+    tags and presenting possibly broken content as clean.
+    """
+    from primr.qa.report_analyzer import count_section_envelope_markers
+
+    count = count_section_envelope_markers(markdown_content)
+    return [f"section_envelope_markup: {count} tag(s)"] if count else []
+
+
 # Bracketed/filename internal tokens. These are matched case-insensitively
 # because the delimiters ([], the .txt suffix) never occur in legitimate prose,
 # so IGNORECASE cannot false-block real content. Detection is partial-match (no
@@ -315,6 +330,7 @@ def _validate_output_markdown(
     try:
         # Blocking: unambiguous internal-token leaks + prose-invariant structure.
         issues = _scan_forbidden_output_patterns(markdown_content)
+        issues.extend(_scan_section_envelope_issues(markdown_content))
         issues.extend(_scan_citation_integrity_issues(markdown_content, citation_threshold))
         issues.extend(_scan_section_structure_issues(markdown_content, structure_threshold))
         # Non-blocking content signal: surfaced + eval-tracked, never withholds.
