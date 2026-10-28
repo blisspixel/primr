@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.31] - 2026-10-28
+
 ### Changed
 
 - Default models now track each provider's current flagship, checked against

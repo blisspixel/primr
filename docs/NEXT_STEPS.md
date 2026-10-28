@@ -1,6 +1,6 @@
 # Next Steps
 
-Released baseline: **v1.39.30**
+Released baseline: **v1.39.31**
 
 Next implementation candidate: **v1.40.0**
 
@@ -37,7 +37,11 @@ product.
 
 ## Current executable card
 
-v1.39.30 is the released baseline. The evaluator harness adds an
+v1.39.31 is the released baseline. Every default route now uses the current
+provider flagship (Grok 4.7, Gemini 3.8 Flash and 4 Argon, Gemini 3.5
+Flash-Lite, GPT-6 Luna and 6.1 Terra, Claude Haiku and Sonnet 5.5) by owner
+decision rather than a measured promotion, and estimates disclose scheduled
+price changes. In v1.39.30 the evaluator harness adds an
 `authority_without_support` variant, so v1.40 judges are also tested on
 whether a trust cue substitutes for support. In v1.39.29, `AGENTS.md` is the single agent guide and
 `CLAUDE.md` imports it; the operator guide is `clients/primr-operator.md`.
@@ -76,7 +80,7 @@ independently validated evaluators, before any hard report-quality gate or
 hybrid-routing promotion.
 
 **Why this is next:** the version ladder already places quality claims after
-that corpus. Operator polish through v1.39.30 is the released baseline.
+that corpus. Operator polish through v1.39.31 is the released baseline.
 
 **Exit criteria:**
 
@@ -198,7 +202,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.30
+## Version gates after v1.39.31
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.

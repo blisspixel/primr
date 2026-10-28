@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.30
+Current State: v1.39.31
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -92,9 +92,9 @@ v1.39.28 opens Word reports with the title and Executive Summary, moves
 collection counts to a closing note, and repairs leaked writer section markup.
 v1.39.29 makes `AGENTS.md` the single agent guide, imported by `CLAUDE.md`.
 v1.39.30 adds an evaluator variant that separates source authority from claim
-support, closing the harness's recorded limit. The next patch moves every
-default route to the current provider flagships by owner decision, without a
-measured quality promotion, and discloses scheduled price changes in estimates.
+support, closing the harness's recorded limit. v1.39.31 moves every default
+route to the current provider flagships by owner decision, without a measured
+quality promotion, and discloses scheduled price changes in estimates.
 
 **What is next and why (2026-10-27):** v1.40.0 is the only open release band,
 and its remaining blockers are evidence, not code. The evaluator validation
@@ -2238,6 +2238,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.31 | Oct 2026 | **Current flagship defaults.** Every default route moves to the newest provider model (Grok 4.7, Gemini 3.8 Flash and 4 Argon, GPT-6.1 Terra, Claude 5.5); the GPT-4.1 Mini route retires; estimates disclose scheduled price changes. |
 | 1.39.30 | Oct 2026 | **Authority-versus-support variant.** The evaluator harness tests whether a strong trust cue makes a judge accept a claim whose support was removed; a writer subheading after opening prose is kept. |
 | 1.39.29 | Oct 2026 | **One agent guide.** `AGENTS.md` holds the development contract and `CLAUDE.md` imports it; the operator guide moves to `clients/primr-operator.md`. |
 | 1.39.28 | Oct 2026 | **Client-ready report opening.** Word reports open with the title and Executive Summary, collection counts move to a closing note, and writer section envelopes are parsed as valid, recovered, truncated, or ambiguous instead of leaking as prose. |
