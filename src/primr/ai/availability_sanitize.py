@@ -5,7 +5,7 @@ surfaces: capability-router metadata and `primr doctor` output. Both must obey
 one invariant: no secret, raw endpoint URL, hostname/IP, account id, installed
 model name, or control sequence may ever appear, regardless of what an upstream
 collector wrote into a snapshot. These functions are the single seam that
-enforces it (CLAUDE.md: one way to do each thing) -- previously the logic was
+enforces it (AGENTS.md: one way to do each thing) -- previously the logic was
 duplicated across `capability_routing.py` and `cli_doctor.py`, which let two
 copies of the same Unicode/host-bypass drift apart.
 

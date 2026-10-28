@@ -256,9 +256,10 @@ production-wide quality.
 
 ## Persistent development guidance
 
-The development contract remains in
-[`CLAUDE.md`](https://github.com/blisspixel/primr/blob/main/CLAUDE.md).
-`AGENTS.md` retains its deliberate role as the operating guide. The refinement
+The development contract now lives in
+[`AGENTS.md`](https://github.com/blisspixel/primr/blob/main/AGENTS.md), which
+`CLAUDE.md` imports (#264); the operating guide moved to
+`clients/primr-operator.md`. The refinement
 adds evidence-specific verification, source and history checks, use of the
 existing AST dependency graph, precise status claims, and resumable state in
 the existing gitignored `.agent/` directory. It preserves the Python stack,

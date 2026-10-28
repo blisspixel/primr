@@ -272,7 +272,7 @@ Agent hosts differ in where they store MCP configuration and how they load local
 
 Primr ships four related guidance surfaces:
 
-- `AGENTS.md` at the repository root for tools that auto-load the open agents.md format.
+- `clients/primr-operator.md`, the operator guide to copy into a workspace as `AGENTS.md` for tools that auto-load the open agents.md format. (The repository root `AGENTS.md` is the development contract.)
 - `.agents/skills/primr-zero/` as the canonical portable hard-zero skill.
 - `claude-code/` plugin files, including a checked `primr-zero` mirror, for the Claude Code plugin workflow.
 - Generated skill packs from `primr skills`, which are company-specific Agent Skills artifacts for downstream work.

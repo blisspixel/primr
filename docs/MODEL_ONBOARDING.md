@@ -279,7 +279,7 @@ When the default changes, update these in the same PR so the docs stay
 coherent with the code:
 
 - `README.md` - modes table cost figures, headline cost in the lede
-- `CLAUDE.md` - Quick Start cost line, agent-facing cost guidance
+- `AGENTS.md` - Quick Start cost line; `clients/primr-operator.md` - agent-facing cost guidance
 - `ROADMAP.md` - strike through the "evaluate new model" entry, add a
   `Changelog` line
 - `docs/ARCHITECTURE.md` - model-pricing table if present

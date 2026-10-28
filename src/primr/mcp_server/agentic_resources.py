@@ -178,14 +178,14 @@ def _read_context() -> list[ReadResourceContents]:
 
     Requirements: 7.3
     """
-    # Check if CLAUDE.md exists
-    claude_md_path = Path("CLAUDE.md")
+    # AGENTS.md is the single development contract; CLAUDE.md only imports it.
+    context_path = Path("AGENTS.md")
 
-    if not claude_md_path.exists():
+    if not context_path.exists():
         data = {
             "error": "context_not_found",
-            "message": "CLAUDE.md not found in project root",
-            "suggestion": "Run the agentic architecture setup to create CLAUDE.md",
+            "message": "AGENTS.md not found in project root",
+            "suggestion": "Run from the primr repository root, where AGENTS.md lives",
         }
         return [
             ReadResourceContents(
@@ -195,13 +195,13 @@ def _read_context() -> list[ReadResourceContents]:
         ]
 
     try:
-        content = claude_md_path.read_text(encoding="utf-8")
+        content = context_path.read_text(encoding="utf-8")
 
         # Extract key sections for summary
         summary = _extract_context_summary(content)
 
         data = {
-            "context_map_path": str(claude_md_path),
+            "context_map_path": str(context_path),
             "summary": summary,
             "full_content_available": True,
             "quick_start": _extract_quick_start(content),

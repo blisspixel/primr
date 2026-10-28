@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.28
+Current State: v1.39.29
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -90,6 +90,7 @@ quality card; no judge has been measured with it and no gate is armed.
 v1.39.27 makes `primr doctor` flag OpenAI shutdown dates the registry lacks.
 v1.39.28 opens Word reports with the title and Executive Summary, moves
 collection counts to a closing note, and repairs leaked writer section markup.
+v1.39.29 makes `AGENTS.md` the single agent guide, imported by `CLAUDE.md`.
 
 **What is next and why (2026-10-27):** v1.40.0 is the only open release band,
 and its remaining blockers are evidence, not code. The evaluator validation
@@ -1715,7 +1716,7 @@ service toolchain as a reviewed architectural investment.
 - SSRF protection on every outbound URL (`primr.utils.security`); content sanitization for prompt-injection defense.
 - Single source of version truth enforced by `tests/test_release_integrity.py` (pyproject ↔ `__version__` ↔ ROADMAP "Current State" ↔ `CITATION.cff`).
 - No-real-company-data rule across the repo (see `docs/CONTRIBUTING.md`).
-- **Anti-slop development contract** (`CLAUDE.md` at repo root, committed - distinct from `AGENTS.md`, which is the *operate-primr* product artifact): names the single seams (async via `run_sync`, console/logging/config/json/atomic-io, the closed HTTP-client set), the no-new-giant-file rule, the verify-current-APIs rule (the stale-API/hallucinated-package guard), the CLI verb convention, and the pre-PR slop check. `CLAUDE.md`/`AGENTS.md` follow the June-2026 split (Claude Code reads `CLAUDE.md` natively; `AGENTS.md` is the cross-tool operate-guide). Enforced, not aspirational: `tests/test_architecture.py` is a deterministic fitness suite carrying a **rise-only per-file line ceiling** (the 13 files >1,000 lines are pinned and may not grow; new files cap at 1,000 - the "no giant file" ratchet), a **single-JSON-library** gate (stdlib `json` only), and an agent-contract-exists check. Async-seam and config-as-leaf gates are deferred pending a small burndown; HTTP is deliberately *not* single-seam-gated (the 5-client multi-tier scraping stack is the design, not drift).
+- **Anti-slop development contract** (`AGENTS.md` at repo root, imported by a one-line `CLAUDE.md` since #264; the *operate-primr* guide is `clients/primr-operator.md`): names the single seams (async via `run_sync`, console/logging/config/json/atomic-io, the closed HTTP-client set), the no-new-giant-file rule, the verify-current-APIs rule (the stale-API/hallucinated-package guard), the CLI verb convention, and the pre-PR slop check. Claude Code reads `CLAUDE.md` natively and pulls in `AGENTS.md` only through the `@AGENTS.md` import, so one file serves every agent harness without drift. Enforced, not aspirational: `tests/test_architecture.py` is a deterministic fitness suite carrying a **rise-only per-file line ceiling** (the 13 files >1,000 lines are pinned and may not grow; new files cap at 1,000 - the "no giant file" ratchet), a **single-JSON-library** gate (stdlib `json` only), and a single-source agent-guidance check. Async-seam and config-as-leaf gates are deferred pending a small burndown; HTTP is deliberately *not* single-seam-gated (the 5-client multi-tier scraping stack is the design, not drift).
 - **Architecture cohesion ratchet - P0 SHIPPED, P1 QUEUED:** the graph-backed
   [`architecture cohesion plan`](docs/design/24-architecture-cohesion-plan.md)
   balances the existing maximum-file-size gate with dependency direction and
@@ -2231,6 +2232,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.29 | Oct 2026 | **One agent guide.** `AGENTS.md` holds the development contract and `CLAUDE.md` imports it; the operator guide moves to `clients/primr-operator.md`. |
 | 1.39.28 | Oct 2026 | **Client-ready report opening.** Word reports open with the title and Executive Summary, collection counts move to a closing note, and writer section envelopes are parsed as valid, recovered, truncated, or ambiguous instead of leaking as prose. |
 | 1.39.27 | Oct 2026 | **Live retirement check.** `primr doctor` compares registered OpenAI models with the free model list's `shutdown_date` and warns on unrecorded or mismatched shutdowns; report-only. |
 | 1.39.26 | Oct 2026 | **Evaluator validation harness.** Add library-only controlled variants, frozen pre-registration, blind repeated judge passes, Wilson-bounded scoring, and a human review queue for the v1.40 quality card; no judge measured and no gate armed. |

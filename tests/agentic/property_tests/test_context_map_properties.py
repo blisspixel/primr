@@ -1,5 +1,5 @@
 """
-Property-based tests for Context Map (CLAUDE.md).
+Property-based tests for Context Map (AGENTS.md).
 
 This module validates the correctness properties of the Context Map
 using the Hypothesis library. Each test corresponds to a formal
@@ -54,7 +54,7 @@ def count_tokens_simple(text: str) -> int:
 
 def extract_quick_start_section(content: str) -> str:
     """
-    Extract the Quick Start section from CLAUDE.md.
+    Extract the Quick Start section from AGENTS.md.
 
     The Quick Start section is defined as everything from the
     "## Quick Start" header until the next "---" horizontal rule
@@ -95,23 +95,23 @@ def test_context_map_token_budget():
     """
     Quick Start section stays within token budget.
 
-    For any generated CLAUDE.md context map, the quick-start section
+    For any generated AGENTS.md context map, the quick-start section
     should contain fewer than 2000 tokens when measured by a standard
     tokenizer.
 
     Validates: Requirements 1.5
     """
-    claude_md_path = Path("CLAUDE.md")
+    agents_md_path = Path("AGENTS.md")
 
-    # Skip if CLAUDE.md doesn't exist yet
-    if not claude_md_path.exists():
-        pytest.skip("CLAUDE.md not present (gitignored; tests run when a local copy exists)")
+    # Skip if AGENTS.md doesn't exist yet
+    if not agents_md_path.exists():
+        pytest.skip("AGENTS.md not present")
 
-    content = claude_md_path.read_text(encoding="utf-8")
+    content = agents_md_path.read_text(encoding="utf-8")
     quick_start = extract_quick_start_section(content)
 
     # Verify we found the section
-    assert quick_start, "Could not find Quick Start section in CLAUDE.md"
+    assert quick_start, "Could not find Quick Start section in AGENTS.md"
     assert "Quick Start" in quick_start, "Extracted section doesn't contain Quick Start header"
 
     # Count tokens
@@ -131,16 +131,16 @@ def test_context_map_token_budget():
 
 def test_context_map_structure():
     """
-    CLAUDE.md contains all required sections.
+    AGENTS.md contains all required sections.
 
     Validates the structural requirements of the context map.
     """
-    claude_md_path = Path("CLAUDE.md")
+    agents_md_path = Path("AGENTS.md")
 
-    if not claude_md_path.exists():
-        pytest.skip("CLAUDE.md not present (gitignored; tests run when a local copy exists)")
+    if not agents_md_path.exists():
+        pytest.skip("AGENTS.md not present")
 
-    content = claude_md_path.read_text(encoding="utf-8")
+    content = agents_md_path.read_text(encoding="utf-8")
 
     # Required sections per design doc
     required_sections = [
@@ -156,17 +156,17 @@ def test_context_map_structure():
 
 def test_context_map_negative_constraints():
     """
-    CLAUDE.md contains critical negative constraints.
+    AGENTS.md contains critical negative constraints.
 
     Validates that the context map includes the key "what NOT to do"
     guidance for agents.
     """
-    claude_md_path = Path("CLAUDE.md")
+    agents_md_path = Path("AGENTS.md")
 
-    if not claude_md_path.exists():
-        pytest.skip("CLAUDE.md not present (gitignored; tests run when a local copy exists)")
+    if not agents_md_path.exists():
+        pytest.skip("AGENTS.md not present")
 
-    content = claude_md_path.read_text(encoding="utf-8")
+    content = agents_md_path.read_text(encoding="utf-8")
 
     # Critical constraints that must be documented
     critical_constraints = [
@@ -184,17 +184,17 @@ def test_context_map_negative_constraints():
 
 def test_context_map_verification_commands():
     """
-    CLAUDE.md contains runnable verification commands.
+    AGENTS.md contains runnable verification commands.
 
     Validates that the context map includes commands agents can use
     to verify system state.
     """
-    claude_md_path = Path("CLAUDE.md")
+    agents_md_path = Path("AGENTS.md")
 
-    if not claude_md_path.exists():
-        pytest.skip("CLAUDE.md not present (gitignored; tests run when a local copy exists)")
+    if not agents_md_path.exists():
+        pytest.skip("AGENTS.md not present")
 
-    content = claude_md_path.read_text(encoding="utf-8")
+    content = agents_md_path.read_text(encoding="utf-8")
 
     # Required verification commands
     required_commands = [
@@ -208,17 +208,17 @@ def test_context_map_verification_commands():
 
 def test_context_map_progressive_disclosure():
     """
-    CLAUDE.md uses progressive disclosure for detailed content.
+    AGENTS.md uses progressive disclosure for detailed content.
 
     Validates that detailed sections are wrapped in collapsible
     elements to keep the main document scannable.
     """
-    claude_md_path = Path("CLAUDE.md")
+    agents_md_path = Path("AGENTS.md")
 
-    if not claude_md_path.exists():
-        pytest.skip("CLAUDE.md not present (gitignored; tests run when a local copy exists)")
+    if not agents_md_path.exists():
+        pytest.skip("AGENTS.md not present")
 
-    content = claude_md_path.read_text(encoding="utf-8")
+    content = agents_md_path.read_text(encoding="utf-8")
 
     # Should have collapsible sections (HTML details/summary)
     assert "<details>" in content, "Missing progressive disclosure: no <details> elements found"

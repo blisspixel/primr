@@ -111,7 +111,7 @@ For Cursor, Windsurf, Kiro, VS Code + Copilot, and others, see [`../clients/`](.
 
 ## Updating
 
-The full `primr` skill body and `AGENTS.md` at the repo root are manually kept
-aligned. The canonical `primr-zero` skill lives at
+The full `primr` skill body and the operator guide `clients/primr-operator.md`
+are manually kept aligned. The canonical `primr-zero` skill lives at
 `../.agents/skills/primr-zero/`; synchronize its Claude mirror with
 `python scripts/sync_primr_zero_skill.py` and verify it with `--check`.

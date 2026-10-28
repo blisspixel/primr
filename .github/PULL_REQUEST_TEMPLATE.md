@@ -1,6 +1,6 @@
 <!--
 Thanks for contributing to primr. Keep PRs focused. See CONTRIBUTING.md and
-CLAUDE.md (the development contract) for the full bar.
+AGENTS.md (the development contract) for the full bar.
 -->
 
 ## What and why

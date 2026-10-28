@@ -29,7 +29,7 @@ Source: `docs/images/primr-demo-terminal.html`. Requires Playwright Chromium
    # run tooling without activating a venv:
    uv run --no-sync pytest tests/test_architecture.py -q
    uv run --no-sync ruff check src/primr/
-   # Complete verification: CLAUDE.md, including filtered tests and coverage.
+   # Complete verification: AGENTS.md, including filtered tests and coverage.
    ```
    `uv sync --locked` rejects a lockfile that is stale relative to
    `pyproject.toml`, then installs its exact pinned set so your environment
@@ -242,9 +242,11 @@ uv run pre-commit install
 The canonical development contract - the single seams to use, the
 no-new-giant-file rule, the verify-current-APIs rule, the CLI verb convention,
 and the pre-PR slop check - lives in
-[`CLAUDE.md`](https://github.com/blisspixel/primr/blob/main/CLAUDE.md) at the
-repo root. Claude Code loads it automatically; for other tools, read it
-directly.
+[`AGENTS.md`](https://github.com/blisspixel/primr/blob/main/AGENTS.md) at the
+repo root. Tools that read the agents.md format load it natively; Claude Code
+loads it through the one-line `CLAUDE.md` import (`@AGENTS.md`). The guide for
+agents that operate primr is
+[`clients/primr-operator.md`](https://github.com/blisspixel/primr/blob/main/clients/primr-operator.md).
 The essentials:
 
 - Follow PEP 8 guidelines

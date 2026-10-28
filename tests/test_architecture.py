@@ -1,4 +1,4 @@
-"""Architectural fitness functions: enforce the anti-slop rules in CLAUDE.md.
+"""Architectural fitness functions: enforce the anti-slop rules in AGENTS.md.
 
 These are deterministic, zero-network gates that fail CI when the codebase
 drifts away from its stated conventions. They are intentionally cheap and
@@ -29,7 +29,7 @@ Six rules enforced here:
 6. **Import-cycle ratchet.** Existing broad cycle components are pinned and
    may only shrink. New or growing first-party import cycles fail CI.
 
-See CLAUDE.md ("Use the one seam") and ROADMAP → Engineering Standards.
+See AGENTS.md ("Use the one seam") and ROADMAP → Engineering Standards.
 """
 
 from __future__ import annotations
@@ -349,7 +349,7 @@ def test_single_json_library():
         if _FORBIDDEN_JSON_IMPORT.search(path.read_text(encoding="utf-8")):
             offenders.append(path.relative_to(SRC_ROOT).as_posix())
     assert not offenders, (
-        "Use stdlib json only (see CLAUDE.md). Found orjson/ujson/simplejson in:\n"
+        "Use stdlib json only (see AGENTS.md). Found orjson/ujson/simplejson in:\n"
         + "\n".join(offenders)
     )
 
@@ -433,7 +433,11 @@ def test_concrete_mcp_server_import_detector(relative_path: str, statement: str)
     assert _imports_concrete_mcp_server(path, ast.parse(statement))
 
 
-@pytest.mark.parametrize("doc", ["CLAUDE.md", "AGENTS.md"])
-def test_agent_contracts_exist(doc):
-    """Both the dev contract (CLAUDE.md) and the operate guide (AGENTS.md) ship."""
-    assert (SRC_ROOT.parent.parent / doc).is_file(), f"{doc} is missing from the repo root"
+def test_agent_guidance_has_one_source():
+    """AGENTS.md is the dev contract; CLAUDE.md only imports it (#264)."""
+    root = SRC_ROOT.parent.parent
+    assert (root / "CLAUDE.md").read_text(encoding="utf-8") == "@AGENTS.md\n"
+    contract = (root / "AGENTS.md").read_text(encoding="utf-8")
+    for heading in ("## Quick Start", "## Negative Constraints", "## Verification Commands"):
+        assert heading in contract
+    assert (root / "clients" / "primr-operator.md").is_file()
