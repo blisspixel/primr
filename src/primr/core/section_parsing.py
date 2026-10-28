@@ -289,6 +289,10 @@ def _parse_single_section(
             body = f"{body}\n\n{heading}{extra.body}".strip()
             issue = most_severe_envelope_issue(issue, extra.issue)
         if preamble:
+            # Prose before a differently titled first heading makes that
+            # heading a subsection; replacing it would lose its title.
+            if title.casefold() != expected_section.name.casefold():
+                body = f"### {title}\n\n{body}"
             body = f"{preamble}\n\n{body}".strip()
         return _normalize_generated_section_payload(title, body, expected_section.name, issue)
 

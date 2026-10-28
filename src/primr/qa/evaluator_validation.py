@@ -73,7 +73,7 @@ class Preregistration:
     rejection_sample_size: int
     # Categories where abstaining is the correct response, because the source
     # genuinely lacks the information.
-    abstain_detects: tuple[str, ...] = ("insufficient_support",)
+    abstain_detects: tuple[str, ...] = ("insufficient_support", "authority_without_support")
 
     def __post_init__(self) -> None:
         if not 0 < self.confidence < 1:

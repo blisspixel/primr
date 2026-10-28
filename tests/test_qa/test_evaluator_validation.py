@@ -28,6 +28,7 @@ from primr.qa.evaluator_validation import (
 )
 from primr.qa.evaluator_variants import (
     CLEAN,
+    DEFAULT_AUTHORITY_CUE,
     ERROR_CATEGORIES,
     ValidationItem,
     build_validation_items,
@@ -301,8 +302,12 @@ class TestScoring:
         frozen = _large_set(2)
         score = score_run(frozen, run_judge(frozen, lambda c, s: "abstain", judge_name="abstain"))
         assert score.categories["insufficient_support"].rate == 1.0
+        assert score.categories["authority_without_support"].rate == 1.0
         assert score.categories["wrong_number"].rate == 0.0
-        permitted = score.categories["insufficient_support"].n
+        permitted = sum(
+            score.categories[category].n
+            for category in ("insufficient_support", "authority_without_support")
+        )
         assert score.abstention_rate == pytest.approx(1 - permitted / len(frozen.items))
 
     def test_run_from_another_set_is_rejected(self):
@@ -408,7 +413,7 @@ class TestDecision:
 
 
 @settings(max_examples=50, deadline=None)
-@given(st.lists(st.sampled_from(["yes", "no", "abstain", "unparseable"]), min_size=30, max_size=30))
+@given(st.lists(st.sampled_from(["yes", "no", "abstain", "unparseable"]), min_size=33, max_size=33))
 def test_scores_stay_bounded_and_never_meet_below_minimum_sample(verdicts):
     frozen = _large_set(3, min_items_per_category=4)
     answers = dict(zip(pass_order(frozen, 0), verdicts, strict=True))
@@ -423,3 +428,26 @@ def test_scores_stay_bounded_and_never_meet_below_minimum_sample(verdicts):
     assert 0 <= score.false_alarms <= score.clean.n
     decision = decide(frozen, runs, "judge", _full_review(frozen, runs))
     assert decision.status == "insufficient_sample"
+
+
+def test_authority_cue_never_restores_the_removed_support():
+    built = _built()
+    authority = built["authority_without_support"]
+    insufficient = built["insufficient_support"]
+
+    assert authority.expected == "unsupported"
+    assert authority.source_text.startswith(DEFAULT_AUTHORITY_CUE)
+    assert authority.source_text.endswith(insufficient.source_text.strip())
+    assert "reported revenue of $107 million" not in authority.source_text
+
+
+def test_case_specific_authority_cue_is_used_and_whole_span_sources_are_skipped():
+    cue = "Filed with the regulator and certified by the CFO."
+    assert _built(authority_cue=cue)["authority_without_support"].source_text.startswith(cue)
+
+    span = "In 2025 ExampleCo unit 1 reported revenue of $107 million"
+    case = parse_clean_case(_case_payload(1, source_text=span))
+    _items, skipped = build_validation_items([case])
+    assert ("exampleco-001", "authority_without_support") in {
+        (entry.case_id, entry.category) for entry in skipped
+    }

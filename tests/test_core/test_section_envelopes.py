@@ -322,3 +322,17 @@ def test_coherence_pass_never_rewrites_an_ambiguous_envelope(monkeypatch, issue,
         [section], "original", lambda content: content + " cohered"
     )
     assert result == ("original cohered" if cohered else "original")
+
+
+def test_prose_before_a_differently_titled_heading_keeps_that_heading():
+    content = "Intro prose.\n\n## Market Position\n\nPosition text.\n\n## Risks\n\nRisk text."
+    section = _parse_single_section(content, EXEC)
+    assert section.content.startswith(
+        "Intro prose.\n\n### Market Position\n\nPosition text.\n\n### Risks\n\nRisk text."
+    )
+
+
+def test_prose_before_the_expected_heading_is_not_duplicated():
+    content = f"Intro prose.\n\n## Executive Summary\n\n{BODY}"
+    section = _parse_single_section(content, EXEC)
+    assert section.content.startswith(f"Intro prose.\n\n{BODY}")

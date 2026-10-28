@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.29
+Current State: v1.39.30
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -91,6 +91,8 @@ v1.39.27 makes `primr doctor` flag OpenAI shutdown dates the registry lacks.
 v1.39.28 opens Word reports with the title and Executive Summary, moves
 collection counts to a closing note, and repairs leaked writer section markup.
 v1.39.29 makes `AGENTS.md` the single agent guide, imported by `CLAUDE.md`.
+v1.39.30 adds an evaluator variant that separates source authority from claim
+support, closing the harness's recorded limit.
 
 **What is next and why (2026-10-27):** v1.40.0 is the only open release band,
 and its remaining blockers are evidence, not code. The evaluator validation
@@ -2232,6 +2234,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.30 | Oct 2026 | **Authority-versus-support variant.** The evaluator harness tests whether a strong trust cue makes a judge accept a claim whose support was removed; a writer subheading after opening prose is kept. |
 | 1.39.29 | Oct 2026 | **One agent guide.** `AGENTS.md` holds the development contract and `CLAUDE.md` imports it; the operator guide moves to `clients/primr-operator.md`. |
 | 1.39.28 | Oct 2026 | **Client-ready report opening.** Word reports open with the title and Executive Summary, collection counts move to a closing note, and writer section envelopes are parsed as valid, recovered, truncated, or ambiguous instead of leaking as prose. |
 | 1.39.27 | Oct 2026 | **Live retirement check.** `primr doctor` compares registered OpenAI models with the free model list's `shutdown_date` and warns on unrecorded or mismatched shutdowns; report-only. |
