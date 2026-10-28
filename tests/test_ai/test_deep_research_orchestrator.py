@@ -26,7 +26,7 @@ class TestDeepResearchOrchestratorInit:
     def test_orchestrator_has_correct_models(self):
         """Verify correct model IDs are configured."""
         assert DeepResearchOrchestrator.AGENT_ID == "deep-research-preview-04-2026"
-        assert DeepResearchOrchestrator.SECTION_MODEL == "gemini-3-flash-preview"
+        assert DeepResearchOrchestrator.SECTION_MODEL == "gemini-3.8-flash"
 
     def test_orchestrator_has_retry_config(self):
         """Verify retry configuration exists."""

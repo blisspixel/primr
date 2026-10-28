@@ -168,10 +168,10 @@ def test_current_bedrock_claude_payload_omits_invalid_sampling(model):
     assert client.converse.call_args.kwargs["inferenceConfig"] == {"maxTokens": 32}
 
 
-def test_evaluated_defaults_are_not_repointed_by_catalog_registration():
-    assert PrimrModels.FLASH_MODEL == "gemini-3-flash-preview"
-    assert PrimrModels.PRO_MODEL == "gemini-3.1-pro-preview"
-    assert PrimrModels.get_grok_models(GrokTier.MAX) == ("grok-4.5", "grok-4.5")
+def test_defaults_track_the_current_provider_flagships():
+    assert PrimrModels.FLASH_MODEL == "gemini-3.8-flash"
+    assert PrimrModels.PRO_MODEL == "gemini-4-argon"
+    assert PrimrModels.get_grok_models(GrokTier.MAX) == ("grok-4.7", "grok-4.7")
 
 
 @pytest.mark.parametrize("model", ["qwen3.8:27b", "gemma4:12b", "gemma4:26b", "gemma4:31b"])

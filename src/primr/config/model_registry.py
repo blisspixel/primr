@@ -1,6 +1,7 @@
 """Volatile model data behind the ``config.models`` selection and cost facade."""
 
 from dataclasses import replace
+from datetime import date
 from enum import Enum
 
 from primr.config.anthropic_models import build_anthropic_models
@@ -76,7 +77,9 @@ class ModelRegistry:
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=False,
-        deprecated=True,  # Retiring May 15, 2026 — use grok-4.3 instead
+        deprecated=True,
+        expiration_date=date(2026, 5, 15),
+        replacement_model="grok-4.7",
     )
 
     # GROK 4.1 FAST NON-REASONING - xAI fast model without reasoning overhead
@@ -95,7 +98,9 @@ class ModelRegistry:
         supports_thinking=False,
         supports_tools=True,
         supports_multimodal=False,
-        deprecated=True,  # Retiring May 15, 2026 — use grok-4.20-non-reasoning instead
+        deprecated=True,
+        expiration_date=date(2026, 5, 15),
+        replacement_model="grok-4.20-non-reasoning",
     )
 
     # GROK 4.3 - xAI value reasoning model (released 2026-04-30)
@@ -179,7 +184,9 @@ class ModelRegistry:
         tier_threshold_inclusive=True,
     )
 
-    # Grok 4.7 is selectable; the MAX routing pin remains evaluated Grok 4.5.
+    # GROK 4.7 - xAI current flagship (docs.x.ai, checked 2026-10-28)
+    # USE FOR: Default reasoning in every tier. Same rates, 500k context, and
+    # cached input as 4.6; reasoning_effort low/medium/high/xhigh (default high).
     GROK_4_7 = replace(GROK_4_6, name="grok-4.7", display_name="Grok 4.7")
 
     # GROK 4.20 REASONING - dated canonical ID retained for compatibility
@@ -241,6 +248,7 @@ class ModelRegistry:
     OPENAI_GPT_6_ASTRA = _OPENAI_MODELS["OPENAI_GPT_6_ASTRA"]
     OPENAI_GPT_6_SOL = _OPENAI_MODELS["OPENAI_GPT_6_SOL"]
     OPENAI_GPT_6_1_SOL = _OPENAI_MODELS["OPENAI_GPT_6_1_SOL"]
+    OPENAI_GPT_6_1_TERRA = _OPENAI_MODELS["OPENAI_GPT_6_1_TERRA"]
     OPENAI_GPT_6_LUNA = _OPENAI_MODELS["OPENAI_GPT_6_LUNA"]
     OPENAI_MODELS = tuple(_OPENAI_MODELS.values())
     OPENAI_GPT_5_6_SOL = _OPENAI_MODELS["OPENAI_GPT_5_6_SOL"]
@@ -260,6 +268,15 @@ class ModelRegistry:
     OPENROUTER_DEEPSEEK_V3_2 = _OPENROUTER_MODELS[2]
     OPENROUTER_GEMINI_3_1_FLASH_LITE = next(
         model for model in _OPENROUTER_MODELS if model.name == "google/gemini-3.1-flash-lite"
+    )
+    OPENROUTER_GEMINI_3_5_FLASH_LITE = next(
+        model for model in _OPENROUTER_MODELS if model.name == "google/gemini-3.5-flash-lite"
+    )
+    OPENROUTER_GPT_6_LUNA = next(
+        model for model in _OPENROUTER_MODELS if model.name == "openai/gpt-6-luna"
+    )
+    OPENROUTER_DEEPSEEK_V4_1_FLASH_1017 = next(
+        model for model in _OPENROUTER_MODELS if model.name == "deepseek/deepseek-v4.1-flash-1017"
     )
 
     # Direct Anthropic records preserve the evaluated routing constants.
@@ -509,5 +526,5 @@ class ModelRegistry:
 
 # Runtime defaults live with the registry data so settings and pricing can
 # depend on one leaf module without depending on each other.
-DEFAULT_FLASH_MODEL = ModelRegistry.GEMINI_3_FLASH.name
-DEFAULT_PRO_MODEL = ModelRegistry.GEMINI_3_1_PRO.name
+DEFAULT_FLASH_MODEL = ModelRegistry.GEMINI_3_8_FLASH.name
+DEFAULT_PRO_MODEL = ModelRegistry.GEMINI_4_ARGON.name

@@ -119,7 +119,7 @@ class TestMasterArchitect:
 
     def test_initialization(self, architect: MasterArchitect) -> None:
         """Test MasterArchitect initialization."""
-        assert architect.PLANNING_MODEL == "gemini-3-flash-preview"
+        assert architect.PLANNING_MODEL == "gemini-3.8-flash"
 
     def test_get_chapter_titles(self, architect: MasterArchitect) -> None:
         """Test getting default chapter titles."""

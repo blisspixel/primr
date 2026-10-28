@@ -130,8 +130,8 @@ in for it, and no paid run is authorized by default.
    promotion decision. Preserve preview status when evidence is inconclusive.
 
 Maintenance that may ship as patch releases meanwhile: client-facing report
-polish found in real output, the OpenRouter `openai/gpt-4.1-mini` recheck
-before OpenAI removes it on 2027-01-14, and reviewed dependency updates.
+polish found in real output, a model-currency recheck against the provider
+catalogs before each release, and reviewed dependency updates.
 
 The [evaluation plan](design/eval-plan.md) owns measurement design. These steps
 do not authorize paid runs or create another active release card.

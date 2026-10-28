@@ -55,10 +55,10 @@ class LLMRole(str, Enum):
     """Pipeline role hint used to select the fallback chain.
 
     REASONING — workbook generation, cross-validation, gap analysis. The
-    primary slot is Grok 4.3 (or whatever the active recipe overrides
-    reasoning to); fallback runs Claude Sonnet / GPT-5.x / Gemini Flash.
+    primary slot is Grok 4.7 (or whatever the active recipe overrides
+    reasoning to); fallback runs Claude Sonnet / GPT-6.1 Terra / Gemini Flash.
     WRITING — bulk section writing, strategy prose. Cheaper writer-class
-    models, falls back to gpt-5.4-mini / Gemini Flash.
+    models, falls back to GPT-6 Luna / Gemini Flash.
     PREMIUM — Deep Research style work; falls back through the largest
     models because the user explicitly accepted premium-tier cost.
     """

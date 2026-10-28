@@ -232,7 +232,7 @@ class TestPreflightValidator:
         from primr.ai.preflight import PreflightValidator
 
         assert PreflightValidator.DEEP_RESEARCH_AGENT == "deep-research-preview-04-2026"
-        assert PreflightValidator.SECTION_MODEL == "gemini-3-flash-preview"
+        assert PreflightValidator.SECTION_MODEL == "gemini-3.8-flash"
 
     def test_preflight_does_not_publish_stale_static_estimates(self):
         from primr.ai.preflight import PreflightValidator

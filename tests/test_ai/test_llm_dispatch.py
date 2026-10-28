@@ -103,14 +103,14 @@ class TestWritingTierResolution:
             )
 
     def test_section_writing_gemini_wins(self) -> None:
-        """v1.24.0 default: gemini-3.1-flash-lite for section writing when Gemini key set."""
+        """v1.24.0 default: Gemini 3.5 Flash-Lite for section writing when Gemini key set."""
         from primr.config.models import ModelRegistry
 
         env = _scrubbed_env(XAI_API_KEY="test-xai", GEMINI_API_KEY="test-gemini")
         with patch.dict("os.environ", env, clear=True):
             assert (
                 llm_module._get_model_for_type("section_writing")
-                == ModelRegistry.GEMINI_3_1_FLASH_LITE.name
+                == ModelRegistry.GEMINI_3_5_FLASH_LITE.name
             )
 
     def test_report_xai_only_path(self) -> None:
@@ -130,12 +130,12 @@ class TestReasoningTierResolution:
     def test_analysis_routes_to_grok_43_with_xai_key(self) -> None:
         env = _scrubbed_env(XAI_API_KEY="test-xai")
         with patch.dict("os.environ", env, clear=True):
-            assert llm_module._get_model_for_type("analysis") == PrimrModels.GROK_MODEL_43
+            assert llm_module._get_model_for_type("analysis") == PrimrModels.GROK_MODEL
 
     def test_reasoning_routes_to_grok_43_with_xai_key(self) -> None:
         env = _scrubbed_env(XAI_API_KEY="test-xai")
         with patch.dict("os.environ", env, clear=True):
-            assert llm_module._get_model_for_type("reasoning") == PrimrModels.GROK_MODEL_43
+            assert llm_module._get_model_for_type("reasoning") == PrimrModels.GROK_MODEL
 
     def test_reasoning_falls_back_to_pro_model_without_xai_key(self) -> None:
         env = _scrubbed_env()
@@ -202,7 +202,7 @@ class TestLLMDispatch:
         assert result == "grok response"
         mock_grok.assert_called_once()
         kwargs = mock_grok.call_args.kwargs
-        assert kwargs["model"] == PrimrModels.GROK_MODEL_43
+        assert kwargs["model"] == PrimrModels.GROK_MODEL
         mock_gemini_client.assert_not_called()
 
     def test_explicit_model_override_wins_over_legacy_model_type(self) -> None:

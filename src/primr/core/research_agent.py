@@ -1823,7 +1823,7 @@ def perform_fast_research(
     write_txt: bool = True,
 ) -> str | None:
     """
-    Fast research mode using Grok 4.3 hybrid with accordion-style batch writing.
+    Fast research mode using Grok 4.7 hybrid with accordion-style batch writing.
 
     Pipeline:
     1. Data collection: scrape 50 pages + 10 search queries via Gemini Flash
@@ -2501,7 +2501,7 @@ def perform_research(
             ai_strategy=ai_strategy,
         )
 
-        # Fast mode: Grok 4.3 hybrid accordion batch pipeline
+        # Fast mode: Grok 4.7 hybrid accordion batch pipeline
         # Activated by: explicit --fast, or auto-detect (complete mode + XAI_API_KEY + not premium)
         if runtime_plan.use_fast and not premium_mode:
             _update_run_state(folder_path, current_phase="fast_mode", status="running")

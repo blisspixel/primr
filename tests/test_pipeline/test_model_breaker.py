@@ -7,7 +7,6 @@ Unit tests for model circuit breaker, fallback chains, and health logging.
 
 from __future__ import annotations
 
-from primr.config.model_registry import ModelRegistry
 from primr.config.models import PrimrModels
 from primr.pipeline.model_breaker import (
     ANALYSIS_FALLBACK_CHAIN,
@@ -32,13 +31,12 @@ class TestFallbackChainOrder:
     """Test that fallback chains are defined in the correct order."""
 
     def test_analysis_fallback_chain_order(self) -> None:
-        """Analysis: 4.3 (default) -> 4.5 (latest) -> 4.20 -> Sonnet -> GPT-5.4 -> Flash."""
+        """Analysis: Grok 4.7 -> Grok 4.3 -> Sonnet 5.5 -> GPT-6.1 Terra -> Flash."""
         assert ANALYSIS_FALLBACK_CHAIN.models == (
-            PrimrModels.GROK_MODEL_43,
-            PrimrModels.GROK_MODEL_45,
-            PrimrModels.GROK_MODEL_420,
-            ModelRegistry.ANTHROPIC_SONNET.name,
-            "gpt-5.4",
+            "grok-4.7",
+            "grok-4.3",
+            "claude-sonnet-5-5",
+            "gpt-6.1-terra",
             PrimrModels.FLASH_MODEL,
         )
 
@@ -47,13 +45,12 @@ class TestFallbackChainOrder:
         assert ANALYSIS_FALLBACK_CHAIN.name == "analysis"
 
     def test_premium_fallback_chain_order(self) -> None:
-        """Premium: Gemini Pro -> Opus -> GPT-5.5 -> Grok 4.5 -> Grok 4.3."""
+        """Premium: Gemini 4 Argon -> Opus 5.5 -> GPT-6.1 Sol -> Grok 4.7."""
         assert PREMIUM_FALLBACK_CHAIN.models == (
-            PrimrModels.PRO_MODEL,
-            "claude-opus-4-8",
-            "gpt-5.5",
-            PrimrModels.GROK_MODEL_45,
-            PrimrModels.GROK_MODEL_43,
+            "gemini-4-argon",
+            "claude-opus-5-5",
+            "gpt-6.1-sol",
+            "grok-4.7",
         )
 
     def test_premium_fallback_chain_name(self) -> None:
@@ -61,10 +58,10 @@ class TestFallbackChainOrder:
         assert PREMIUM_FALLBACK_CHAIN.name == "premium"
 
     def test_utility_fallback_chain_order(self) -> None:
-        """Utility chain: grok-4.20-non-reasoning -> gpt-5.4-mini -> Gemini Flash."""
+        """Utility chain: grok-4.20-non-reasoning -> GPT-6 Luna -> Gemini Flash."""
         assert UTILITY_FALLBACK_CHAIN.models == (
             "grok-4.20-non-reasoning",
-            "gpt-5.4-mini",
+            "gpt-6-luna",
             PrimrModels.FLASH_MODEL,
         )
 

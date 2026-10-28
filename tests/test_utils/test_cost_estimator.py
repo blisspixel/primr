@@ -444,12 +444,13 @@ class TestPricingSingleSourceOfTruth:
 
     def test_cost_estimator_constants_match_model_registry(self):
         """Backward-compat aliases in cost_estimator should match models.py."""
-        assert ModelRegistry.GEMINI_3_PRO.cost_per_1m_input_tokens == GEMINI_3_PRO_INPUT_PRICE_SMALL
-        assert (
-            ModelRegistry.GEMINI_3_PRO.cost_per_1m_output_tokens == GEMINI_3_PRO_OUTPUT_PRICE_SMALL
+        input_rate, output_rate = PrimrModels.get_price(PrimrModels.PRO_MODEL)
+        assert input_rate == GEMINI_3_PRO_INPUT_PRICE_SMALL
+        assert output_rate == GEMINI_3_PRO_OUTPUT_PRICE_SMALL
+        assert PrimrModels.get_price(PrimrModels.FLASH_MODEL) == (
+            GEMINI_3_FLASH_INPUT_PRICE,
+            GEMINI_3_FLASH_OUTPUT_PRICE,
         )
-        assert ModelRegistry.GEMINI_3_FLASH.cost_per_1m_input_tokens == GEMINI_3_FLASH_INPUT_PRICE
-        assert ModelRegistry.GEMINI_3_FLASH.cost_per_1m_output_tokens == GEMINI_3_FLASH_OUTPUT_PRICE
 
     def test_sonnet_5_tokenizer_safety_factor(self):
         """Sonnet 5 estimates should account for the documented tokenizer expansion."""
@@ -619,17 +620,29 @@ class TestTieredPricing:
             monkeypatch.delenv("AI_REASONING_MODEL", raising=False)
             reset_settings()
 
-    def test_estimate_cost_default_model_has_tiered_note(self):
-        """estimate_cost with default 3.1 Pro should have tiered pricing note."""
+    def test_estimate_cost_tiered_model_has_tiered_note(self, monkeypatch):
+        """A tiered Pro model gets the conservative tiered-pricing note."""
         from primr.config.settings import reset_settings
 
+        monkeypatch.setenv("AI_REASONING_MODEL", "gemini-3.1-pro-preview")
         reset_settings()
-
-        estimate = estimate_cost("structured", use_historical=False)
+        try:
+            estimate = estimate_cost("structured", use_historical=False)
+        finally:
+            monkeypatch.delenv("AI_REASONING_MODEL", raising=False)
+            reset_settings()
 
         tiered_notes = [n for n in estimate.notes if "tiered pricing" in n]
         assert len(tiered_notes) == 1
         assert "conservative" in tiered_notes[0].lower()
+
+    def test_estimate_cost_default_model_has_no_tiered_note(self):
+        """Gemini 4 Argon prices one flat tier across its whole window."""
+        from primr.config.settings import reset_settings
+
+        reset_settings()
+        estimate = estimate_cost("structured", use_historical=False)
+        assert not [n for n in estimate.notes if "tiered pricing" in n]
 
     def test_estimate_cost_flat_model_no_tiered_note(self, monkeypatch):
         """estimate_cost with flat-pricing 3.0 Pro should have no tiered pricing note."""
@@ -722,7 +735,7 @@ class TestFastModeAIStrategy:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False)
-        assert estimate.mode == "full (Grok 4.3 hybrid)"
+        assert estimate.mode == "full (Grok 4.7 hybrid)"
 
     def test_fast_mode_explicit_fast_tier_label(self, monkeypatch):
         """Fast mode with explicit fast tier should report 'full (Grok 4.3 (low-effort))'."""
@@ -731,7 +744,7 @@ class TestFastModeAIStrategy:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="fast")
-        assert estimate.mode == "full (Grok 4.3 (low-effort))"
+        assert estimate.mode == "full (Grok 4.7 (low-effort))"
 
 
 class TestGrokTier:
@@ -746,11 +759,11 @@ class TestGrokTier:
         assert GrokTier.MAX.value == "max"
 
     def test_get_grok_models_fast(self):
-        """Fast tier returns grok-4.3 reasoning + grok-4.20-non-reasoning writing."""
+        """Fast tier returns grok-4.7 reasoning + grok-4.20-non-reasoning writing."""
         from primr.config.models import GrokTier
 
         reasoning, writing = PrimrModels.get_grok_models(GrokTier.FAST)
-        assert reasoning == "grok-4.3"
+        assert reasoning == "grok-4.7"
         assert writing == "grok-4.20-non-reasoning"
 
     def test_get_grok_models_hybrid(self):
@@ -758,16 +771,16 @@ class TestGrokTier:
         from primr.config.models import GrokTier
 
         reasoning, writing = PrimrModels.get_grok_models(GrokTier.HYBRID)
-        assert reasoning == "grok-4.3"
+        assert reasoning == "grok-4.7"
         assert writing == "grok-4.20-non-reasoning"
 
     def test_get_grok_models_max(self):
-        """Max tier returns the version-pinned opt-in Grok 4.5 pair."""
+        """Max tier returns the version-pinned flagship Grok 4.7 pair."""
         from primr.config.models import GrokTier
 
         reasoning, writing = PrimrModels.get_grok_models(GrokTier.MAX)
-        assert reasoning == "grok-4.5"
-        assert writing == "grok-4.5"
+        assert reasoning == "grok-4.7"
+        assert writing == "grok-4.7"
 
     def test_grok_43_pricing(self):
         """Grok 4.3 standard pricing: $1.25/$2.50, cache $0.20."""
@@ -972,7 +985,7 @@ class TestGrokTier:
         estimate = estimate_cost(
             "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
         )
-        assert estimate.mode == "full (Grok 4.3 hybrid)"
+        assert estimate.mode == "full (Grok 4.7 hybrid)"
 
     def test_hybrid_tier_mode_label_with_gemini(self, monkeypatch):
         """Hybrid tier estimate should name Gemini when routed through Gemini."""
@@ -988,17 +1001,17 @@ class TestGrokTier:
     def test_max_tier_mode_label(self):
         """Max tier estimate should have correct mode label."""
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")
-        assert estimate.mode == "full (Grok 4.5 max)"
+        assert estimate.mode == "full (Grok 4.7 max)"
 
     def test_fast_tier_cost_range_xai_only(self, monkeypatch):
-        """Fast tier in legacy XAI-only mode: grok-4.3 reasoning + grok-4.20-nr writing,
-        currently $5.0925 on the static token plan."""
+        """Fast tier in legacy XAI-only mode: grok-4.7 reasoning + grok-4.20-nr writing,
+        currently $5.185 on the static token plan."""
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="fast")
-        assert est.total_cost == pytest.approx(5.0925)
+        assert est.total_cost == pytest.approx(5.185)
 
     def test_hybrid_tier_cost_range_xai_only(self, monkeypatch):
         """Hybrid xAI-only uses the same model pair and static cost as fast."""
@@ -1007,7 +1020,7 @@ class TestGrokTier:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="hybrid")
-        assert est.total_cost == pytest.approx(5.0925)
+        assert est.total_cost == pytest.approx(5.185)
 
     def test_hybrid_tier_cost_range_with_gemini(self, monkeypatch):
         """Hybrid tier with GEMINI_API_KEY set: writing routed to gemini-3.1-flash-lite,
@@ -1031,9 +1044,9 @@ class TestGrokTier:
         notes = " ".join(est.notes)
         assert est.mode == "full (OpenAI routed)"
         assert est.deep_research_cost == 0.0
-        assert "gpt-5.6-terra reasoning" in notes
-        assert "gpt-5.4-nano writing" in notes
-        assert "gpt-5.4-nano utility" in notes
+        assert "gpt-6.1-terra reasoning" in notes
+        assert "gpt-6-luna writing" in notes
+        assert "gpt-6-luna utility" in notes
         assert "Gemini 3.1 Pro" not in notes
 
     def test_standard_estimate_routes_anthropic_only(self, monkeypatch):
@@ -1048,9 +1061,9 @@ class TestGrokTier:
         notes = " ".join(est.notes)
         assert est.mode == "full (Anthropic routed)"
         assert est.deep_research_cost == 0.0
-        assert f"{ModelRegistry.ANTHROPIC_SONNET.name} reasoning" in notes
-        assert "claude-haiku-4-5 writing" in notes
-        assert "claude-haiku-4-5 utility" in notes
+        assert f"{ModelRegistry.ANTHROPIC_SONNET_5_5.name} reasoning" in notes
+        assert "claude-haiku-5-5 writing" in notes
+        assert "claude-haiku-5-5 utility" in notes
         assert "Claude token estimates include a 30% tokenizer safety factor" in notes
 
     def test_standard_estimate_routes_openrouter_only_after_explicit_opt_in(self, monkeypatch):
@@ -1070,10 +1083,10 @@ class TestGrokTier:
 
         notes = " ".join(est.notes)
         assert est.mode == "full (OpenRouter routed preview)"
-        assert est.total_cost == pytest.approx(1.0667)
-        assert "deepseek/deepseek-v3.2 reasoning" in notes
-        assert "openai/gpt-4.1-mini writing" in notes
-        assert "google/gemini-3.1-flash-lite utility" in notes
+        assert est.total_cost == pytest.approx(0.670625)
+        assert "deepseek/deepseek-v4.1-flash-1017 reasoning" in notes
+        assert "openai/gpt-6-luna writing" in notes
+        assert "google/gemini-3.5-flash-lite utility" in notes
         assert "price ceiling" in notes
         assert "defaults to ZDR" in notes
 

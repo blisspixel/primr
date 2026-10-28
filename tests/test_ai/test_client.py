@@ -13,6 +13,7 @@ from primr.ai.client import (
     llm_fast,
     reset_client,
 )
+from primr.config.models import PrimrModels
 from primr.utils.errors import AIError
 
 
@@ -366,9 +367,11 @@ class TestUsageTracking:
         assert summary["total_input_tokens"] == 1_000_000
         assert summary["total_output_tokens"] == 500_000
         assert summary["total_tokens"] == 1_500_000
-        assert summary["input_cost"] == 2.00  # $2 per 1M input
-        assert summary["output_cost"] == 6.00  # $12 per 1M output * 0.5M
-        assert summary["total_cost"] == 8.00
+        # The fallback quotes the active Pro model at today's scheduled rates.
+        input_rate, output_rate = PrimrModels.get_price(PrimrModels.PRO_MODEL)
+        assert summary["input_cost"] == pytest.approx(input_rate)
+        assert summary["output_cost"] == pytest.approx(output_rate * 0.5)
+        assert summary["total_cost"] == pytest.approx(input_rate + output_rate * 0.5)
 
     def test_get_usage_summary_with_per_call_cost(self, mock_genai_client, mock_settings):
         """Per-call accumulated cost should be used when available."""

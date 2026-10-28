@@ -138,6 +138,7 @@ def build_openai_models() -> dict[str, ModelConfig]:
         ("OPENAI_GPT_6_ASTRA", "gpt-6-astra", "GPT-6 Astra", 10.0, 50.0, 1.0),
         ("OPENAI_GPT_6_SOL", "gpt-6-sol", "GPT-6 Sol", 2.0, 10.0, 0.2),
         ("OPENAI_GPT_6_1_SOL", "gpt-6.1-sol", "GPT-6.1 Sol", 2.0, 10.0, 0.1),
+        ("OPENAI_GPT_6_1_TERRA", "gpt-6.1-terra", "GPT-6.1 Terra", 1.0, 5.0, 0.05),
         ("OPENAI_GPT_6_LUNA", "gpt-6-luna", "GPT-6 Luna", 0.1, 0.5, 0.01),
     ):
         models[key] = ModelConfig(
@@ -173,6 +174,7 @@ OPENAI_PAID_CACHE_WRITE_MODELS = frozenset(
         "gpt-6-astra",
         "gpt-6-sol",
         "gpt-6.1-sol",
+        "gpt-6.1-terra",
         "gpt-6-luna",
     }
 )

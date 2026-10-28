@@ -711,7 +711,7 @@ Multi-turn Grok session that preserves message history across pipeline stages, s
 from primr.ai.grok_client import ContinuousReasoningSession
 
 session = ContinuousReasoningSession(
-    model="grok-4.3",
+    model="grok-4.7",
     system_prompt="You are a senior strategic analyst...",
 )
 workbook = session.send(workbook_prompt, max_tokens=18_000, temperature=0.5)
@@ -1005,7 +1005,7 @@ The resilience layer sits between the pipeline orchestrator (`research_agent.py`
 
 - **Recovery Table** (`recovery.py`): Declarative mapping from each of the six pipeline stages to its recovery hierarchy. Pure data, serializable to JSON. Dry-run shows a one-line stage count by default; `--verbose` lists actions and the full serialized table.
 - **Stage Classifier** (`stages.py`): Static foreground/background classification. Foreground: scraping, external search, analysis, section writing. Background: cross-validation, strategy generation.
-- **Model Circuit Breaker** (`model_breaker.py`): Per-model health tracking with provider-aware fallback chains (e.g., Grok 4.3 → Grok 4.5 → Grok 4.20 → Gemini Flash). Verifies API key availability before cross-provider fallback.
+- **Model Circuit Breaker** (`model_breaker.py`): Per-model health tracking with provider-aware fallback chains (e.g., Grok 4.7 → Grok 4.3 → Claude Sonnet 5.5 → GPT-6.1 Terra → Gemini Flash). Verifies API key availability before cross-provider fallback.
 - **Recovery Executor** (`executor.py`): Integration glue that wraps stage callables, consults the classifier and recovery table on failure, and logs all recovery events to `_run_state.json`.
 - **Integration Helpers** (`integration.py`): Thin wrappers connecting the executor to each pipeline stage at the appropriate granularity (per-page for scraping, per-section for writing, per-stage for analysis).
 
@@ -1441,31 +1441,31 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 
 | Model | Role | Pricing (per 1M tokens) |
 |-------|------|-------------------------|
-| Grok 4.3 | Default hybrid/fast: reasoning stages (analysis, workbook, cross-validation) | $1.25/$2.50 (<200k) · $2.50/$5.00 (>=200k) · $0.20 cached below the boundary |
-| Grok 4.5 | Version-pinned opt-in `--grok-tier max`; analysis fallback after 4.3 | $2/$6 (<200k) · $4/$12 (>=200k) · $0.30 cached below the boundary |
+| Grok 4.7 | Default reasoning in every tier (analysis, workbook, cross-validation); `--grok-tier max` also writes with it | $2/$6 (<200k) · $4/$12 (>=200k) · $0.50 cached below the boundary |
+| Grok 4.3 | 1M-context analysis fallback after 4.7 | $1.25/$2.50 (<200k) · $2.50/$5.00 (>=200k) · $0.20 cached below the boundary |
 | Grok 4.20 non-reasoning | XAI-only utility and writing fallback when Gemini is not configured | See registry / estimator |
 | Grok 4.20 reasoning | Legacy — resume of in-flight runs and deeper analysis fallback | See registry / estimator |
-| Gemini 3.1 Flash-Lite | Default routed writing and utility path when `XAI_API_KEY` and `GEMINI_API_KEY` are both configured | See provider pricing in the estimator |
-| Gemini 3.1 Pro | Registered PRO-tier and evaluation/strategy option; not the active Premium section writer | $2/$12 (≤200k) · $4/$18 (>200k) |
+| Gemini 3.5 Flash-Lite | Default routed writing path when `GEMINI_API_KEY` is configured | $0.30/$2.50 |
+| Gemini 3.8 Flash | Default utility (Flash) model | $0.75/$3.75; $1.50/$7.50 from 2027-01-01 |
+| Gemini 4 Argon | Default PRO-tier model | $2/$10; $4/$20 from 2026-12-01 |
 | Configured Gemini Flash | Active Deep/Premium sequential section writer | See provider pricing in the estimator |
 | Deep Research Agent | `--mode deep` and `--premium`: autonomous dossier research | ~$2.50 planning estimate per standard task; actual token and tool billing varies |
 
-### Why Grok 4.3 is the default
+### Why the defaults are the current flagships
 
 Primr originally ran everything through Google's Deep Research API plus Gemini
 3.1 Pro. That path remains available via `--premium` when maximum research depth
-justifies the cost. The measured default uses **Grok 4.3** for reasoning-heavy
-stages and **Gemini 3.1 Flash-Lite** for bulk writing when both keys are set.
-The current static plan is about **$0.76** for the base Strategic Overview and
-**$0.89** when the default AI Strategy is included.
+justifies the cost. Since 2026-10-28 the defaults track each provider's current
+flagship (see [`design/grok-default-routing.md`](design/grok-default-routing.md)):
+**Grok 4.7** for reasoning-heavy stages and **Gemini 3.5 Flash-Lite** for bulk
+writing when both keys are set. The current static plan is about **$1.05** for
+the base Strategic Overview and **$1.24** when the default AI Strategy is
+included. The earlier Grok 4.3 recipe measured $0.79 in the v1.24.0 eval.
 
-**Grok 4.5** is registered and used for `--grok-tier max` (and as the next
-analysis fallback if 4.3 is unhealthy). It is a higher-cost opt-in with a
-smaller context window than 4.3. The current static MAX plan is about **$8.53**
-for the base report or **$9.93** with the default AI Strategy, not the
-sub-dollar default. Promoting another model to hybrid default requires an eval
-gate; see
-[`design/grok-default-routing.md`](design/grok-default-routing.md).
+`--grok-tier max` routes writing through Grok 4.7 as well as reasoning. It is
+a higher-cost opt-in: the current static MAX plan is about **$8.53** for the
+base report or **$9.93** with the default AI Strategy. Grok 4.7 has a 500k
+context window, so Grok 4.3 (1M) is the next analysis fallback.
 
 XAI-only setups still work with the legacy writing/utility fallback path.
 OpenAI, Anthropic, and local OpenAI-compatible providers remain available for

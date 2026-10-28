@@ -73,12 +73,11 @@ class QuotaStatus:
 ANALYSIS_FALLBACK_CHAIN = FallbackChain(
     name="analysis",
     models=(
-        PrimrModels.GROK_MODEL_43,  # grok-4.3 (hybrid default primary)
-        PrimrModels.GROK_MODEL_45,  # grok-4.5 (latest flagship if 4.3 unhealthy)
-        PrimrModels.GROK_MODEL_420,  # grok-4.20 reasoning (legacy)
-        ModelRegistry.ANTHROPIC_SONNET.name,  # Anthropic cross-provider fallback
-        "gpt-5.4",  # OpenAI cross-provider fallback
-        PrimrModels.FLASH_MODEL,  # gemini-3-flash (last resort)
+        PrimrModels.GROK_MODEL,  # grok-4.7 (default primary)
+        PrimrModels.GROK_MODEL_43,  # grok-4.3 (1M-context xAI fallback)
+        ModelRegistry.ANTHROPIC_SONNET_5_5.name,  # Anthropic cross-provider fallback
+        ModelRegistry.OPENAI_GPT_6_1_TERRA.name,  # OpenAI cross-provider fallback
+        PrimrModels.FLASH_MODEL,  # gemini-3.8-flash (last resort)
     ),
 )
 
@@ -86,7 +85,7 @@ UTILITY_FALLBACK_CHAIN = FallbackChain(
     name="utility",
     models=(
         PrimrModels.GROK_MODEL_WRITING,  # Primary utility (xAI 4.20 non-reasoning)
-        "gpt-5.4-mini",  # OpenAI fallback
+        ModelRegistry.OPENAI_GPT_6_LUNA.name,  # OpenAI fallback
         PrimrModels.FLASH_MODEL,  # Gemini fallback
     ),
 )
@@ -94,11 +93,10 @@ UTILITY_FALLBACK_CHAIN = FallbackChain(
 PREMIUM_FALLBACK_CHAIN = FallbackChain(
     name="premium",
     models=(
-        PrimrModels.PRO_MODEL,  # gemini-3.1-pro (primary)
-        "claude-opus-4-8",  # Anthropic fallback
-        "gpt-5.5",  # OpenAI fallback
-        PrimrModels.GROK_MODEL_45,  # xAI latest flagship fallback
-        PrimrModels.GROK_MODEL_43,  # xAI value fallback
+        PrimrModels.PRO_MODEL,  # gemini-4-argon (primary)
+        ModelRegistry.ANTHROPIC_OPUS_5_5.name,  # Anthropic fallback
+        ModelRegistry.OPENAI_GPT_6_1_SOL.name,  # OpenAI fallback
+        PrimrModels.GROK_MODEL,  # xAI flagship fallback
     ),
 )
 

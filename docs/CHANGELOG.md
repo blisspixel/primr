@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Default models now track each provider's current flagship, checked against
+  the xAI, Gemini, OpenAI, and Claude catalogs and the OpenRouter models API
+  on 2026-10-28. Grok 4.7 reasons in every tier (MAX also writes with it);
+  Gemini 3.8 Flash and Gemini 4 Argon replace the Gemini 3 Flash and 3.1 Pro
+  previews; Gemini writing uses 3.5 Flash-Lite; OpenAI-only runs use GPT-6
+  Luna and the new GPT-6.1 Terra; Anthropic-only runs use Claude Haiku 5.5
+  and Sonnet 5.5; OpenRouter routes use Gemini 3.5 Flash-Lite, GPT-6 Luna,
+  and DeepSeek V4.1 Flash; the LLM judge default is Grok 4.7. Fallback chains
+  follow the same models. This is an owner decision, not a measured quality
+  promotion.
+- The default xAI plus Gemini estimate rises from about $0.89 to about $1.24
+  with the AI Strategy (base report $0.76 to $1.05). OpenRouter defaults fall
+  from about $1.07 to $0.67 and Anthropic-only from $4.71 to $3.20. Always
+  use `--dry-run` for the live quote.
+
+### Added
+
+- GPT-6.1 Terra is registered directly and on OpenRouter with its standard,
+  long-context, cached, and cache-write rates.
+- Estimates disclose scheduled provider price changes. Gemini 4 Argon rises
+  to $4/$20 on 2026-12-01 and Gemini 3.8 Flash to $1.50/$7.50 on 2027-01-01,
+  so a quote approved before those dates names the new rates.
+- A routing test fails when any provider key combination sends a default role
+  to a model outside the current flagship set.
+
+### Fixed
+
+- The OpenRouter `openai/gpt-4.1-mini` route is unavailable ahead of OpenAI's
+  2027-01-14 shutdown and names `openai/gpt-6-luna`; Grok 4.1 Fast records
+  its 2026-05-15 retirement. Both stay priced for historical accounting.
+- Usage summaries, QA model metadata, and capability-routing price hints use
+  date-effective rates instead of base rates, and QA metadata now describes
+  the configured models instead of Gemini 3 Flash and 3 Pro.
+- The CLI help cost guidepost is now checked against the live estimator.
+
 ## [1.39.30] - 2026-10-28
 
 ### Added

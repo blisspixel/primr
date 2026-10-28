@@ -81,7 +81,9 @@ class TestModelResolution:
         setup = _resolve()
         assert setup.grok_reasoning == "recipe-reasoner-model"
 
-    def test_fast_tier_uses_low_reasoning_effort(self):
+    def test_fast_tier_uses_low_reasoning_effort(self, monkeypatch):
+        # Grok reasoning only routes when an xAI key is present.
+        monkeypatch.setenv("XAI_API_KEY", "test-xai")
         assert _resolve(grok_tier="fast").grok_reasoning_effort == "low"
         assert _resolve(grok_tier="hybrid").grok_reasoning_effort is None
 

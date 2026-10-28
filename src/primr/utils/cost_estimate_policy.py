@@ -8,6 +8,7 @@ making the same wording reusable across standard and fast estimate paths.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import date
 
 
 def deep_path_hiring_overhead(mode: str) -> tuple[int, int, list[str]]:
@@ -69,3 +70,30 @@ def cache_write_estimate_notes(model_names: Sequence[str | None]) -> list[str]:
             "Input estimates include published cache-write price ceilings; actual provider billing can be lower."
         ]
     return []
+
+
+def scheduled_price_change_notes(
+    model_names: Sequence[str | None], today: date | None = None
+) -> list[str]:
+    """Disclose published rate changes that a later run would be billed at."""
+    from primr.config.models import PrimrModels
+
+    effective = today or date.today()
+    notes: list[str] = []
+    for name in dict.fromkeys(name for name in model_names if name is not None):
+        config = PrimrModels.get_model_config(name)
+        if (
+            config is None
+            or config.price_change_date is None
+            or config.price_change_date <= effective
+            or config.cost_per_1m_input_tokens_after is None
+            or config.cost_per_1m_output_tokens_after is None
+        ):
+            continue
+        notes.append(
+            f"{config.display_name} rates change on {config.price_change_date.isoformat()} "
+            f"to ${config.cost_per_1m_input_tokens_after:g}/"
+            f"${config.cost_per_1m_output_tokens_after:g} per 1M tokens; "
+            "this estimate uses today's rates, so re-estimate after that date."
+        )
+    return notes

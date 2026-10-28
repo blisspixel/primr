@@ -177,8 +177,11 @@ Primary sources are linked inline with the integration facts they support:
   `gpt-image-2.5-flare` (or `-sunburst`) as the named substitutes. OpenAI-only
   reasoning now routes to Terra and icon generation requests Flare; o4-mini
   stays priced for history. gpt-5.4-nano shuts down on 2027-04-01 (replacement
-  gpt-6-luna) and gpt-4.1-mini on 2027-01-14. The gateway's
-  `openai/gpt-4.1-mini` route stays registered while OpenRouter lists it.
+  gpt-6-luna) and gpt-4.1-mini on 2027-01-14. On 2026-10-28 the gateway's
+  `openai/gpt-4.1-mini` route was marked unavailable ahead of that date and
+  stays priced for history; `openai/gpt-6-luna` replaced it as the default
+  OpenRouter writer. GPT-6.1 Terra ($1/$5, cached $0.05; $2/$7.50 above 272K)
+  is registered directly and on the gateway and is the OpenAI-only reasoner.
 - `primr doctor` compares every registered OpenAI ID and the image default
   with the optional `shutdown_date` (`YYYY-MM-DD` or null) on the free
   [List models](https://developers.openai.com/api/docs/api-reference/models)
@@ -244,7 +247,8 @@ Primary sources are linked inline with the integration facts they support:
 [Grok 4.7](https://docs.x.ai/developers/models/grok-4.7) is the current selectable
 flagship, with a 500K context. Standard input/output/cache rates are $2/$6/$0.50
 below 200,000 prompt tokens and $4/$12/$1 at or above 200,000, applied to the full
-request. Existing Grok 4.3 and 4.5 production pins remain evaluated defaults.
+request. Since 2026-10-28 it is the default Grok reasoner in every tier; see
+[`grok-default-routing.md`](grok-default-routing.md).
 
 The [release notes](https://docs.x.ai/developers/release-notes) retire
 `grok-imagine-image-quality` on 2026-11-02 and serve `grok-imagine-image-2.0` at

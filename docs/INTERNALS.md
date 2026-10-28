@@ -381,7 +381,7 @@ pipeline diagram.
 |-----------|-------|-----------|
 | Research Dossier | `deep-research-preview-04-2026` | Autonomous web research |
 | Section Writing | `PrimrModels.FLASH_MODEL` | Sequential, cost-controlled synthesis |
-| Stage 1 Analysis | `gemini-3-flash-preview` | Quick section analysis |
+| Stage 1 Analysis | `gemini-3.8-flash` | Quick section analysis |
 
 Deep Research responses are parsed from the current Interactions shape:
 `steps[*].model_output.content`. A deliberate legacy `outputs` fallback remains

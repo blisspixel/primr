@@ -92,7 +92,9 @@ v1.39.28 opens Word reports with the title and Executive Summary, moves
 collection counts to a closing note, and repairs leaked writer section markup.
 v1.39.29 makes `AGENTS.md` the single agent guide, imported by `CLAUDE.md`.
 v1.39.30 adds an evaluator variant that separates source authority from claim
-support, closing the harness's recorded limit.
+support, closing the harness's recorded limit. The next patch moves every
+default route to the current provider flagships by owner decision, without a
+measured quality promotion, and discloses scheduled price changes in estimates.
 
 **What is next and why (2026-10-27):** v1.40.0 is the only open release band,
 and its remaining blockers are evidence, not code. The evaluator validation
@@ -102,9 +104,11 @@ local judge plus a second judge, and human review of the queue. Building more
 quality machinery first would only add unmeasured code. v1.41 backend
 comparison then depends on that measured bar and on approved, capped paid
 runs. Until those inputs exist, work stays in the parallel patch lanes:
-client-facing report polish, provider currency (recheck OpenRouter
-`openai/gpt-4.1-mini` before OpenAI removes it on 2027-01-14), and reviewed
-dependency updates.
+client-facing report polish, provider currency (defaults track the current
+flagships; recheck the provider catalogs before each release and record any
+retirement with its replacement), and reviewed dependency updates. Because the
+new defaults were adopted without a quality comparison, the first v1.40
+measurement should score them against the frozen v1.24.0-era recipe.
 The ordered work and exit criteria live in the [execution brief](docs/NEXT_STEPS.md). A
 candidate version is not a delivery promise and is changed before release if
 the accepted scope requires a different semantic version.

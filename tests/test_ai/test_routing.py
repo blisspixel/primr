@@ -32,7 +32,7 @@ from primr.ai.routing import (
     reset_active_eval_recipe,
     set_active_eval_recipe,
 )
-from primr.config.models import PrimrModels
+from primr.config.models import ModelRegistry, PrimrModels
 from primr.core.model_eval import ProfileRecipe
 
 # All env-keyed provider API keys. Tests must scrub these so the real .env
@@ -62,10 +62,10 @@ def _scrubbed_env(**overrides: str) -> dict[str, str]:
 class TestPickModelForRole:
     """v1.24.0 routing policy:
 
-    - UTILITY: GEMINI_API_KEY wins -> gemini-3-flash-preview; else XAI -> grok-4.20-NR
-    - WRITING: GEMINI_API_KEY wins -> gemini-3.1-flash-lite (v1.24.0 winner);
+    - UTILITY: GEMINI_API_KEY wins -> gemini-3.8-flash; else XAI -> grok-4.20-NR
+    - WRITING: GEMINI_API_KEY wins -> gemini-3.5-flash-lite;
       else XAI -> grok-4.20-NR (legacy fallback); else Pro model
-    - REASONING / PRO: XAI -> grok-4.3; else Pro model
+    - REASONING / PRO: XAI -> grok-4.7; else Pro model
     """
 
     def test_utility_prefers_gemini_when_gemini_key_set(self) -> None:
@@ -89,7 +89,7 @@ class TestPickModelForRole:
 
         env = _scrubbed_env(GEMINI_API_KEY="test-gemini", XAI_API_KEY="test-xai")
         with patch.dict("os.environ", env, clear=True):
-            assert pick_model_for_role(Role.WRITING) == ModelRegistry.GEMINI_3_1_FLASH_LITE.name
+            assert pick_model_for_role(Role.WRITING) == ModelRegistry.GEMINI_3_5_FLASH_LITE.name
 
     def test_writing_falls_back_to_grok_when_only_xai_key_set(self) -> None:
         """Legacy XAI-only path: stays on grok-4.20-NR."""
@@ -105,13 +105,13 @@ class TestPickModelForRole:
     def test_reasoning_picks_grok_43_when_xai_key_set(self) -> None:
         env = _scrubbed_env(XAI_API_KEY="test-xai")
         with patch.dict("os.environ", env, clear=True):
-            assert pick_model_for_role(Role.REASONING) == PrimrModels.GROK_MODEL_43
+            assert pick_model_for_role(Role.REASONING) == PrimrModels.GROK_MODEL
 
     def test_reasoning_picks_grok_43_when_both_keys_set(self) -> None:
         """Reasoning prefers Grok 4.3 regardless of Gemini availability."""
         env = _scrubbed_env(XAI_API_KEY="test-xai", GEMINI_API_KEY="test-gemini")
         with patch.dict("os.environ", env, clear=True):
-            assert pick_model_for_role(Role.REASONING) == PrimrModels.GROK_MODEL_43
+            assert pick_model_for_role(Role.REASONING) == PrimrModels.GROK_MODEL
 
     def test_reasoning_falls_back_to_pro_model_without_xai_key(self) -> None:
         env = _scrubbed_env(GEMINI_API_KEY="test-gemini")
@@ -134,8 +134,8 @@ class TestPickModelForRole:
         env = _scrubbed_env(XAI_API_KEY="test-xai", GEMINI_API_KEY="test-gemini")
         with patch.dict("os.environ", env, clear=True):
             assert pick_model_for_role("utility") == PrimrModels.FLASH_MODEL
-            assert pick_model_for_role("writing") == ModelRegistry.GEMINI_3_1_FLASH_LITE.name
-            assert pick_model_for_role("reasoning") == PrimrModels.GROK_MODEL_43
+            assert pick_model_for_role("writing") == ModelRegistry.GEMINI_3_5_FLASH_LITE.name
+            assert pick_model_for_role("reasoning") == PrimrModels.GROK_MODEL
 
 
 class TestProviderAwareFallbackChain:
@@ -153,14 +153,14 @@ class TestProviderAwareFallbackChain:
 
         env = _scrubbed_env(OPENAI_API_KEY="test-openai")
         with patch.dict("os.environ", env, clear=True):
-            assert pick_model_for_role(Role.WRITING) == ModelRegistry.OPENAI_GPT_5_4_NANO.name
+            assert pick_model_for_role(Role.WRITING) == ModelRegistry.OPENAI_GPT_6_LUNA.name
 
     def test_openai_only_utility(self) -> None:
         from primr.config.models import ModelRegistry
 
         env = _scrubbed_env(OPENAI_API_KEY="test-openai")
         with patch.dict("os.environ", env, clear=True):
-            assert pick_model_for_role(Role.UTILITY) == ModelRegistry.OPENAI_GPT_5_4_NANO.name
+            assert pick_model_for_role(Role.UTILITY) == ModelRegistry.OPENAI_GPT_6_LUNA.name
 
     def test_openai_only_reasoning(self) -> None:
         """OpenAI-only -> GPT-5.6 Terra, OpenAI's named substitute for o4-mini."""
@@ -168,7 +168,7 @@ class TestProviderAwareFallbackChain:
 
         env = _scrubbed_env(OPENAI_API_KEY="test-openai")
         with patch.dict("os.environ", env, clear=True):
-            assert pick_model_for_role(Role.REASONING) == ModelRegistry.OPENAI_GPT_5_6_TERRA.name
+            assert pick_model_for_role(Role.REASONING) == ModelRegistry.OPENAI_GPT_6_1_TERRA.name
 
     def test_retired_o4_mini_names_its_replacement(self) -> None:
         from datetime import date
@@ -204,14 +204,14 @@ class TestProviderAwareFallbackChain:
 
         env = _scrubbed_env(ANTHROPIC_API_KEY="test-anthropic")
         with patch.dict("os.environ", env, clear=True):
-            assert pick_model_for_role(Role.WRITING) == ModelRegistry.ANTHROPIC_HAIKU.name
+            assert pick_model_for_role(Role.WRITING) == ModelRegistry.ANTHROPIC_HAIKU_5_5.name
 
     def test_anthropic_only_utility(self) -> None:
         from primr.config.models import ModelRegistry
 
         env = _scrubbed_env(ANTHROPIC_API_KEY="test-anthropic")
         with patch.dict("os.environ", env, clear=True):
-            assert pick_model_for_role(Role.UTILITY) == ModelRegistry.ANTHROPIC_HAIKU.name
+            assert pick_model_for_role(Role.UTILITY) == ModelRegistry.ANTHROPIC_HAIKU_5_5.name
 
     def test_anthropic_only_reasoning(self) -> None:
         """Anthropic-only -> Sonnet 5 for reasoning (Opus is too expensive as default)."""
@@ -219,7 +219,7 @@ class TestProviderAwareFallbackChain:
 
         env = _scrubbed_env(ANTHROPIC_API_KEY="test-anthropic")
         with patch.dict("os.environ", env, clear=True):
-            assert pick_model_for_role(Role.REASONING) == ModelRegistry.ANTHROPIC_SONNET.name
+            assert pick_model_for_role(Role.REASONING) == ModelRegistry.ANTHROPIC_SONNET_5_5.name
 
     def test_gemini_only_writing(self) -> None:
         """Gemini-only → 3.1 Flash-Lite for writing (v1.24.0 winner)."""
@@ -227,10 +227,10 @@ class TestProviderAwareFallbackChain:
 
         env = _scrubbed_env(GEMINI_API_KEY="test-gemini")
         with patch.dict("os.environ", env, clear=True):
-            assert pick_model_for_role(Role.WRITING) == ModelRegistry.GEMINI_3_1_FLASH_LITE.name
+            assert pick_model_for_role(Role.WRITING) == ModelRegistry.GEMINI_3_5_FLASH_LITE.name
 
     def test_gemini_only_reasoning(self) -> None:
-        """Gemini-only → Pro model (gemini-3.1-pro-preview)."""
+        """Gemini-only → Pro model (gemini-4-argon)."""
         env = _scrubbed_env(GEMINI_API_KEY="test-gemini")
         with patch.dict("os.environ", env, clear=True):
             assert pick_model_for_role(Role.REASONING) == PrimrModels.PRO_MODEL
@@ -241,7 +241,7 @@ class TestProviderAwareFallbackChain:
 
         env = _scrubbed_env(GEMINI_API_KEY="test-gemini", OPENAI_API_KEY="test-openai")
         with patch.dict("os.environ", env, clear=True):
-            assert pick_model_for_role(Role.WRITING) == ModelRegistry.GEMINI_3_1_FLASH_LITE.name
+            assert pick_model_for_role(Role.WRITING) == ModelRegistry.GEMINI_3_5_FLASH_LITE.name
 
     def test_priority_xai_beats_others_for_reasoning(self) -> None:
         """XAI's Grok 4.3 cached-input is cheapest; wins reasoning regardless."""
@@ -252,7 +252,7 @@ class TestProviderAwareFallbackChain:
             ANTHROPIC_API_KEY="test-anthropic",
         )
         with patch.dict("os.environ", env, clear=True):
-            assert pick_model_for_role(Role.REASONING) == PrimrModels.GROK_MODEL_43
+            assert pick_model_for_role(Role.REASONING) == PrimrModels.GROK_MODEL
 
     def test_openrouter_key_alone_enables_default_routing(self) -> None:
         from primr.config.models import ModelRegistry
@@ -261,11 +261,12 @@ class TestProviderAwareFallbackChain:
         with patch.dict("os.environ", env, clear=True):
             assert (
                 pick_model_for_role(Role.UTILITY)
-                == ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name
+                == ModelRegistry.OPENROUTER_GEMINI_3_5_FLASH_LITE.name
             )
-            assert pick_model_for_role(Role.WRITING) == ModelRegistry.OPENROUTER_GPT_4_1_MINI.name
+            assert pick_model_for_role(Role.WRITING) == ModelRegistry.OPENROUTER_GPT_6_LUNA.name
             assert (
-                pick_model_for_role(Role.REASONING) == ModelRegistry.OPENROUTER_DEEPSEEK_V3_2.name
+                pick_model_for_role(Role.REASONING)
+                == ModelRegistry.OPENROUTER_DEEPSEEK_V4_1_FLASH_1017.name
             )
 
     def test_openrouter_disabled_via_flag(self) -> None:
@@ -288,7 +289,7 @@ class TestProviderAwareFallbackChain:
         )
         with patch.dict("os.environ", env, clear=True):
             assert pick_model_for_role(Role.UTILITY) == PrimrModels.FLASH_MODEL
-            assert pick_model_for_role(Role.WRITING) == ModelRegistry.GEMINI_3_1_FLASH_LITE.name
+            assert pick_model_for_role(Role.WRITING) == ModelRegistry.GEMINI_3_5_FLASH_LITE.name
             assert pick_model_for_role(Role.REASONING) == PrimrModels.PRO_MODEL
 
     def test_openrouter_defaults_over_direct_keys_when_configured(self) -> None:
@@ -302,11 +303,12 @@ class TestProviderAwareFallbackChain:
         with patch.dict("os.environ", env, clear=True):
             assert (
                 pick_model_for_role(Role.UTILITY)
-                == ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name
+                == ModelRegistry.OPENROUTER_GEMINI_3_5_FLASH_LITE.name
             )
-            assert pick_model_for_role(Role.WRITING) == ModelRegistry.OPENROUTER_GPT_4_1_MINI.name
+            assert pick_model_for_role(Role.WRITING) == ModelRegistry.OPENROUTER_GPT_6_LUNA.name
             assert (
-                pick_model_for_role(Role.REASONING) == ModelRegistry.OPENROUTER_DEEPSEEK_V3_2.name
+                pick_model_for_role(Role.REASONING)
+                == ModelRegistry.OPENROUTER_DEEPSEEK_V4_1_FLASH_1017.name
             )
 
     def test_openrouter_only_uses_curated_role_models_after_opt_in(self) -> None:
@@ -319,11 +321,12 @@ class TestProviderAwareFallbackChain:
         with patch.dict("os.environ", env, clear=True):
             assert (
                 pick_model_for_role(Role.UTILITY)
-                == ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name
+                == ModelRegistry.OPENROUTER_GEMINI_3_5_FLASH_LITE.name
             )
-            assert pick_model_for_role(Role.WRITING) == ModelRegistry.OPENROUTER_GPT_4_1_MINI.name
+            assert pick_model_for_role(Role.WRITING) == ModelRegistry.OPENROUTER_GPT_6_LUNA.name
             assert (
-                pick_model_for_role(Role.REASONING) == ModelRegistry.OPENROUTER_DEEPSEEK_V3_2.name
+                pick_model_for_role(Role.REASONING)
+                == ModelRegistry.OPENROUTER_DEEPSEEK_V4_1_FLASH_1017.name
             )
 
     def test_enabled_openrouter_precedes_unpromoted_direct_recipes(self) -> None:
@@ -338,11 +341,11 @@ class TestProviderAwareFallbackChain:
         with patch.dict("os.environ", env, clear=True):
             assert (
                 pick_model_for_role(Role.UTILITY)
-                == ModelRegistry.OPENROUTER_GEMINI_3_1_FLASH_LITE.name
+                == ModelRegistry.OPENROUTER_GEMINI_3_5_FLASH_LITE.name
             )
-            assert pick_model_for_role(Role.WRITING) == (ModelRegistry.OPENROUTER_GPT_4_1_MINI.name)
+            assert pick_model_for_role(Role.WRITING) == (ModelRegistry.OPENROUTER_GPT_6_LUNA.name)
             assert pick_model_for_role(Role.REASONING) == (
-                ModelRegistry.OPENROUTER_DEEPSEEK_V3_2.name
+                ModelRegistry.OPENROUTER_DEEPSEEK_V4_1_FLASH_1017.name
             )
 
     def test_openrouter_custom_model_requires_explicit_prices(self) -> None:
@@ -435,7 +438,7 @@ class TestLegacyTypeMapping:
             for legacy_type in ("section_writing", "report"):
                 assert (
                     pick_model_for_legacy_type(legacy_type)
-                    == ModelRegistry.GEMINI_3_1_FLASH_LITE.name
+                    == ModelRegistry.GEMINI_3_5_FLASH_LITE.name
                 )
 
     def test_legacy_reasoning_types_map_to_reasoning_role(self) -> None:
@@ -443,7 +446,7 @@ class TestLegacyTypeMapping:
         env = _scrubbed_env(XAI_API_KEY="test-xai")
         with patch.dict("os.environ", env, clear=True):
             for legacy_type in ("analysis", "reasoning"):
-                assert pick_model_for_legacy_type(legacy_type) == PrimrModels.GROK_MODEL_43
+                assert pick_model_for_legacy_type(legacy_type) == PrimrModels.GROK_MODEL
 
     def test_unknown_type_defaults_to_utility(self) -> None:
         # Unknown legacy strings should not crash; they map to utility role
@@ -497,7 +500,7 @@ class TestEvalRecipeOverride:
         with patch.dict("os.environ", env, clear=True), EvalRecipeOverride(recipe):
             assert pick_model_for_role(Role.WRITING) == "gemini-3.1-flash-lite"
             # Reasoning and utility still hit XAI-only defaults.
-            assert pick_model_for_role(Role.REASONING) == PrimrModels.GROK_MODEL_43
+            assert pick_model_for_role(Role.REASONING) == PrimrModels.GROK_MODEL
             assert pick_model_for_role(Role.UTILITY) == PrimrModels.GROK_MODEL_WRITING
 
     def test_context_manager_clears_on_exit(self) -> None:
@@ -573,3 +576,37 @@ def test_legacy_gemini_and_router_share_one_registered_provider(monkeypatch):
     routed = get_provider_for_model(PrimrModels.FLASH_MODEL)
     assert legacy._get_gemini_provider() is routed
     assert registry.get_registered_provider_for_model(PrimrModels.PRO_MODEL) is routed
+
+
+# Routes with no newer model of the same kind. Each entry names why it stays.
+_CURRENT_NON_FLAGSHIP_ROUTES = {
+    # xAI's only non-reasoning model; writing needs no reasoning tokens.
+    PrimrModels.GROK_MODEL_WRITING,
+    # Newest DeepSeek route; DeepSeek is outside the flagship set by vendor.
+    ModelRegistry.OPENROUTER_DEEPSEEK_V4_1_FLASH_1017.name,
+}
+
+
+@pytest.mark.parametrize("role", list(Role))
+@pytest.mark.parametrize(
+    "keys",
+    [
+        combo
+        for size in range(1, 4)
+        for combo in itertools.combinations(
+            ("XAI_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"), size
+        )
+    ]
+    + [("OPENROUTER_API_KEY",), ("OPENROUTER_API_KEY", "GEMINI_API_KEY")],
+)
+def test_default_routes_resolve_to_current_models(role: Role, keys: tuple[str, ...]) -> None:
+    """No key combination may silently route to a superseded model."""
+    env = _scrubbed_env(**dict.fromkeys(keys, "test-key"))
+    if "OPENROUTER_API_KEY" in keys:
+        env["PRIMR_OPENROUTER_ENABLED"] = "1"
+    with patch.dict("os.environ", env, clear=True):
+        selected = pick_model_for_role(role)
+    if selected in _CURRENT_NON_FLAGSHIP_ROUTES:
+        return
+    native = selected.split("/", 1)[-1]  # gateway slugs share the native ID here
+    assert PrimrModels.is_latest_model(native), f"{keys} {role} routes to {selected}"

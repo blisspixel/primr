@@ -277,7 +277,7 @@ def _run_init_flow(
         (
             "xai",
             "XAI_API_KEY",
-            "Grok 4.3 standard reasoning (~$5.09 XAI-only base; sub-$1 base with Gemini writing)",
+            "Grok 4.7 standard reasoning (~$5.19 XAI-only base; ~$1.05 base with Gemini writing)",
             "https://console.x.ai/",
             "$25 free credits for new accounts",
             True,

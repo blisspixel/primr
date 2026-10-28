@@ -27,26 +27,27 @@ class TestRetirementMigration:
     """Task 1.6 — Verify xAI model retirement migration is correct."""
 
     def test_get_grok_models_fast_tier(self) -> None:
-        """FAST tier returns (grok-4.3, grok-4.20-non-reasoning)."""
+        """FAST tier returns (grok-4.7, grok-4.20-non-reasoning)."""
         reasoning, writing = PrimrModels.get_grok_models(GrokTier.FAST)
-        assert reasoning == "grok-4.3"
+        assert reasoning == "grok-4.7"
         assert writing == "grok-4.20-non-reasoning"
 
     def test_get_grok_models_hybrid_tier(self) -> None:
-        """HYBRID tier returns (grok-4.3, grok-4.20-non-reasoning)."""
+        """HYBRID tier returns (grok-4.7, grok-4.20-non-reasoning)."""
         reasoning, writing = PrimrModels.get_grok_models(GrokTier.HYBRID)
-        assert reasoning == "grok-4.3"
+        assert reasoning == "grok-4.7"
         assert writing == "grok-4.20-non-reasoning"
 
     def test_get_grok_models_max_tier(self) -> None:
-        """MAX tier returns the version-pinned opt-in Grok 4.5 pair."""
+        """MAX tier returns the version-pinned flagship Grok 4.7 pair."""
         reasoning, writing = PrimrModels.get_grok_models(GrokTier.MAX)
-        assert reasoning == "grok-4.5"
-        assert writing == "grok-4.5"
+        assert reasoning == "grok-4.7"
+        assert writing == "grok-4.7"
 
-    def test_grok_model_resolves_to_grok_43(self) -> None:
-        """PrimrModels.GROK_MODEL resolves to grok-4.3 (hybrid default)."""
-        assert PrimrModels.GROK_MODEL == "grok-4.3"
+    def test_grok_model_resolves_to_grok_47(self) -> None:
+        """PrimrModels.GROK_MODEL resolves to grok-4.7 (current flagship)."""
+        assert PrimrModels.GROK_MODEL == "grok-4.7"
+        assert PrimrModels.GROK_MODEL_47 == "grok-4.7"
 
     def test_grok_45_registered_with_tiered_pricing(self) -> None:
         """Grok 4.5 is registered and priced from current xAI docs."""
@@ -60,8 +61,8 @@ class TestRetirementMigration:
         assert config.tier_threshold_tokens == 200_000
         assert config.cost_per_1m_input_tokens_cached == 0.30
 
-    def test_grok_46_registered_without_changing_max_pin(self) -> None:
-        """Current flagship is registered while MAX remains an explicit evaluated pin."""
+    def test_grok_46_registered_as_previous_flagship(self) -> None:
+        """The previous flagship stays registered and priced for explicit selection."""
         config = PrimrModels.get_model_config("grok-4.6")
         assert config is not None
         assert config.display_name == "Grok 4.6"
@@ -71,7 +72,6 @@ class TestRetirementMigration:
         assert config.cost_per_1m_input_tokens_cached_high == 1.00
         assert config.max_input_tokens == 500_000
         assert PrimrModels.GROK_MODEL_46 == "grok-4.6"
-        assert PrimrModels.get_grok_models(GrokTier.MAX) == ("grok-4.5", "grok-4.5")
 
     def test_grok_model_writing_resolves_to_420_nr(self) -> None:
         """PrimrModels.GROK_MODEL_WRITING resolves to grok-4.20-non-reasoning."""
@@ -109,7 +109,7 @@ class TestRetirementMigration:
         """XAI-only fallback path: pick_model_for_role(Role.UTILITY) returns
         grok-4.20-non-reasoning when only XAI_API_KEY is set.
 
-        Post-v1.24.0 the Gemini key wins the utility tier (gemini-3-flash-preview),
+        The Gemini key wins the utility tier (gemini-3.8-flash),
         so this test scrubs GEMINI_API_KEY to exercise the XAI-only fallback path.
         """
         from primr.ai.routing import Role, pick_model_for_role
@@ -267,9 +267,10 @@ class TestCurrentGeminiCandidates:
         assert config is not None
         assert config.cost_per_1m_input_tokens_cached == 0.03
 
-    def test_gemini_38_is_current_but_not_production_default(self) -> None:
+    def test_latest_stable_gemini_models_are_production_defaults(self) -> None:
         assert PrimrModels.is_latest_model("gemini-3.8-flash")
-        assert PrimrModels.PRO_MODEL == "gemini-3.1-pro-preview"
+        assert PrimrModels.FLASH_MODEL == "gemini-3.8-flash"
+        assert PrimrModels.PRO_MODEL == "gemini-4-argon"
 
     @pytest.mark.parametrize("model", ["gemini-3.6-flash", "gemini-3.7-flash"])
     def test_scheduled_2027_price_change(self, model: str) -> None:

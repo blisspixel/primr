@@ -488,9 +488,18 @@ def test_built_sdist_matches_release_inventory(tmp_path: Path) -> None:
     assert "evidence-based inference under `(Estimated)`" in " ".join(packaged_skill.split())
 
 
-def test_cli_epilog_uses_current_default_cost_band() -> None:
-    assert "~$0.89" in CLI_EPILOG
-    assert "~$0.89-$1.01" not in CLI_EPILOG
+def test_cli_epilog_uses_current_default_cost_band(monkeypatch) -> None:
+    from primr.utils.cost_estimator import estimate_cost
+
+    for name in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key-for-ci-tests")
+    monkeypatch.setenv("XAI_API_KEY", "fake-key-for-ci-tests")
+    default = estimate_cost(
+        "complete", fast_mode=True, include_ai_strategy=True, use_historical=False
+    )
+    # The help text quotes the live default plan, not a remembered figure.
+    assert f"~${default.total_cost:.2f} with XAI+Gemini" in CLI_EPILOG
     assert "~$6" not in CLI_EPILOG
     assert "60-90 min" not in CLI_EPILOG
     commands = [line.partition("  #")[0].strip() for line in CLI_EPILOG.splitlines()]
