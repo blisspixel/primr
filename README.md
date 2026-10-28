@@ -27,6 +27,13 @@ Point Primr at a company name and website and it does three things:
 Facts are cited where sources exist. Strategy and ideas are informed reasoning,
 because companies rarely publish their strategy.
 
+Run it two ways. In a terminal, the CLI does the work with provider APIs after
+an estimate and your approval. In an agent (Claude Code, Claude Cowork, Copilot
+Cowork, Codex, and others), the agent uses Primr as a tool through its skill or
+MCP server, and by default runs **Primr Zero**: the same agentic research and
+writing process, aiming for the best output it can, using the agent you already
+have instead of paid API calls.
+
 Point an agent at the repo, or run the CLI. Both paths use the same
 evidence, uncertainty, and long-form artifact contract, but their execution,
 model ownership, and assurance are different.

@@ -32,6 +32,12 @@ Facts are cited where sources exist. Strategy and ideas are informed reasoning,
 because companies rarely publish their strategy, so report quality is judged
 by depth, specificity, and usefulness, not by how much can be verified.
 
+Agents use Primr as a tool through its skill or MCP server. Primr Zero is the
+default in an agent host: it keeps the same agentic research and writing
+process and aims for the best output it can, using the host's own model
+allowance (for example Claude Cowork or Copilot Cowork) instead of paid API
+calls.
+
 That invocation is the product. Framing, hypotheses, source receipts,
 capability routing, ledgers, provider recovery, and memory are supporting
 machinery. They are valuable only when they improve the research, the strategic
