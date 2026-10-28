@@ -1,6 +1,6 @@
 # Next Steps
 
-Released baseline: **v1.39.31**
+Released baseline: **v1.39.32**
 
 Next implementation candidate: **v1.40.0**
 
@@ -37,7 +37,9 @@ product.
 
 ## Current executable card
 
-v1.39.31 is the released baseline. Every default route now uses the current
+v1.39.32 is the released baseline. It refocuses v1.40 on making the
+Strategic Overview, AI Strategy, and skill pack better, checked by side by
+side reads instead of human fact adjudication. In v1.39.31, every default route uses the current
 provider flagship (Grok 4.7, Gemini 3.8 Flash and 4 Argon, Gemini 3.5
 Flash-Lite, GPT-6 Luna and 6.1 Terra, Claude Haiku and Sonnet 5.5) by owner
 decision rather than a measured promotion, and estimates disclose scheduled
@@ -73,84 +75,54 @@ report-quality or backend-promotion gate. The additional security review confine
 agent artifact reuse by current-job ownership, bounds HTTP body expansion,
 protects Windows scrape paths, and repairs QA and cloud-runner integration.
 
-### v1.40.0 candidate: automated, validated report-quality measurement
+### v1.40.0 candidate: better reports, AI strategies, and skill packs
 
-**Objective:** measure whether a bare company-and-website run produces a better
-or worse Strategic Overview, using evaluators whose correctness is established
-by construction rather than by a person checking facts. The unit of quality is
-the whole report: its company understanding, insight, specificity, coherence,
-and decision usefulness. Claim-level label checks remain diagnostics inside
-that measurement, not the definition of quality.
+**Objective:** make the three things Primr produces as good as they can be:
+the Strategic Overview, the AI Strategy, and the skill pack. Strategy analysis
+is reasoned judgment, not a set of checkable facts, so quality comes from
+better research, synthesis, and writing, not from a validation program.
 
-**Why this is next:** every later quality and backend decision needs a trusted
-instrument, and the previous card could not finish because it required human
-adjudication of every clean case and a named human review of every queue.
-That gate also pulled the measure toward countable labeled claims instead of
-the analysis the product contract asks for. Known-answer variants built from
-real reports supply ground truth without a human in the loop.
+**Why this is next:** the previous card spent the band building and
+validating judges and still could not finish, because it waited on people
+adjudicating facts. A report can be fully sourced and still be a list of
+facts. The product is the analysis.
 
-**Exit criteria:**
+**What good looks like:**
 
-1. **Report-level judge validation.** From real local reports, build
-   controlled degraded variants whose expected ranking is known by
-   construction, including:
-   - a fact-list variant that keeps the facts and removes interpretation,
-     implication, and the governing view;
-   - a padded variant that adds repetition and length without new content, so
-     a judge that rewards verbosity fails;
-   - a genericized variant that replaces company-specific names, numbers, and
-     mechanisms with boilerplate;
-   - a variant with tensions, counterevidence, and unknowns removed; and
-   - a cross-company variant that swaps in analysis written for another
-     company.
+- A clear governing view of the company, carried through the report rather
+  than restated in every section.
+- Specific to this company: its names, numbers, mechanisms, and tensions, not
+  consultant boilerplate that would fit any firm.
+- Each section adds something new; frameworks support the view instead of
+  repeating it.
+- Load-bearing claims are well sourced and honestly qualified; ordinary
+  context is written plainly, without a hedge on every sentence.
+- The AI Strategy and skill pack build on the same company understanding and
+  are just as specific.
 
-   Blind, order-swapped pairwise judges from at least two model families must
-   prefer the original over each variant within pre-registered tolerances.
-2. **Claim-support judge validation without a human gate.** Clean cases are
-   accepted when their support span appears verbatim in the captured source;
-   controlled claim variants keep their constructed expected verdicts. Judge
-   disagreements and sampled unanimous answers go to an independent agent
-   adjudicator from a model family not used as a judge, recorded as `agent`,
-   never as human review.
-3. **Recorded baseline.** Score the current default recipe against the frozen
-   v1.24.0-era recipe on representative companies with the validated judges,
-   and record the decision. Any paid run needs a fresh estimate, explicit
-   approval, and a cost cap.
+**How changes are checked:** read the before and after outputs for the same
+companies side by side, blind to which is which, and keep the change when it
+reads better. Model judges may help as a second opinion, not a verdict. Hard
+floors stay automated and blocking: valid citations, valid Markdown and Word
+artifacts, and spend and egress limits. Any paid run needs a fresh estimate,
+explicit approval, and a cost cap.
 
-Hard floors stay automated and blocking throughout: fabricated or unresolvable
-citations, invalid Markdown or Word artifacts, spend and egress limits.
-
-**Explicitly outside this card:** report prompt changes, provider promotion,
-unapproved paid evaluation, a deterministic prose-quality gate, a lone LLM
-judge, memory, and a new public command.
-
-**Human review is optional input.** An owner or reader who reviews reports or
-queues contributes recorded feedback and can veto a decision, but no release
-waits on a person adjudicating facts.
-
-**Implementation status (2026-10-28):** `primr.qa.evaluator_validation` and
-`primr.qa.evaluator_variants` validate claim-support judges on synthetic
-fixtures and currently require all-human adjudication and a named human
-review. Remaining code: accept verbatim-span and independent-agent
-adjudication in that harness, and add the report-level variant generator and
-pairwise validation. No judge has been measured yet.
+**Explicitly outside this card:** provider promotion, unapproved paid runs, a
+deterministic prose-quality gate, memory, and a new public command.
 
 **Next, in order (2026-10-28):**
 
-1. Change the claim harness decision rules to the adjudication model above,
-   keeping agent and human records distinct.
-2. Add the report-level variant generator and blind pairwise validation,
-   tested on synthetic reports.
-3. Run free local judges on variants of the operator's local reports, kept
-   local and never committed, then record the validation result.
-4. Run the baseline comparison under an approved, capped estimate and record
-   the decision.
+1. Read recent local outputs of all three artifacts and list their most
+   visible weaknesses.
+2. Fix the biggest ones in the prompts and YAML definitions that own them.
+3. Compare before and after on the same companies, using frozen evidence
+   where possible so the comparison is free.
 
 ## Follow-through after v1.40
 
-1. **Use the instrument to improve the report.** The contract's next slices
-   (the company working model in shadow mode, then working-model-informed
-   writing) advance only when the validated pairwise measure shows lift.
+1. **Keep improving the artifacts.** The contract's next slices (the company
+   working model, then working-model-informed writing) advance when side by
+   side reads show they make the reports better.
 2. **Then compare backends.** Use frozen evidence and output contracts, record
    quality, reliability, latency, and measured cost, and make an explicit
    promotion decision. Preserve preview status when evidence is inconclusive.
@@ -224,14 +196,14 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.31
+## Version gates after v1.39.32
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.
 
 | Candidate | Capability gate | Depends on |
 |-----------|-----------------|------------|
-| **v1.40** | Whole-report quality measurement with judges validated on known-answer variants, plus a recorded baseline decision | Stable report contract and quality instrumentation |
+| **v1.40** | Visibly better Strategic Overviews, AI Strategies, and skill packs, confirmed by side by side reads | Stable report contract |
 | **v1.41** | Measured host-versus-cloud promotion decision and honest single-provider full-report execution | v1.40 measurements |
 | **v1.42** | Durable agent job lifecycle and remaining MCP/A2A control-plane parity | Stable provider execution and existing authorization contract |
 | **v1.43** | Governed run history, retention/deletion/export, evidence anchors, and a shadow finding/inference ledger | v1.40 measurements and v1.42 consumption boundaries |
@@ -284,7 +256,7 @@ the next executable card. Correct the release record before starting new work.
 
 Use free local validation first. Deterministic checks guard spend, egress,
 filesystem writes, schemas, citation resolution, version integrity, and other
-prose-invariant structure. Content quality is measured by pre-registered,
-blind, whole-report evaluation whose judges are validated on known-answer
-variants. Human review is optional input, not a gate. Every paid evaluation or
+prose-invariant structure. Content quality is judged by reading whole
+outputs side by side, blind where practical; model judges are a second
+opinion, not a gate. Every paid evaluation or
 run requires an exact estimate, explicit approval, and a cost cap.
