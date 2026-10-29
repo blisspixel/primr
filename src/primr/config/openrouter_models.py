@@ -4,6 +4,13 @@ GPT-6.1 Terra and Gemini 3.5 Flash Lite rows, and the GPT-4.1 Mini
 retirement, were checked against the same API and OpenAI's deprecations
 page on 2026-10-28.
 
+On 2026-10-29 every row was rechecked against the per-model endpoints API.
+Kimi K3.1 Pro, Muse Spark 1.3, and Mistral Large 4 were added from the
+OpenRouter benchmark leaderboard. GLM 5.3 Flash moved to Z.AI's first-party
+rate: its earlier snapshot sat below every endpoint, so the request price
+ceiling admitted no provider. Each rate is also the request price ceiling,
+so a row must admit at least one live endpoint.
+
 https://openrouter.ai/api/v1/models
 Time-dependent DeepSeek prices use the maximum published scheduled rate as an
 estimate and request-price ceiling. Native provider billing remains authoritative.
@@ -270,11 +277,11 @@ def build_openrouter_models(
             supports_thinking=False,
             supports_tools=True,
             supports_multimodal=True,
-            cost_per_1m_input_tokens=0.0052,
-            cost_per_1m_output_tokens=0.1985,
-            cost_per_1m_input_tokens_cached=0.0052,
+            cost_per_1m_input_tokens=0.15,
+            cost_per_1m_output_tokens=0.5,
+            cost_per_1m_input_tokens_cached=0.03,
             max_input_tokens=1048576,
-            max_output_tokens=943718,
+            max_output_tokens=131072,
         ),
         model_config_type(
             name="qwen/qwen3.8-flash",
@@ -563,6 +570,45 @@ def build_openrouter_models(
             cost_per_1m_input_tokens_cached=0.015,
             max_input_tokens=1000000,
             max_output_tokens=524288,
+            supports_thinking=True,
+            supports_tools=True,
+            supports_multimodal=True,
+        ),
+        model_config_type(
+            name="moonshotai/kimi-k3.1-pro",
+            display_name="MoonshotAI: Kimi K3.1 Pro",
+            provider="openrouter",
+            cost_per_1m_input_tokens=2.0,
+            cost_per_1m_output_tokens=10.0,
+            cost_per_1m_input_tokens_cached=0.2,
+            max_input_tokens=1048576,
+            max_output_tokens=943718,
+            supports_thinking=True,
+            supports_tools=True,
+            supports_multimodal=True,
+        ),
+        model_config_type(
+            name="meta/muse-spark-1.3",
+            display_name="Meta: Muse Spark 1.3",
+            provider="openrouter",
+            cost_per_1m_input_tokens=1.25,
+            cost_per_1m_output_tokens=4.25,
+            cost_per_1m_input_tokens_cached=0.15,
+            max_input_tokens=1048576,
+            max_output_tokens=943718,
+            supports_thinking=True,
+            supports_tools=True,
+            supports_multimodal=True,
+        ),
+        model_config_type(
+            name="mistralai/mistral-large-4-0",
+            display_name="Mistral: Mistral Large 4",
+            provider="openrouter",
+            cost_per_1m_input_tokens=1.36,
+            cost_per_1m_output_tokens=4.18,
+            cost_per_1m_input_tokens_cached=0.14,
+            max_input_tokens=1048576,
+            max_output_tokens=262144,
             supports_thinking=True,
             supports_tools=True,
             supports_multimodal=True,

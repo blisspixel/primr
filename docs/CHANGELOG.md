@@ -26,6 +26,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model or price change applies; the default full run (Strategic Overview plus
   AI Strategy) still estimates $1.24.
 
+### Added
+
+- OpenRouter routes for Kimi K3.1 Pro, Meta Muse Spark 1.3, and Mistral Large 4,
+  three leading models from OpenRouter's benchmark leaderboard that Primr did
+  not yet register, priced from OpenRouter's endpoints API on 2026-10-29.
+
+### Fixed
+
+- The OpenRouter GLM 5.3 Flash route could not run: its registered rate, which
+  Primr also sends as the request price ceiling, was below every provider
+  serving the model. It now uses Z.AI's first-party rate.
+
 ## [1.39.33] - 2026-10-28
 
 ### Changed
