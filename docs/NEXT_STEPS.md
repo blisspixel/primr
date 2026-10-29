@@ -80,54 +80,62 @@ report-quality or backend-promotion gate. The additional security review confine
 agent artifact reuse by current-job ownership, bounds HTTP body expansion,
 protects Windows scrape paths, and repairs QA and cloud-runner integration.
 
-### v1.40.0 candidate: better reports, AI strategies, and skill packs
+### v1.40.0 candidate: Strategic Overview depth and quality
 
-**Objective:** make the three things Primr produces as good as they can be:
-the Strategic Overview, the AI Strategy, and the skill pack. Strategy analysis
-is reasoned judgment, not a set of checkable facts, so quality comes from
-better research, synthesis, and writing, not from a validation program.
+**Objective:** make the Strategic Overview the best consultant-prep document
+Primr can produce: a long-form report with clear sections, typically 50 or more
+pages, written the way a large consulting firm would prepare to understand a
+company, guide it, and hit the ground running. It serves any role, not only a
+CIO. It is not a financial analyst's report and not a fact lookup.
 
-**Why this is next:** the previous card spent the band building and
-validating judges and still could not finish, because it waited on people
-adjudicating facts. A report can be fully sourced and still be a list of
-facts. The product is the analysis.
+**Why this is next:** the Overview is the primary product and the foundation
+every strategy document and skill pack builds on. Reviews of real reports found
+genuine insight held back by fixable prompt rules.
 
 **What good looks like:**
 
-- A clear governing view of the company, carried through the report rather
-  than restated in every section.
+- A clear governing view of the company that the whole report develops.
+- Every section earns its place and adds depth. When a theme recurs, later
+  sections add a new angle, evidence, consequence, or question instead of
+  restating it. Repetition is fixed by deepening sections, never by cutting
+  length or dropping sections.
 - Specific to this company: its names, numbers, mechanisms, and tensions, not
-  consultant boilerplate that would fit any firm.
-- Each section adds something new; frameworks support the view instead of
-  repeating it.
-- Load-bearing claims are well sourced and honestly qualified; ordinary
-  context is written plainly, without a hedge on every sentence.
-- The AI Strategy and skill pack build on the same company understanding and
-  are just as specific.
+  consultant boilerplate that would fit any firm. Real financial and operating
+  anchors where the company or its filings disclose them.
+- Facts cited where sources exist, following good company-research practice;
+  strategic reasoning written with confidence, without a hedge on every
+  sentence.
 
-**How changes are checked:** read the before and after outputs for the same
+**How changes are checked:** read before and after reports for the same
 companies side by side, blind to which is which, and keep the change when it
-reads better. Model judges may help as a second opinion, not a verdict. Hard
-floors stay automated and blocking: valid citations, valid Markdown and Word
-artifacts, and spend and egress limits. Any paid run needs a fresh estimate,
-explicit approval, and a cost cap.
+reads better without losing depth or length. Model judges may help as a second
+opinion, not a verdict. Hard floors stay automated and blocking: valid
+citations, valid Markdown and Word artifacts, and spend and egress limits. Any
+paid run needs a fresh estimate, explicit approval, and a cost cap.
 
-**Explicitly outside this card:** provider promotion, unapproved paid runs, a
-deterministic prose-quality gate, memory, and a new public command.
+**Explicitly outside this card:** shortening the report, provider promotion,
+unapproved paid runs, a deterministic prose-quality gate, memory, and a new
+public command.
 
-**Next, in order (2026-10-28):**
+**Next, in order (2026-10-29):**
 
-1. Read recent local outputs of all three artifacts and list their most
-   visible weaknesses.
-2. Fix the biggest ones in the prompts and YAML definitions that own them.
-3. Compare before and after on the same companies, using frozen evidence
-   where possible so the comparison is free.
+1. Fix the prompt rules that cause restatement across sections: give each
+   section ownership of the ideas it should develop and let same-part sections
+   see the frameworks they build on, while keeping word floors and section
+   count.
+2. Anchor financial and operating sections on disclosed figures where they
+   exist, with ranges only for true estimates.
+3. Replace blanket per-claim hedging with confident analysis; keep citations
+   and labels where they add value.
+4. Remove leftover scaffolding in rendered text (stray labels, duplicated
+   validation lines).
+5. Compare before and after on the same companies, using frozen evidence where
+   possible so the comparison is free.
 
 ## Follow-through after v1.40
 
-1. **Keep improving the artifacts.** The contract's next slices (the company
-   working model, then working-model-informed writing) advance when side by
-   side reads show they make the reports better.
+1. **Then the strategy library, skill packs, and Primr Zero parity** (v1.41 to
+   v1.43), each checked by side by side reads.
 2. **Then compare backends.** Use frozen evidence and output contracts, record
    quality, reliability, latency, and measured cost, and make an explicit
    promotion decision. Preserve preview status when evidence is inconclusive.
@@ -208,11 +216,13 @@ hold, not because a date or effort estimate was written down.
 
 | Candidate | Capability gate | Depends on |
 |-----------|-----------------|------------|
-| **v1.40** | Visibly better Strategic Overviews, AI Strategies, and skill packs, confirmed by side by side reads | Stable report contract |
-| **v1.41** | Measured host-versus-cloud promotion decision and honest single-provider full-report execution | v1.40 measurements |
-| **v1.42** | Durable agent job lifecycle and remaining MCP/A2A control-plane parity | Stable provider execution and existing authorization contract |
-| **v1.43** | Governed run history, retention/deletion/export, evidence anchors, and a shadow finding/inference ledger | v1.40 measurements and v1.42 consumption boundaries |
-| **v1.44+** | Claim-aware section packets, progressive artifacts, and further cost levers | Representative ledger evaluation |
+| **v1.40** | Strategic Overview visibly deeper and better (50+ pages, every section adding depth), confirmed by side by side reads | Stable report contract |
+| **v1.41** | Strategy library complete and role-agnostic, AI Strategy first, 30+ pages per document | v1.40 writing improvements |
+| **v1.42** | Skill packs tied to the company's roles and strategy | v1.41 strategy library |
+| **v1.43** | Primr Zero reaches the same artifact quality with no Primr API spend | v1.40 to v1.42 artifact contracts |
+| **v1.44** | Measured host-versus-cloud promotion decision and honest single-provider full-report execution | v1.43 parity reads |
+| **v1.45** | Durable agent job lifecycle and remaining MCP/A2A control-plane parity | Stable provider execution and existing authorization contract |
+| **v1.46+** | Governed run history, retention/deletion/export, progressive artifacts, and further cost levers | v1.45 consumption boundaries |
 | **v2.0** | Measured analyst quality, backend freedom, and safe delegation hold together | Completion of the required 1.x pillars |
 | **v2.x** | Strategy Delta and measured repeat-engagement continuity | Proven report lift without weaker freshness, privacy, uncertainty, or cost |
 | **v3.0** | VLM-first extraction, vertical compounding, and stable post-artifact handoff | Mature 2.x evidence and contracts |
@@ -252,6 +262,7 @@ the next executable card. Correct the release record before starting new work.
 - Another README expansion or competing roadmap summary.
 - A provider promotion based on connectivity alone.
 - A deterministic prose-quality gate or a lone LLM judge.
+- Shortening a report or dropping sections to remove repetition.
 - A claim-aware rewrite before the representative ledger evaluation.
 - Memory before retention, deletion, provenance, and freshness rules.
 - A generic orchestration framework, daemon, SaaS surface, or new runtime

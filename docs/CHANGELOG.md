@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The roadmap now follows Primr's outputs. v1.40 deepens the Strategic
+  Overview (typically 50 or more pages, every section adding depth); v1.41
+  completes the strategy library, with AI Strategy as the default and every
+  listed strategy role-agnostic and at least 30 pages; v1.42 ties skill packs
+  to the company's roles and strategy; v1.43 brings Primr Zero to the same
+  quality with no API spend. Backend freedom, the agent control plane, and run
+  history follow, and the run ledger becomes an optional internal aid. The
+  product contract states that Primr is deep consultant preparation for any
+  role, not a financial analyst's report or a fact lookup, and that fixing
+  repetition means deepening sections, never shortening reports.
+
 ## [1.39.33] - 2026-10-28
 
 ### Changed

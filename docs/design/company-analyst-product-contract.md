@@ -16,17 +16,34 @@ primr "Company Name" https://company.example
 
 ## What Primr does
 
+Primr is deep preparation for a consultant, in the way a large consulting firm
+would prepare: understand the company as well as public research allows, so the
+consultant can guide it and hit the ground running in the first conversation.
+It is not a financial analyst's report and not a fact lookup. It serves any
+role that needs that understanding (strategy, operations, technology, sales,
+customer, security, data, or executive leadership), not only a CIO.
+
 1. **Strategic Overview.** Deep research on the company (its site, job
    postings, news, recon, and industry analysis) turned into a detailed
    long-form Company Strategic Overview. It is far more than a list of facts:
    it explains the business, its market, its tensions and risks, and the
    questions worth asking.
-2. **AI Strategy.** Everything learned, plus the technology the company appears
-   to use (DNS recon and current platform news), turned into long-form
-   ideation on what the company may already be doing with AI and what most
-   likely makes sense next.
-3. **Skill pack (optional).** Ideation on the company's key roles, with drafted
-   AI agent skills for them.
+2. **Strategy documents.** Everything learned, plus the technology the company
+   appears to use (DNS recon and current platform news), turned into long-form
+   strategy ideation. The default is the AI Strategy: what the company may
+   already be doing with AI and what most likely makes sense next. AI Strategy
+   is one YAML definition in a library of strategy documents a consultant may
+   want (for example customer experience, security and compliance, data
+   platform, and AI-first transformation).
+3. **Skill pack (optional).** From the same research, especially job postings,
+   ideation on which roles matter at the company, in detail, with drafted AI
+   agent skills that accelerate that work and can speed up parts of the
+   strategy.
+
+**Length is part of the product.** The Strategic Overview is a long-form
+document with clear sections, typically 50 or more pages. Each strategy
+document is at least 30 pages. Quality work deepens sections; it never shortens
+the report or drops sections to remove repetition.
 
 Facts are cited where sources exist. Strategy and ideas are informed reasoning,
 because companies rarely publish their strategy, so report quality is judged
@@ -87,9 +104,14 @@ A normal run may also produce one or more strategy artifacts:
 <Company>_<Strategy_Name>_<date>.docx
 ```
 
-The report remains substantial. A concise governing thesis and executive
-decision brief should make the analysis easier to consume, not replace the
-complete company research.
+The report remains substantial: the Strategic Overview typically runs 50 or more
+pages and each strategy document at least 30 pages, with clear sections. A
+concise governing thesis and executive decision brief should make the analysis
+easier to consume, not replace the complete company research.
+
+The skill pack (`primr skills`) is an optional artifact built from the same
+research. It identifies the roles that matter and drafts agent skills for them,
+and it must stay specific to the company, its roles, and its strategy.
 
 Diagnostics, source indexes, ledgers, working models, and manifests are
 supporting artifacts. They must never become a substitute for the polished
@@ -101,6 +123,12 @@ YAML is Primr's controlled strategy-extension seam. A strategy definition owns
 its purpose, intended audience, analytical requirements, curated section
 contract, and writing guidance.
 
+Built-in strategies form a curated library. Each entry must be complete and
+clearly described: what question it answers, who it is for, and what it
+produces. The library serves any role, not only technology leaders. A
+placeholder definition must be marked as such wherever strategies are listed,
+and must not be presented as a finished strategy.
+
 Every promoted strategy must:
 
 - consume the researched company context rather than produce a generic
@@ -111,6 +139,7 @@ Every promoted strategy must:
 - produce aligned Markdown and Word artifacts;
 - pass the same structural shipping and rendering gates as the Strategic
   Overview; and
+- reach the strategy length target of at least 30 pages without padding; and
 - remain version-controlled, reviewable, and testable.
 
 Built-in strategy YAML files are immutable product assets for a released
@@ -184,8 +213,10 @@ The reader should encounter this hierarchy:
 4. detailed frameworks and source support.
 
 SWOT, Five Forces, value-chain analysis, and similar frameworks are analytical
-tools. They should support the company view rather than compete with it or
-repeat it. Each material passage should contribute at least one of evidence,
+tools. They should support the company view rather than compete with it. When
+a theme recurs, each later section should add new depth to it (a new angle,
+evidence, consequence, or question) rather than restate it. Fixing repetition
+means deepening sections, never cutting length or sections. Each material passage should contribute at least one of evidence,
 interpretation, implication, qualification, or a decision-relevant question.
 
 The signature analytical chain is:
@@ -342,11 +373,11 @@ test. Product development then proceeds through measured slices:
 
 ```text
 architecture ownership
--> side by side report-quality baseline
--> company working model in shadow mode
--> adversarial thesis and next-action evaluation
--> breadth-preserving diagnostic deepening
--> working-model-informed report writing
+-> Strategic Overview depth and quality (50+ pages, every section adds depth)
+-> strategy library quality (AI Strategy first; every listed strategy complete, 30+ pages)
+-> skill packs tied to the company's roles and strategy
+-> Primr Zero reaching the same quality with no API spend
+-> working-model-informed research and writing where reads show lift
 -> measured local and agentic route promotion
 -> bounded stopping and cost improvements
 -> repeat-engagement memory only after demonstrated report lift

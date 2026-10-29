@@ -1,13 +1,14 @@
 # Run-Scoped Epistemic Ledger
 
-Status: ADOPTED AS DIRECTION, NOT YET IMPLEMENTED. This document owns the
+Status: OPTIONAL INTERNAL AID, NOT YET IMPLEMENTED. This document owns the
 within-run evidence, finding, inference, relation, and usage contract. It does
-not add a current execution card, change the report, or move memory ahead of
-the v1.40 calibration decision.
+not add a current execution card or change the report. Since the 2026-10-29
+roadmap reorder it is no longer a scheduled band: it is adopted (v1.46+ at the
+earliest) only where side by side reads show it makes reports better, and it
+never shortens a report or turns it into a list of facts.
 
 ROADMAP anchors: backlog item #2 (structured research artifacts), backlog item
-#4 (evidence-grounded strategic analysis), v1.43 research-memory layer 1,
-v1.44+ claim-aware writing, 2.0 research memory, and 2.x Strategy Delta.
+#4 (evidence-grounded strategic analysis), v1.46+ run history (optional), 2.0 research memory, and 2.x Strategy Delta.
 
 Related contracts:
 
@@ -421,7 +422,7 @@ inventory role such as `research_graph`. They are not `working_brief`,
 `primary_report`, or `strategy_module`.
 
 The existing job-scoped artifact inventory remains the first body-free read.
-If agent demand justifies a compact findings summary after v1.42, it may return
+If agent demand justifies a compact findings summary after v1.45, it may return
 schema versions, hashes, counts by record type and confidence, anchor coverage,
 review status, relation counts, and temporal coverage. It must not return
 statements, source URLs, evidence excerpts, locator values, assumptions,
@@ -460,7 +461,7 @@ ledger does not reset or postpone that work.
 - Preserve explicit capability gaps for provider-only and non-retained bytes.
 - Keep Standard, Premium, and Primr Zero report outputs unchanged.
 
-### Phase 2: v1.43 shadow ledger
+### Phase 2: shadow ledger (optional, v1.46+ at the earliest)
 
 - Emit findings and strategic inferences before prose, but do not feed them to
   writers yet.
@@ -470,12 +471,12 @@ ledger does not reset or postpone that work.
 - Include every added model stage in dry-run cost and time, approval, budget,
   usage, recovery, and partial-result contracts.
 
-### Phase 3: v1.44+ claim-aware writing
+### Phase 3: ledger-informed writing (optional)
 
 - Generate bounded section views inside the existing fixed scaffold.
 - Have writers return used finding and inference IDs.
-- Promote only if blinded, agreement-validated review meets or beats the v1.40
-  epistemic baseline and does not regress argument quality.
+- Promote only if side by side reads show better reports with no loss of
+  depth, length, or argument quality.
 - Add local and agent explainability only after IDs, anchors, ownership, scope,
   limits, and audit are complete.
 
