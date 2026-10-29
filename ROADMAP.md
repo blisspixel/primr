@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.33
+Current State: v1.39.34
 
 Primr takes a company name and website, researches the company, and produces
 evidence-grounded, long-form strategic reports as polished Word and Markdown
@@ -54,11 +54,13 @@ releases inside a band; only cut the major when its pillars hold together.
 | Band | Theme | Why this order |
 |------|--------|----------------|
 | **v1.39.x** (current) | Operator polish, security floors, routing honesty, maintainable stage ownership | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. v1.39.24 refreshes provider catalogs, verified prices, and request compatibility while retaining frozen judge comparisons and the bounded-ingestion security baseline. |
-| **v1.40** | Better Strategic Overviews, AI Strategies, and skill packs | The product is the analysis; improve the three artifacts directly and confirm each change by reading outputs side by side. |
-| **v1.41** | Backend freedom: measured host promotion + OpenRouter gateway + residual dual-provider cleanup | Unlocks honest OpenAI-only / Anthropic-only / OpenRouter / host / local profiles; depends on 1.40 instruments to judge backends. |
-| **v1.42** | Agent control-plane finish (MCP Tasks, remaining watch items) | Agents can already estimate/approve/read compact artifacts; finish long-running job lifecycle and parity so unattended delegation is safe. |
-| **v1.43** | Research memory layer 1 + shadow run ledger | Attach governed run history plus source receipts, evidence anchors, findings, and strategic inferences only after claims are measurable (1.40) and jobs are consumable (1.42). The ledger remains shadow-only until eval promotes it. |
-| **v1.44-1.49** | Claim-aware writing, cost levers, progressive artifacts, coverage ratchet | Promote ledger-aware section packets only from measured evidence, then improve time-to-first-useful and economics without changing product identity. |
+| **v1.40** | Strategic Overview depth and quality | The Overview is the primary product: a 50+ page consultant-prep document with clear sections where every section adds depth. Confirm each change by reading outputs side by side. |
+| **v1.41** | Strategy library quality | AI Strategy is the default of a YAML library. Every listed strategy is complete, role-agnostic, and 30+ pages; placeholders are finished or clearly marked. |
+| **v1.42** | Skill packs tied to roles and strategy | From the same research, especially hiring, identify the roles that matter and draft skills that accelerate their work and parts of the strategy. |
+| **v1.43** | Primr Zero quality parity | The agent-host path reaches the same artifact quality with no Primr API spend, using the host's own model allowance. |
+| **v1.44** | Backend freedom: host promotion, OpenRouter gateway, single-provider cleanup | Honest OpenAI-only / Anthropic-only / OpenRouter / host / local profiles, judged by the same side by side reads. |
+| **v1.45** | Agent control-plane finish (MCP Tasks, remaining watch items) | Agents can already estimate, approve, and read compact artifacts; finish the long-running job lifecycle so unattended delegation is safe. |
+| **v1.46-1.49** | Run history, cost levers, progressive artifacts, coverage ratchet | Governed run history and retention, then time-to-first-useful and economics, without changing product identity or shortening artifacts. A run ledger stays an optional internal aid. |
 | **v2.0** | Measured analyst quality + backend freedom + safe delegation | Major bump when the exceptional long-form report holds across validated free-first and paid routes under an agent role with authz, budget, and audit. Repeat-engagement memory joins only after measured report lift. |
 | **v2.x** | Strategy Delta Mode, measured temporal continuity, host/local promotions | Deepen the same company-research product without expanding its identity. |
 | **v3.0** | Research frontier | VLM-first extraction, measured vertical compounding, and post-artifact handoff contracts only where they improve the company report or its downstream use. |
@@ -99,17 +101,19 @@ v1.39.32 refocuses v1.40 on improving the three artifacts directly, checked by
 side by side reads, instead of waiting on human fact adjudication.
 v1.39.33 states plainly that reports mix cited facts with reasoned strategy and
 that Primr is not only a fact checker.
+v1.39.34 orders the roadmap around Primr's outputs and confirms model currency.
 
 **What is next and why (2026-10-28):** v1.40.0 is the only open release band.
 It was blocked on a person adjudicating every clean case and reviewing every
-queue, which pulled quality toward countable labeled claims. Strategy analysis
-is reasoned judgment that no instrument fully scores, so v1.40 now improves the
-three artifacts directly: a governing view carried through the report,
-company-specific substance, no repetition across sections, and plain writing
-outside the load-bearing claims. Each change is confirmed by reading before and
-after outputs side by side; model judges are a second opinion. v1.41 backend
-comparison uses the same side by side reads under approved, capped paid
-runs. Until those inputs exist, work stays in the parallel patch lanes:
+queue, which pulled quality toward countable labeled claims. Primr is deep
+consultant preparation, not a fact lookup, so the roadmap now follows its
+outputs: v1.40 deepens the Strategic Overview (50+ pages, every section adding
+depth, company-specific substance, confident writing), v1.41 makes the strategy
+library complete and 30+ pages per document with AI Strategy first, v1.42 ties
+skill packs to the company's roles and strategy, and v1.43 brings Primr Zero to
+the same quality with no API spend. Backend and agent control-plane work
+follows. Each change is confirmed by reading before and after outputs side by
+side; model judges are a second opinion. Until those inputs exist, work stays in the parallel patch lanes:
 client-facing report polish, provider currency (defaults track the current
 flagships; recheck the provider catalogs before each release and record any
 retirement with its replacement), and reviewed dependency updates. Because the
@@ -602,11 +606,13 @@ The job is "URL in, consultant-grade artifact out," done well.
 | Version | Exit criteria (must hold before the next band) |
 |---------|--------------------------------------------------|
 | **1.39.x** | Current: hybrid default Grok 4.3, governed OpenRouter preview, truthful dry-run and budget decisions, Python 3.15 preview containment, Primr Zero front door, and one-way stage ownership. |
-| **1.40** | Strategic Overview, AI Strategy, and skill pack visibly better for the bare company-and-website run, confirmed by side by side reads; claim-label checks stay diagnostic. |
-| **1.41** | Live host-vs-cloud source-relevance comparison scored; owner promotion decision recorded; residual xAI/Gemini-only preflight assumptions removed for pure single-provider profiles. |
-| **1.42** | MCP Tasks (or equivalent durable job handle) + remaining control-plane watch items; A2A/MCP parity frozen as the agent contract. |
-| **1.43** | Memory layer 1 complete: automatic run pointers, retention/deletion, export, digest-bound source receipts and evidence anchors, plus a shadow run-scoped finding/inference ledger that does not yet drive report prose. |
-| **1.44+** | Claim-aware section packets promoted only after representative eval; progressive artifacts, batch API public surface, measured pipeline overlap, and the coverage ratchet continue. |
+| **1.40** | Strategic Overview visibly deeper and better for the bare company-and-website run (50+ pages, every section adding depth), confirmed by side by side reads; claim-label checks stay diagnostic. |
+| **1.41** | Every listed strategy complete, role-agnostic, and 30+ pages, AI Strategy first; placeholders finished or clearly marked. |
+| **1.42** | Skill packs specific to the company's roles and tied to its strategy. |
+| **1.43** | Primr Zero produces the same artifact quality with no Primr API spend. |
+| **1.44** | Live host-vs-cloud comparison scored; owner promotion decision recorded; residual xAI/Gemini-only preflight assumptions removed for pure single-provider profiles. |
+| **1.45** | MCP Tasks (or equivalent durable job handle) + remaining control-plane watch items; A2A/MCP parity frozen as the agent contract. |
+| **1.46+** | Governed run history (pointers, retention/deletion, export), progressive artifacts, batch API public surface, measured pipeline overlap, and the coverage ratchet. |
 
 **Status (as of v1.39.13):** most of the 1.x engineering backlog is closed -
 artifact pipeline contract (#1-2), cost/observability surface (#5, #7, #8,
@@ -797,18 +803,25 @@ points; work can land earlier as 1.39.x patches when it is independently safe.
 1.39.x  polish + truthful surfaces (current)
    │
    ▼
-1.40    better reports, AI strategies, and skill packs
-   │      (confirmed by side by side reads; claim-label checks stay diagnostic)
-   ▼
-1.41    promote backends only from measured host/cloud + single-provider cleanup
+1.40    Strategic Overview depth and quality (50+ pages)
    │
-   ├──────────────────────┐
-   ▼                      ▼
-1.42 control plane finish   1.43 memory L1 + shadow run ledger
-   │                      │
-   └──────────┬───────────┘
-              ▼
-1.44+   measured claim-aware writing, cost levers, progressive artifacts
+   ▼
+1.41    strategy library quality (AI Strategy first, 30+ pages each)
+   │
+   ▼
+1.42    skill packs tied to roles and strategy
+   │
+   ▼
+1.43    Primr Zero quality parity at no API spend
+   │
+   ▼
+1.44    backend freedom from measured host/cloud + single-provider cleanup
+   │
+   ▼
+1.45    agent control plane finish
+   │
+   ▼
+1.46+   run history, cost levers, progressive artifacts
               │
               ▼
 2.0     analyst quality + backend freedom + safe delegation all hold
@@ -823,30 +836,31 @@ points; work can land earlier as 1.39.x patches when it is independently safe.
 later   consumer-side composition only (no SaaS / daemon / generic middleware)
 ```
 
-1. **Improve the artifacts** (**→ 1.40**): make the Strategic Overview, AI
-   Strategy, and skill pack sharper and more company-specific, checked by side
-   by side reads on the analyst dimensions in the company-analyst contract.
-   Label calibration, evidence-fetching `--verify`, and a five-report label
-   baseline are **shipped** and remain diagnostics.
-2. **Refactor the orchestrators** (#23) (**done in 1.x**): `perform_fast_research`
-   extraction complete; keep per-module coverage rising as seams open.
-3. **Evidence-grounded validation** (#4) (**→ 1.40**): opt-in label honesty and
-   always-on citation coverage trust row are shipped; promotion waits on step 1.
-4. **Backend freedom** (#18) (**→ 1.41, then 2.0 pillar**): router wiring across
+1. **Deepen the Strategic Overview** (**→ 1.40**): 50+ pages with clear
+   sections, every section adding depth rather than restating, real financial
+   and operating anchors, and confident consultant-grade writing. Checked by
+   side by side reads. Label calibration, evidence-fetching `--verify`, and a
+   five-report label baseline are **shipped** and remain diagnostics.
+2. **Complete the strategy library** (**→ 1.41**): AI Strategy first; every
+   listed strategy complete, role-agnostic, clearly described, and 30+ pages;
+   placeholders finished or marked.
+3. **Tie skill packs to roles and strategy** (**→ 1.42**): roles drawn from
+   hiring and research, skills that accelerate that work and parts of the
+   strategy.
+4. **Primr Zero quality parity** (**→ 1.43**): the agent-host path reaches the
+   same artifact quality with no Primr API spend.
+5. **Backend freedom** (#18) (**→ 1.44, then 2.0 pillar**): router wiring across
    the fast pipeline is shipped; next is live host-vs-cloud promotion and pure
    single-provider full-report paths.
-5. **Control plane** (T8 + #21) (**→ 1.42, then 2.0 pillar**): MCP/A2A authz,
+6. **Control plane** (T8 + #21) (**→ 1.45, then 2.0 pillar**): MCP/A2A authz,
    approval tokens, seven compact job resources, and cancellation ownership are
    shipped; remaining: MCP Tasks extension and related watch items.
-6. **Memory layer 1 + run ledger** (**→ 1.43**): finish automatic run pointers,
-   retention/deletion, and export; add digest-bound source receipts and evidence
-   anchors, then emit run-scoped findings and strategic inferences in shadow
-   mode. The v1.40 corpus remains the prerequisite and is not reopened by this
-   design. See
-   [`docs/design/run-epistemic-ledger.md`](docs/design/run-epistemic-ledger.md).
-7. **Claim-aware writing, cost levers & progressive artifacts** (**→ 1.44+**):
-   promote ledger-backed section packets only after representative eval, then
-   continue the batch API, measured pipeline overlap, and progressive artifacts.
+7. **Run history, cost levers & progressive artifacts** (**→ 1.46+**): finish
+   automatic run pointers, retention/deletion, and export, then the batch API,
+   measured pipeline overlap, and progressive artifacts. The run ledger in
+   [`docs/design/run-epistemic-ledger.md`](docs/design/run-epistemic-ledger.md)
+   is an optional internal aid, adopted only where it makes reports better.
+   The orchestrator refactor (#23) is **done in 1.x**.
 8. **Measured repeat-engagement continuity** (**→ 2.0 only after report lift**):
    ingest immutable run records into governed local state, add fenced prior
    research as validation context, and emit a lossless OKF projection only for
@@ -1008,9 +1022,9 @@ ledger in
 [`docs/design/run-epistemic-ledger.md`](docs/design/run-epistemic-ledger.md):
 source-grounded findings remain separate from strategic inferences, which carry
 premises, assumptions, counterevidence, and disconfirming signals. It is not a
-replacement for the v1.40 calibration corpus. It starts shadow-only in v1.43;
-claim-aware section packets inside the fixed scaffold are eligible for v1.44+
-only after representative eval. The optional declarative ontology validates
+replacement for the v1.40 calibration corpus. It is an optional internal aid
+(v1.46+ at the earliest) and is adopted only where side by side reads show it
+makes reports better. The optional declarative ontology validates
 type and relation legality, while semantic support, contradiction,
 qualification, and supersession remain model- or human-adjudicated.
 
@@ -1984,7 +1998,7 @@ Promotion criteria:
 
 Make research compound across runs by persisting extracted claims, citations, and hypotheses in a searchable store. Currently each run starts fresh. If you research 50 companies in the same industry, each run rediscovers the same industry context. Cross-run memory enables meta-research ("show AI strategy evolution across all fintech targets") and better hypothesis quality for repeat verticals. Three staged layers, build top-down:
 
-**Layer 1 - Persistent company tracking + run-ledger history (v1.43 entry point):**
+**Layer 1 - Persistent company tracking + run-ledger history (v1.46+ entry point):**
 - `primr company track <name> <url>` - creates persistent local profile folder; shipped foundation stores URL, freshness status, retention classification, and bounded body-free run pointers under the per-user data directory
 - `primr company list` / `primr company show <name>` - show tracked company profiles; shipped foundation reports tracked freshness once a local run pointer is recorded
 - `primr improve --track` - auto-runs improvement pass on stale profiles (configurable staleness threshold)
@@ -2243,6 +2257,7 @@ live in [the changelog](docs/CHANGELOG.md) and
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.34 | Oct 2026 | **Roadmap follows the outputs.** Overview depth (1.40), strategy library (1.41), skill packs (1.42), Primr Zero parity (1.43), then backends, control plane, and run history; length targets of 50+ and 30+ pages; models and prices rechecked with no change. |
 | 1.39.33 | Oct 2026 | **Product framing.** README, contract, and guides state that reports mix cited, checkable facts with reasoned strategy that is usually not public; Primr is not only a fact checker. |
 | 1.39.32 | Oct 2026 | **Artifact-first quality card.** v1.40 now improves the Strategic Overview, AI Strategy, and skill pack directly, checked by side by side reads; human fact adjudication is no longer a release gate. |
 | 1.39.31 | Oct 2026 | **Current flagship defaults.** Every default route moves to the newest provider model (Grok 4.7, Gemini 3.8 Flash and 4 Argon, GPT-6.1 Terra, Claude 5.5); the GPT-4.1 Mini route retires; estimates disclose scheduled price changes. |

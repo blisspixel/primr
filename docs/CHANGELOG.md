@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.34] - 2026-10-29
+
+### Changed
+
+- The roadmap now follows Primr's outputs. v1.40 deepens the Strategic
+  Overview (typically 50 or more pages, every section adding depth); v1.41
+  completes the strategy library, with AI Strategy as the default and every
+  listed strategy role-agnostic and at least 30 pages; v1.42 ties skill packs
+  to the company's roles and strategy; v1.43 brings Primr Zero to the same
+  quality with no API spend. Backend freedom, the agent control plane, and run
+  history follow, and the run ledger becomes an optional internal aid. The
+  product contract states that Primr is deep consultant preparation for any
+  role, not a financial analyst's report or a fact lookup, and that fixing
+  repetition means deepening sections, never shortening reports.
+- Model defaults and prices were rechecked against the xAI, Gemini, OpenAI,
+  Claude, and OpenRouter catalogs on 2026-10-29. No newer generally available
+  model or price change applies; the default full run (Strategic Overview plus
+  AI Strategy) still estimates $1.24.
+
+### Added
+
+- OpenRouter routes for Kimi K3.1 Pro, Meta Muse Spark 1.3, and Mistral Large 4,
+  three leading models from OpenRouter's benchmark leaderboard that Primr did
+  not yet register, priced from OpenRouter's endpoints API on 2026-10-29.
+
+### Fixed
+
+- The OpenRouter GLM 5.3 Flash route could not run: its registered rate, which
+  Primr also sends as the request price ceiling, was below every provider
+  serving the model. It now uses Z.AI's first-party rate.
+
 ## [1.39.33] - 2026-10-28
 
 ### Changed
