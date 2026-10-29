@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.34] - 2026-10-29
+
 ### Changed
 
 - The roadmap now follows Primr's outputs. v1.40 deepens the Strategic
@@ -19,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   product contract states that Primr is deep consultant preparation for any
   role, not a financial analyst's report or a fact lookup, and that fixing
   repetition means deepening sections, never shortening reports.
+- Model defaults and prices were rechecked against the xAI, Gemini, OpenAI,
+  Claude, and OpenRouter catalogs on 2026-10-29. No newer generally available
+  model or price change applies; the default full run (Strategic Overview plus
+  AI Strategy) still estimates $1.24.
 
 ## [1.39.33] - 2026-10-28
 

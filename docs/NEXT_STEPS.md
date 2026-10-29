@@ -1,6 +1,6 @@
 # Next Steps
 
-Released baseline: **v1.39.33**
+Released baseline: **v1.39.34**
 
 Next implementation candidate: **v1.40.0**
 
@@ -40,7 +40,11 @@ product.
 
 ## Current executable card
 
-v1.39.33 is the released baseline. It states plainly that Primr's reports mix
+v1.39.34 is the released baseline. It orders the roadmap around Primr's
+outputs: Overview depth, the strategy library, skill packs, and Primr Zero
+parity. Model defaults and prices were rechecked against every provider on
+2026-10-29 with no change; the default full run estimates $1.24.
+v1.39.33 states plainly that Primr's reports mix
 cited facts with reasoned strategy and that Primr is not only a fact checker.
 v1.39.32 refocuses v1.40 on making the
 Strategic Overview, AI Strategy, and skill pack better, checked by side by
@@ -209,7 +213,7 @@ support. Use the [compatibility review](ROADMAP_REVIEW.md) as a dated evidence
 snapshot, then recheck primary sources when upgrading. Keep transport and
 installed-layout regressions in the normal free release gate.
 
-## Version gates after v1.39.33
+## Version gates after v1.39.34
 
 Later bands advance in dependency order. A version is cut when its exit criteria
 hold, not because a date or effort estimate was written down.
