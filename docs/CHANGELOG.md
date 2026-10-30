@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Reviewed dependency updates: openai 3.41.0 (major: HTTPX2 replaces httpx as
+  the SDK's default client; Primr's bounded transport still constructs it with
+  redirects disabled and retries owned by Primr), azure-identity 1.27.0,
+  boto3 and botocore 1.43.122, curl-cffi 0.17.0, msgpack 1.2.4, patchright
+  1.64.3, pytest-asyncio 1.4.1, and hypothesis 6.170.14. The runtime container
+  export is regenerated to match the lock.
+
 ### Fixed
 
 - Repository, package metadata, installer, support, agent-plugin, and runtime
