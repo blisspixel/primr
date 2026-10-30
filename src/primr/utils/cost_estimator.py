@@ -245,7 +245,7 @@ MODE_ESTIMATES = {
         "grok_reasoning_input_tokens": 100_000,  # gap analysis + analysis workbook + cross-val (~84K actual + margin)
         "grok_reasoning_output_tokens": 5_000,  # gap + workbook + cross-val output (~4K actual + margin)
         "grok_writing_input_tokens": 1_750_000,  # 21 x ~60k per section + coherence + polish (~1.7M actual + margin)
-        "grok_writing_output_tokens": 85_000,  # ~34k section writing + 25k coherence + polish (~81K actual + margin)
+        "grok_writing_output_tokens": 95_000,  # ~43k section writing (50+ page floors) + 25k coherence + polish + margin
         "deep_research_tasks": 0,
         "search_queries": 0,  # DDG is free, not Google Search
         # Calibrated from real runs: scraping ~6-10 min, search ~8-12 min, analysis+writing ~15-20 min, cross-val ~5 min

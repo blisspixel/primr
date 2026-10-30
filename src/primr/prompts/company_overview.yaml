@@ -10,7 +10,7 @@ meta:
   version: "1.2.0"
   description: "Comprehensive company research for pre-meeting preparation"
   output_format: "markdown"
-  expected_pages: "20-70"
+  expected_pages: "50-70"
   
 # Dependencies on shared components:
 #   - shared/epistemic_rules.yaml
@@ -28,14 +28,16 @@ document_purpose: |
   Write with analytical depth. Surface uncomfortable hypotheses. Prioritize clarity over diplomacy.
   Treat strong claims as working hypotheses unless explicitly supported by cited sources.
   
-  IMPORTANT - Avoid Repetition:
-  Each insight should live in ONE section. Don't repeat the same point across SWOT, Strategic 
-  Tensions, Fragilities, and Patterns. Pick the best home for each idea and develop it there.
-  Cross-reference other sections rather than restating.
+  IMPORTANT - Build, Don't Restate:
+  This is a long-form document, typically 50+ pages with clear sections. Each section has its
+  own lens. When a theme recurs across SWOT, Strategic Tensions, Fragilities, and Patterns,
+  refer back to it briefly and add what is new through that section's lens (a new angle,
+  evidence, consequence, or question). Never shorten a section to avoid overlap; deepen it.
 
 epistemic_rules:
   confidence_labeling: |
-    REQUIRED: Label every significant claim with confidence level:
+    Label load-bearing factual claims with a confidence level. Write strategic analysis and
+    interpretation directly; it does not need a label on every sentence:
     - **Confirmed**: From official filings, company statements, or verified sources
     - **Reported**: From credible third-party sources (news, analysts) but not verified
     - **Estimated**: Calculated or inferred from available data
@@ -47,12 +49,10 @@ epistemic_rules:
   fact_inference_hypothesis: |
     Distinguish facts (with citations) from inferences (labeled as such) from hypotheses (to validate).
     Never state a hypothesis as if it were confirmed fact.
-  risk_framing: |
-    Frame risks as "areas to explore" not definitive threats.
-  language: |
-    Use language like "appears to", "worth exploring", "we'd want to validate".
-  transformation_rule: |
-    If a sentence implies inevitability or failure, rewrite it as a scenario comparison.
+  analytical_voice: |
+    Write like a senior consultant preparing a partner: take clear positions, explain the
+    reasoning, and name the evidence they rest on. Qualify where evidence is genuinely thin,
+    but do not hedge every sentence with "appears to" or "worth exploring".
   numeric_precision: |
     For numbers not directly from filings or official sources:
     - Use ranges: "$800M-$1.2B" not "$1B"
@@ -408,7 +408,7 @@ sections:
       - "Budget-Adjacent Areas: Where spend is already happening or planned"
       - "Budget-Resistant Areas: Where we'd need to create the case from scratch"
       - "Decision Ownership: Who owns each area (CFO, CTO, Head of X)"
-      - "Time Horizon: 2025 priorities vs 2026+ strategic bets"
+      - "Time Horizon: near-term priorities (next 12 months) vs longer-term strategic bets"
     depth: |
       ENGAGEMENT REALISM: Ground each opportunity in budget reality and decision complexity.
       
@@ -417,7 +417,8 @@ sections:
       **BUDGET REALITY**
       - Is there existing budget for this? (Yes/No/Unclear)
       - If no, what would need to be true to create budget?
-      - What's the likely budget range? ($50K? $500K? $5M?)
+      - What budget signals exist (stated investment, hiring, capex, announced programs)?
+        Do not invent a dollar range.
       
       **DECISION COMPLEXITY**
       - Who owns this decision? (Specific title, not just "leadership")

@@ -1458,8 +1458,8 @@ Primr originally ran everything through Google's Deep Research API plus Gemini
 justifies the cost. Since 2026-10-28 the defaults track each provider's current
 flagship (see [`design/grok-default-routing.md`](design/grok-default-routing.md)):
 **Grok 4.7** for reasoning-heavy stages and **Gemini 3.5 Flash-Lite** for bulk
-writing when both keys are set. The current static plan is about **$1.05** for
-the base Strategic Overview and **$1.24** when the default AI Strategy is
+writing when both keys are set. The current static plan is about **$1.08** for
+the base Strategic Overview and **$1.26** when the default AI Strategy is
 included. The earlier Grok 4.3 recipe measured $0.79 in the v1.24.0 eval.
 
 `--grok-tier max` routes writing through Grok 4.7 as well as reasoning. It is

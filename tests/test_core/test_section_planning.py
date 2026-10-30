@@ -56,47 +56,47 @@ class TestHighDepthSectionIds:
 
 
 class TestGetSectionWordTarget:
-    def test_high_depth_id_returns_1200(self):
+    def test_high_depth_id_returns_1500(self):
         section = _FakeSection(id="executive_summary", depth="thorough")
-        assert _get_section_word_target(section) == 1_200
+        assert _get_section_word_target(section) == 1_500
 
-    def test_depth_mentions_pages_returns_1200(self):
+    def test_depth_mentions_pages_returns_1500(self):
         section = _FakeSection(id="other_id", depth="3 pages of analysis")
-        assert _get_section_word_target(section) == 1_200
+        assert _get_section_word_target(section) == 1_500
 
-    def test_depth_mentions_comprehensive_returns_1200(self):
+    def test_depth_mentions_comprehensive_returns_1500(self):
         section = _FakeSection(id="other_id", depth="Comprehensive treatment")
-        assert _get_section_word_target(section) == 1_200
+        assert _get_section_word_target(section) == 1_500
 
-    def test_framework_position_returns_800(self):
+    def test_framework_position_returns_1000(self):
         section = _FakeSection(id="swot", depth="standard", position="framework")
-        assert _get_section_word_target(section) == 800
+        assert _get_section_word_target(section) == 1_000
 
-    def test_default_returns_800(self):
+    def test_default_returns_1000(self):
         section = _FakeSection(id="anything", depth="default analysis")
-        assert _get_section_word_target(section) == 800
+        assert _get_section_word_target(section) == 1_000
 
     def test_handles_none_depth(self):
         section = _FakeSection(id="x", depth=None)
-        assert _get_section_word_target(section) == 800
+        assert _get_section_word_target(section) == 1_000
 
     def test_depth_case_insensitive(self):
         section = _FakeSection(id="x", depth="3 PAGES TOTAL")
-        assert _get_section_word_target(section) == 1_200
+        assert _get_section_word_target(section) == 1_500
 
 
 class TestGetSectionMaxTokens:
-    def test_high_depth_section_returns_6000(self):
+    def test_high_depth_section_returns_8000(self):
         section = _FakeSection(id="executive_summary", depth="")
+        assert _get_section_max_tokens(section) == 8_000
+
+    def test_default_section_returns_6000(self):
+        section = _FakeSection(id="generic", depth="")
         assert _get_section_max_tokens(section) == 6_000
 
-    def test_default_section_returns_4000(self):
-        section = _FakeSection(id="generic", depth="")
-        assert _get_section_max_tokens(section) == 4_000
-
-    def test_framework_section_returns_4000(self):
+    def test_framework_section_returns_6000(self):
         section = _FakeSection(id="swot", depth="", position="framework")
-        assert _get_section_max_tokens(section) == 4_000
+        assert _get_section_max_tokens(section) == 6_000
 
 
 class TestDetermineSectionReasoningMode:
@@ -190,12 +190,12 @@ class TestGroupSectionsByPart:
 @pytest.mark.parametrize(
     ("section_id", "expected_words"),
     [
-        ("executive_summary", 1_200),
-        ("competitive_landscape", 1_200),
-        ("company_history", 1_200),
-        ("engagement_opportunities", 1_200),
-        ("financial_profile", 800),
-        ("industry_outlook", 800),
+        ("executive_summary", 1_500),
+        ("competitive_landscape", 1_500),
+        ("company_history", 1_500),
+        ("engagement_opportunities", 1_500),
+        ("financial_profile", 1_000),
+        ("industry_outlook", 1_000),
     ],
 )
 def test_word_target_for_canonical_section_ids(section_id, expected_words):

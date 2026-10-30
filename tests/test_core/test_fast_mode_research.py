@@ -7,6 +7,8 @@ that enhance fast mode report quality.
 
 import json
 
+import pytest
+
 from primr.core.fast_run_gaps import _fast_gap_analysis
 from primr.core.research_agent import (
     _build_fast_section_prompt,
@@ -823,6 +825,22 @@ class TestGeneratedSectionNormalization:
         assert payload.content.count("What to validate:") == 1
         assert payload.validate_line == "What to validate: Final question."
         assert payload.content.endswith("What to validate: Final question.")
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "Analysis.\n\n### What to validate\n\nDoes churn track the price change?",
+            "Analysis.\n\n* **What to validate:** Does churn track the price change?",
+            "Analysis.\n\n- What to validate: Does churn track the price change?",
+            "Analysis.\n\n**What to validate:**\n- Does churn track the price change?",
+        ],
+    )
+    def test_normalize_generated_section_payload_keeps_the_writers_question(self, body):
+        payload = _normalize_generated_section_payload("Pricing", body, "Pricing")
+
+        assert payload.validate_line == "What to validate: Does churn track the price change?"
+        assert payload.content.count("What to validate") == 1
+        assert "Confirm this section's key claim" not in payload.content
 
     def test_normalize_generated_section_payload_strips_nested_heading_from_body(self):
         payload = _normalize_generated_section_payload(
