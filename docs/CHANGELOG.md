@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Repository, package metadata, installer, support, agent-plugin, and runtime
+  identity links now point to `pueo-labs/primr` after the repository transfer.
+  The documentation site uses `https://pueo-labs.github.io/primr/`; GitHub does
+  not redirect the previous Pages URL. Package and plugin names, versions,
+  author attribution, and historical release records are unchanged.
+- Claude Code setup now loads the checked-in plugin directory instead of
+  advertising a marketplace catalog that the repository does not publish.
+
 ## [1.39.34] - 2026-10-29
 
 ### Changed

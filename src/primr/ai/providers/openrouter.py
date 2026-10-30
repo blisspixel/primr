@@ -15,7 +15,7 @@ from primr.config.models import PrimrModels
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_BILLING_URL = "https://openrouter.ai/settings/credits"
 OPENROUTER_APP_HEADERS = {
-    "HTTP-Referer": "https://github.com/blisspixel/primr",
+    "HTTP-Referer": "https://github.com/pueo-labs/primr",
     "X-OpenRouter-Title": "Primr",
 }
 _FALSE_VALUES = frozenset({"0", "false", "no", "off"})

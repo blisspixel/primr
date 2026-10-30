@@ -22,7 +22,7 @@ If you discover a security vulnerability in Primr, please report it responsibly.
 
 ### How to Report
 
-1. Report security vulnerabilities privately through [GitHub vulnerability reporting](https://github.com/blisspixel/primr/security/advisories/new).
+1. Report security vulnerabilities privately through [GitHub vulnerability reporting](https://github.com/pueo-labs/primr/security/advisories/new).
 2. Include:
    - Description of the vulnerability
    - Steps to reproduce

@@ -48,7 +48,7 @@ PowerShell:
 
 ```powershell
 $primrInstaller = Join-Path $env:TEMP "primr-install.ps1"
-Invoke-WebRequest https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.ps1 -OutFile $primrInstaller
+Invoke-WebRequest https://raw.githubusercontent.com/pueo-labs/primr/main/scripts/install.ps1 -OutFile $primrInstaller
 Get-Content $primrInstaller
 powershell -ExecutionPolicy Bypass -File $primrInstaller
 ```
@@ -58,7 +58,7 @@ Bash:
 ```bash
 primr_installer="$(mktemp)"
 trap 'rm -f "$primr_installer"' EXIT
-curl -fsSL https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.sh -o "$primr_installer"
+curl -fsSL https://raw.githubusercontent.com/pueo-labs/primr/main/scripts/install.sh -o "$primr_installer"
 cat "$primr_installer"
 bash "$primr_installer"
 ```

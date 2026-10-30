@@ -257,7 +257,7 @@ production-wide quality.
 ## Persistent development guidance
 
 The development contract now lives in
-[`AGENTS.md`](https://github.com/blisspixel/primr/blob/main/AGENTS.md), which
+[`AGENTS.md`](https://github.com/pueo-labs/primr/blob/main/AGENTS.md), which
 `CLAUDE.md` imports (#264); the operating guide moved to
 `clients/primr-operator.md`. The refinement
 adds evidence-specific verification, source and history checks, use of the

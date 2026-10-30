@@ -25,7 +25,7 @@ The team tier gives you a shared MCP server on Azure Container Apps with API key
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/blisspixel/primr.git
+git clone https://github.com/pueo-labs/primr.git
 cd primr
 
 # Set your deployment name and region

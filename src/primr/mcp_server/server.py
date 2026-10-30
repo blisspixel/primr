@@ -142,7 +142,7 @@ class PrimrMCPServer:
             version=_primr_version(),
             title="Primr",
             description="Company research: URL in, sourced strategic brief out.",
-            website_url="https://github.com/blisspixel/primr",
+            website_url="https://github.com/pueo-labs/primr",
             instructions=(
                 "Primr runs cost real money. Call estimate_run before any "
                 "cost-incurring tool, surface the estimate, and get explicit "

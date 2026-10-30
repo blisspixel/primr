@@ -47,7 +47,7 @@ the current executable card, not a historical pilot's place in this table.
 > they did not rule out improvements to collection or context assembly.
 
 The subsequent July 13, 2026 milestone and operator decision are recorded in the
-[roadmap](https://github.com/blisspixel/primr/blob/main/ROADMAP.md): five reports,
+[roadmap](https://github.com/pueo-labs/primr/blob/main/ROADMAP.md): five reports,
 50 evidence reviews, 33/37 comparable
 cloud/local verdicts agreeing, and a deliberate `keep_report_only` decision
 because two reports lacked a decidable Confirmed floor. These are historical

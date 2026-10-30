@@ -212,7 +212,7 @@ ids.
 
 ### Portable Agent Plugins v1 package
 
-[`agent-plugin/`](https://github.com/blisspixel/primr/tree/main/agent-plugin) is an experimental distribution artifact
+[`agent-plugin/`](https://github.com/pueo-labs/primr/tree/main/agent-plugin) is an experimental distribution artifact
 for the Agent Plugins v1.0.0 Working Draft. It contains the portable root
 `plugin.json`, immediate `skills/primr` and `skills/primr-zero` children, and a
 root `mcp.json` that starts `primr mcp` over stdio.
@@ -222,7 +222,7 @@ does not standardize installation, permissions, user interface, or every
 client extension. Check the specification's compatible-client registry and
 the selected client's installation guide before claiming support. Claude Code
 is not currently claimed through this portable artifact; use the existing
-[`claude-code/`](https://github.com/blisspixel/primr/tree/main/claude-code) package for Claude-specific installation.
+[`claude-code/`](https://github.com/pueo-labs/primr/tree/main/claude-code) package for Claude-specific installation.
 
 Agent Plugins v1 defines skills and MCP servers as separate portable component
 types, and clients can support them incrementally. Primr's `mcp.json` uses the
@@ -248,7 +248,7 @@ and [compatible clients](https://agent-plugins.org/compatible-clients).
 
 ### Host-specific configuration
 
-Per-host snippets live under [`clients/`](https://github.com/blisspixel/primr/tree/main/clients):
+Per-host snippets live under [`clients/`](https://github.com/pueo-labs/primr/tree/main/clients):
 
 - Codex and other repository Agent Skills hosts
 - Cursor
@@ -312,7 +312,7 @@ task contract.
 For provider-backed Primr guidance, install the existing full-pipeline skill:
 
 ```text
-Fetch https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/SKILL.md
+Fetch https://raw.githubusercontent.com/pueo-labs/primr/main/claude-code/skills/primr/SKILL.md
 Save it to the host's local skills directory as primr/SKILL.md
 Fetch the files under claude-code/skills/primr/references/
 Save them under primr/references/

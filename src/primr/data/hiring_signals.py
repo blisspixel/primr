@@ -92,7 +92,7 @@ _MIN_USEFUL_BODY_CHARS = 200
 # Stale JDs (older than ~9 months) describe old strategy. Tag but don't drop.
 _STALE_DAYS_THRESHOLD = 270
 
-_USER_AGENT = "primr/1.0 (+https://github.com/blisspixel/primr; research fetcher)"
+_USER_AGENT = "primr/1.0 (+https://github.com/pueo-labs/primr; research fetcher)"
 
 
 # =============================================================================

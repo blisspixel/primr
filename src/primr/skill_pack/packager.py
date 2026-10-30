@@ -233,9 +233,9 @@ def _build_manifest(
         "packageName": package_name,
         "developer": {
             "name": "Custom Skill Pack",
-            "websiteUrl": "https://github.com/blisspixel/primr",
-            "privacyUrl": "https://github.com/blisspixel/primr",
-            "termsOfUseUrl": "https://github.com/blisspixel/primr",
+            "websiteUrl": "https://github.com/pueo-labs/primr",
+            "privacyUrl": "https://github.com/pueo-labs/primr",
+            "termsOfUseUrl": "https://github.com/pueo-labs/primr",
         },
         "name": {
             "short": safe_short,

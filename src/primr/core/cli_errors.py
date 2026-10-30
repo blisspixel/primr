@@ -16,7 +16,7 @@ from primr.core.cli_command_output import report_command_error
 from primr.core.cli_dryrun import reject_unsupported_dry_run
 from primr.utils.console import console
 
-ISSUES_URL = "https://github.com/blisspixel/primr/issues"
+ISSUES_URL = "https://github.com/pueo-labs/primr/issues"
 # 128 + SIGINT(2): the conventional shell exit code for a Ctrl-C interrupt.
 EXIT_INTERRUPTED = 130
 _ConfigT = TypeVar("_ConfigT")

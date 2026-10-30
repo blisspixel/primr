@@ -1,6 +1,6 @@
 # Design Docs
 
-Breakdown documents for the [Release Dependency Map](https://github.com/blisspixel/primr/blob/main/ROADMAP.md#release-dependency-map)
+Breakdown documents for the [Release Dependency Map](https://github.com/pueo-labs/primr/blob/main/ROADMAP.md#release-dependency-map)
 workstreams. The ROADMAP owns *what and in which order*; these docs own *how
 and why* at one level more detail. Keep them in lockstep: when a workstream's
 scope changes, update both.

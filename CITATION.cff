@@ -10,8 +10,8 @@ type: software
 authors:
   - family-names: Seal
     given-names: Nick
-repository-code: "https://github.com/blisspixel/primr"
-url: "https://github.com/blisspixel/primr"
+repository-code: "https://github.com/pueo-labs/primr"
+url: "https://github.com/pueo-labs/primr"
 license: Apache-2.0
 # NOTE: `version` is pinned to the single source of version truth by
 # tests/test_release_integrity.py - bump it together with pyproject.toml,
