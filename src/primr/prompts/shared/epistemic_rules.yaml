@@ -122,7 +122,8 @@ rules:
     1. BUDGET REALITY
        - Is there existing budget for this? (Yes/No/Unclear)
        - If no, what would need to be true to create budget?
-       - What's the likely budget range? ($50K? $500K? $5M?)
+       - What budget signals exist (stated investment, hiring, capex, announced programs)?
+         Do not invent a dollar range.
     
     2. DECISION COMPLEXITY
        - Who owns this decision? (Title, not just "leadership")

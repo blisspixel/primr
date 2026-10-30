@@ -29,14 +29,12 @@ if TYPE_CHECKING:
 def _enforce_fast_section_quality_guards(report_content: str) -> str:
     """Apply deterministic quality guards to fast reports.
 
-    - Ensure each section has at least one confidence label token.
     - Ensure each non-reference section includes a "What to validate:" line.
     """
     preamble, sections = _split_markdown_sections(report_content)
     if not sections:
         return report_content
 
-    label_pattern = re.compile(r"\((Confirmed|Reported|Estimated|Hypothesis)[^)]*\)", re.IGNORECASE)
     reference_headings = {"sources", "citations", "references"}
     rebuilt: list[str] = [preamble] if preamble else []
 
@@ -45,8 +43,6 @@ def _enforce_fast_section_quality_guards(report_content: str) -> str:
         guarded_body = body.strip()
 
         if lower_heading not in reference_headings:
-            if not label_pattern.search(guarded_body):
-                guarded_body = (guarded_body + "\n\n(Reported)").strip()
             if "what to validate" not in guarded_body.lower():
                 guarded_body = (
                     guarded_body + "\n\nWhat to validate: Confirm this section's key claim "

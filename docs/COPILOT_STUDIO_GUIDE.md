@@ -141,7 +141,7 @@ When a user asks you to research a company:
 
 Important:
 - Always return the live estimate before submitting a job (the common Standard
-  guidepost is about $1.24, but provider configuration and history can raise it)
+  guidepost is about $1.26, but provider configuration and history can raise it)
 - Research jobs are asynchronous; Standard commonly takes 34-53 minutes and
   Premium can take 74-132 minutes
 - Use show_usage to check the user's remaining budget
@@ -152,7 +152,7 @@ Available research modes:
 - deep: Deep Research dossier plus sequential section expansion and the
   default AI Strategy (~32-62 min, current static plan ~$5.38)
 - full: Standard report plus the default AI Strategy (~34-53 min, common
-  xAI-plus-Gemini guidepost ~$1.24)
+  xAI-plus-Gemini guidepost ~$1.26)
 - premium: Structured evidence plus dossier, sequential expansion, and the
   default AI Strategy (~74-132 min, current static plan ~$6.71)
 ```

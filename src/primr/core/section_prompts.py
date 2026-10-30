@@ -99,7 +99,8 @@ Use bullet points, tables, and short paragraphs. This is working notes, not pros
 
 CRITICAL: You are doing PRE-ENGAGEMENT ANALYSIS for a consulting firm, not summarizing
 the company's marketing. Separate what {company_name} CLAIMS from what external evidence
-SUPPORTS. Be conservative on financial estimates — use wide ranges and note confidence.
+SUPPORTS. Anchor financials on disclosed figures where they exist; when you must estimate,
+state the method and a range.
 
 1. **Company Basics**
    - Official name, headquarters, founding date, employee count
@@ -126,11 +127,14 @@ SUPPORTS. Be conservative on financial estimates — use wide ranges and note co
    - Include competitors the company DOESN'T mention but should
 
 5. **Financial Profile**
-   - Revenue (actual or estimated with WIDE ranges and LOW confidence if inferred)
+   - Revenue: the most recent disclosed figures with period and source (filings, annual
+     reports, investor materials, credible press) labeled Confirmed or Reported. Estimate
+     only when nothing is disclosed, and then state the method and a range
    - Growth rate and trajectory
    - Profitability indicators
    - Funding history / capital structure
    - Include a summary table
+   - Show the numerator and denominator behind any ratio or margin
    - AVOID aggressive inferences — if data is thin, say so explicitly
 
 6. **Leadership Profiles**
@@ -244,7 +248,9 @@ SOURCES CONSULTED:
 REQUIREMENTS:
 - Use specific facts, numbers, examples, and strategic comparisons — cite sources with [cite: N]
 - Be analytical and hypothesis-driven, not just descriptive
-- Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
+- Label load-bearing factual claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis).
+  Write the strategic analysis itself directly and confidently; do not hedge every sentence or
+  label every line. This is consultant preparation, not a fact check
 - If direct evidence is limited, still write a deep section by anchoring on observed facts,
   extending with defensible inference, and making the strategic implication explicit
 - Build on the previous sections' narrative (see the PREVIOUS SECTIONS block)
@@ -258,10 +264,11 @@ REQUIREMENTS:
   unless directly grounded in one or more cited sources or a transparent comparative heuristic
 - End each section with a short "What to validate:" line containing one concrete
   discovery question or data point to confirm in client interviews
-- ZERO REPETITION: Before writing a section, review the PREVIOUS SECTIONS block.
-  If an insight, data point, or hypothesis already appeared in a prior section,
-  do NOT restate it. Reference the earlier section instead ("as noted in the
-  Executive Summary...") or build on it with new evidence.
+- BUILD, DON'T RESTATE: Review the PREVIOUS SECTIONS block first. When a theme
+  from an earlier section matters here, refer back to it in a clause and spend
+  your words on what is new through this section's lens: a new angle, evidence,
+  consequence, or question. Never shorten a section to avoid overlap; go deeper
+  instead.
 - AI/TECHNOLOGY INTEGRATION: When relevant, explicitly connect AI or technology
   use cases to the company's specific business challenges. Don't just mention
   "AI could help" — specify which AI capability (NLP, computer vision, predictive
@@ -270,16 +277,16 @@ REQUIREMENTS:
 CONSULTING RIGOR (critical):
 - Do NOT paraphrase the company's marketing. When you cite their claims, immediately
   stress-test them against external evidence or flag what's unverifiable.
-- For each major hypothesis or insight, include "What to validate": a specific question
-  or data point a consultant should probe in discovery.
-- Be CONSERVATIVE on financial estimates. If you're inferring revenue from employee
-  count, say "highly uncertain" and use wide ranges. Never state inferences as fact.
+- Make the section's single closing "What to validate:" line the sharpest discovery
+  question the section raises; do not add separate validate lines per insight.
+- FINANCIAL ANCHORS: Lead with disclosed figures (period and source) where they exist,
+  and show the numerator and denominator behind any ratio. If you infer revenue from
+  headcount or another proxy, state the method and a range and label it Estimated.
+  Never state inferences as fact.
 - Frame "why now" for the company — what transition or inflection point makes this
   moment interesting? Platform shifts, PE investment, leadership changes, etc.
 - Think like a buyer, not a narrator. Where does this company win deals? Where does
   it lose? What would a competitor say about them?
-- When direct evidence is sparse, go deeper on likely economics, buyer behavior,
-  operating constraints, strategic tradeoffs, scenario paths, and the decisions leadership faces.
 - When direct evidence is sparse, go deeper on likely economics, buyer behavior, operating
   constraints, strategic tradeoffs, scenario paths, and the decisions leadership likely faces.
 
@@ -335,7 +342,7 @@ OUTPUT CONTRACT (strict):
         else "## PREVIOUS SECTIONS\n(This is the first batch — no prior sections.)"
     )
 
-    word_target = len(sections) * 800
+    word_target = sum(_get_section_word_target(section) for section in sections)
 
     volatile_suffix = f"""
 ---
@@ -460,7 +467,9 @@ SOURCES CONSULTED:
 REQUIREMENTS:
 - Use specific facts, numbers, examples, and strategic comparisons — cite sources with [cite: N]
 - Be analytical and hypothesis-driven, not just descriptive
-- Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
+- Label load-bearing factual claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis).
+  Write the strategic analysis itself directly and confidently; do not hedge every sentence or
+  label every line. This is consultant preparation, not a fact check
 - If direct evidence is limited, still write a deep section by anchoring on observed facts,
   extending with defensible inference, and making the strategic implication explicit
 - Build on the previous sections' narrative (see the PREVIOUS SECTIONS block)
@@ -474,11 +483,11 @@ REQUIREMENTS:
   unless directly grounded in one or more cited sources or a transparent comparative heuristic
 - End the section with a short "What to validate:" line containing one concrete
   discovery question or data point to confirm in client interviews
-- ZERO REPETITION: Before writing, review the PREVIOUS SECTIONS and REPORT
-  TABLE OF CONTENTS blocks. If an insight, data point, or hypothesis already
-  appeared in a prior section, do NOT restate it. Reference the earlier
-  section instead ("as noted in the Executive Summary...") or build on it
-  with new evidence.
+- BUILD, DON'T RESTATE: Review the PREVIOUS SECTIONS and REPORT TABLE OF
+  CONTENTS blocks first. When a theme from another section matters here, refer
+  to it in a clause and spend your words on what is new through this section's
+  lens: a new angle, evidence, consequence, or question. Never shorten this
+  section to avoid overlap; go deeper instead.
 - AI/TECHNOLOGY INTEGRATION: When relevant, explicitly connect AI or technology
   use cases to the company's specific business challenges. Don't just mention
   "AI could help" — specify which AI capability maps to which concrete problem.
@@ -488,10 +497,12 @@ REQUIREMENTS:
 CONSULTING RIGOR (critical):
 - Do NOT paraphrase the company's marketing. When you cite their claims, immediately
   stress-test them against external evidence or flag what's unverifiable.
-- For each major hypothesis or insight, include "What to validate": a specific question
-  or data point a consultant should probe in discovery.
-- Be CONSERVATIVE on financial estimates. If you're inferring revenue from employee
-  count, say "highly uncertain" and use wide ranges. Never state inferences as fact.
+- Make the section's single closing "What to validate:" line the sharpest discovery
+  question the section raises; do not add separate validate lines per insight.
+- FINANCIAL ANCHORS: Lead with disclosed figures (period and source) where they exist,
+  and show the numerator and denominator behind any ratio. If you infer revenue from
+  headcount or another proxy, state the method and a range and label it Estimated.
+  Never state inferences as fact.
 - Frame "why now" for the company — what transition or inflection point makes this
   moment interesting? Platform shifts, PE investment, leadership changes, etc.
 - Think like a buyer, not a narrator. Where does this company win deals? Where does

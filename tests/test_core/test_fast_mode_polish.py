@@ -70,7 +70,7 @@ def test_polish_fast_report_rejects_destructive_compression(monkeypatch):
     assert result == original
 
 
-def test_enforce_fast_section_quality_guards_adds_labels_and_validation():
+def test_enforce_fast_section_quality_guards_adds_validation_without_inventing_labels():
     report = (
         "# Report\n\n"
         "## Executive Summary\n\n"
@@ -79,7 +79,7 @@ def test_enforce_fast_section_quality_guards_adds_labels_and_validation():
         "[cite: 1] https://example.com"
     )
     guarded = _enforce_fast_section_quality_guards(report)
-    assert "(Reported)" in guarded
+    assert "(Reported)" not in guarded
     assert "What to validate:" in guarded
     # Sources section should remain as a references section.
     assert "## Sources" in guarded

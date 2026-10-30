@@ -1011,7 +1011,7 @@ class TestGrokTier:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="fast")
-        assert est.total_cost == pytest.approx(5.185)
+        assert est.total_cost == pytest.approx(5.235)
 
     def test_hybrid_tier_cost_range_xai_only(self, monkeypatch):
         """Hybrid xAI-only uses the same model pair and static cost as fast."""
@@ -1020,7 +1020,7 @@ class TestGrokTier:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="hybrid")
-        assert est.total_cost == pytest.approx(5.185)
+        assert est.total_cost == pytest.approx(5.235)
 
     def test_hybrid_tier_cost_range_with_gemini(self, monkeypatch):
         """Hybrid tier with GEMINI_API_KEY set: writing routed to gemini-3.1-flash-lite,
@@ -1083,7 +1083,7 @@ class TestGrokTier:
 
         notes = " ".join(est.notes)
         assert est.mode == "full (OpenRouter routed preview)"
-        assert est.total_cost == pytest.approx(0.670625)
+        assert est.total_cost == pytest.approx(0.678125)
         assert "deepseek/deepseek-v4.1-flash-1017 reasoning" in notes
         assert "openai/gpt-6-luna writing" in notes
         assert "google/gemini-3.5-flash-lite utility" in notes

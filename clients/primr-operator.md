@@ -185,7 +185,7 @@ primr runs cost real money and real time. **Never** launch a run without:
 If the user pushes back on cost or asks whether a free version exists, offer
 the Primr Zero route above first. Only if they explicitly prefer a cheaper
 provider-backed run should you suggest `scrape` (~$0.10) or
-`--no-ai-strategy` (around ~$1.05 on the default xAI plus Gemini
+`--no-ai-strategy` (around ~$1.08 on the default xAI plus Gemini
 recipe), then re-estimate. If they want premium depth, surface `--premium`
 and report its live estimate instead of a static price.
 

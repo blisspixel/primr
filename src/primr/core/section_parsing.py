@@ -221,10 +221,14 @@ def _normalize_generated_section_payload(
 
     validation_lines: list[str] = []
     cleaned_lines: list[str] = []
+    # Writers emit the closing line as prose, a bullet, bold text, or a small
+    # heading with the question on the next line; normalize every form so a
+    # section keeps its own question instead of gaining a generic default.
     validate_prefix_re = re.compile(
-        r"^\s*\**\s*What to validate\s*:?\s*\**\s*",
+        r"^\s*(?:#{1,6}\s*|[-*+]\s+)?\**\s*What to validate\s*:?\s*\**\s*:?\s*",
         flags=re.IGNORECASE,
     )
+    awaiting_question = False
     for raw_line in working_body.splitlines():
         stripped = raw_line.strip()
         if validate_prefix_re.match(stripped):
@@ -232,6 +236,13 @@ def _normalize_generated_section_payload(
             remainder = re.sub(r"\*+\s*$", "", remainder).rstrip()
             if remainder:
                 validation_lines.append(f"What to validate: {remainder}")
+            awaiting_question = not remainder
+            continue
+        if awaiting_question and stripped:
+            question = re.sub(r"^[-*+]\s+", "", stripped).strip("* ").rstrip()
+            if question:
+                validation_lines.append(f"What to validate: {question}")
+            awaiting_question = False
             continue
         cleaned_lines.append(raw_line)
 

@@ -41,10 +41,10 @@ class TestEnforceFastSectionQualityGuards:
         content = "Just a preamble, no headings."
         assert _enforce_fast_section_quality_guards(content) == content
 
-    def test_adds_default_confidence_label_when_missing(self):
+    def test_never_invents_a_confidence_label(self):
         content = "## Overview\n\nBody text.\nWhat to validate: x"
         result = _enforce_fast_section_quality_guards(content)
-        assert "(Reported)" in result
+        assert "(Reported)" not in result
 
     def test_preserves_existing_confidence_label(self):
         content = "## Overview\n\n(Confirmed) Body text.\nWhat to validate: x"

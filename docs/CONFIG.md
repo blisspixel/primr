@@ -368,9 +368,9 @@ Controls cost estimation. Prices are per 1 million tokens.
 These legacy settings are not the whole estimator for modern routed runs. The
 current default estimate comes from provider routing and strategy settings:
 with xAI plus Gemini configured, the default Strategic Overview plus one
-platform-neutral AI Strategy is typically around `$1.24`; an explicitly
+platform-neutral AI Strategy is typically around `$1.26`; an explicitly
 requested two-platform strategy is typically around `$1.42`; and
-`--no-ai-strategy` is typically around `$1.05`. XAI-only defaults remain
+`--no-ai-strategy` is typically around `$1.08`. XAI-only defaults remain
 on the higher legacy path.
 Always use `primr --dry-run` as the source of truth.
 

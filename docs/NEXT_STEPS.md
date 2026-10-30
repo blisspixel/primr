@@ -121,6 +121,12 @@ paid run needs a fresh estimate, explicit approval, and a cost cap.
 unapproved paid runs, a deterministic prose-quality gate, memory, and a new
 public command.
 
+**Implementation status (2026-10-30):** steps 1 to 4 below are implemented in
+the writer prompts and YAML (higher section floors, build-don't-restate,
+disclosed financial anchors, load-bearing labels, no stray scaffolding). They
+are unreleased until step 5 compares outputs side by side, which needs an
+approved, capped paid run because the Standard writer is provider-backed.
+
 **Next, in order (2026-10-29):**
 
 1. Fix the prompt rules that cause restatement across sections: give each

@@ -339,11 +339,11 @@ class TestBuildFastSectionPrompt:
 
     def test_word_target_reflects_section_id(self):
         prompt = self._build(section=_FakeSection(id="executive_summary", name="Exec"))
-        assert "1,200" in prompt
+        assert "at least 1,500 words" in prompt
 
     def test_word_target_default_for_unknown_id(self):
         prompt = self._build(section=_FakeSection(id="random", name="Random"))
-        assert "800" in prompt
+        assert "at least 1,000 words" in prompt
 
     def test_empty_sources_block(self):
         prompt = self._build(source_urls=[])

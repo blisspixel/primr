@@ -30,7 +30,7 @@ _CommandT = TypeVar("_CommandT")
 # inline in cli._create_parser so cli.py stays under its file-size ceiling.
 CLI_EPILOG = """
 Research Modes:
-  full     Scrape + standard research + one AI strategy (~34-53 min, ~$1.24 with XAI+Gemini) [DEFAULT]
+  full     Scrape + standard research + one AI strategy (~34-53 min, ~$1.26 with XAI+Gemini) [DEFAULT]
   scrape   Scrape website + extract insights only (~5-10 min, ~$0.10)
   deep     Autonomous AI web research + hiring signals (~11-17 min, ~$2.50)
   parallel Both engines in parallel (legacy, ~25 min)

@@ -24,7 +24,12 @@ _PART_LABELS: dict[int, str] = {
     5: "Synthesis",
 }
 
-# Section IDs that always warrant the 1,200-word target regardless of
+# Section word targets. The Strategic Overview is long-form consultant prep
+# (typically 50+ pages across ~23 sections), so these are floors, not caps.
+HIGH_DEPTH_WORD_TARGET = 1_500
+STANDARD_WORD_TARGET = 1_000
+
+# Section IDs that always warrant the high-depth target regardless of
 # their YAML-declared depth.
 _HIGH_DEPTH_SECTION_IDS: frozenset[str] = frozenset(
     {
@@ -40,9 +45,8 @@ def _get_section_word_target(section: SectionConfig) -> int:
     """Return adaptive word target for a single section.
 
     - Sections with depth mentioning 'pages'/'comprehensive', or IDs in
-      ``_HIGH_DEPTH_SECTION_IDS`` → 1,200 words
-    - Framework sections (position == 'framework') → 800 words
-    - Everything else → 800 words
+      ``_HIGH_DEPTH_SECTION_IDS`` → ``HIGH_DEPTH_WORD_TARGET``
+    - Everything else, frameworks included → ``STANDARD_WORD_TARGET``
     """
     depth_lower = (section.depth or "").lower()
     if (
@@ -50,15 +54,13 @@ def _get_section_word_target(section: SectionConfig) -> int:
         or "pages" in depth_lower
         or "comprehensive" in depth_lower
     ):
-        return 1_200
-    if section.position == "framework":
-        return 800
-    return 800
+        return HIGH_DEPTH_WORD_TARGET
+    return STANDARD_WORD_TARGET
 
 
 def _get_section_max_tokens(section: SectionConfig) -> int:
     """Return max_tokens for a single-section Grok call."""
-    return 6_000 if _get_section_word_target(section) >= 1_000 else 4_000
+    return 8_000 if _get_section_word_target(section) >= HIGH_DEPTH_WORD_TARGET else 6_000
 
 
 def _determine_section_reasoning_mode(section: SectionConfig, analysis_workbook: str) -> str:
