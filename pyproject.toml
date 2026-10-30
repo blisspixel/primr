@@ -207,10 +207,10 @@ primr-mcp = "primr.mcp_server.cli:main"
 primr-a2a = "primr.a2a.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/blisspixel/primr"
-Documentation = "https://github.com/blisspixel/primr#readme"
-Repository = "https://github.com/blisspixel/primr"
-"Bug Tracker" = "https://github.com/blisspixel/primr/issues"
+Homepage = "https://github.com/pueo-labs/primr"
+Documentation = "https://github.com/pueo-labs/primr#readme"
+Repository = "https://github.com/pueo-labs/primr"
+"Bug Tracker" = "https://github.com/pueo-labs/primr/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

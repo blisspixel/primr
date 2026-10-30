@@ -1,8 +1,8 @@
 site_name: Primr
 site_description: Company URL to a sourced strategic brief — agent hosts and CLI, structured evidence and durable artifacts.
-site_url: https://blisspixel.github.io/primr/
-repo_url: https://github.com/blisspixel/primr
-repo_name: blisspixel/primr
+site_url: https://pueo-labs.github.io/primr/
+repo_url: https://github.com/pueo-labs/primr
+repo_name: pueo-labs/primr
 edit_uri: edit/main/docs/
 copyright: Copyright &copy; 2025-2026 Nick Seal - Apache License 2.0
 

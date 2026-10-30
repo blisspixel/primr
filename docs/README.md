@@ -12,10 +12,10 @@ target. Regenerate via [`CONTRIBUTING.md`](CONTRIBUTING.md).*
 
 | Start here | Link |
 |------------|------|
-| Install and shortest path | [Root README](https://github.com/blisspixel/primr/blob/main/README.md) · [Installation](INSTALLATION.md) |
-| Agent-host operation (Primr Zero by default) | [Operator guide](https://github.com/blisspixel/primr/blob/main/clients/primr-operator.md) · [Agent Integration](AGENT_INTEGRATION.md) · [Zero-cost](ZERO_COST.md) |
+| Install and shortest path | [Root README](https://github.com/pueo-labs/primr/blob/main/README.md) · [Installation](INSTALLATION.md) |
+| Agent-host operation (Primr Zero by default) | [Operator guide](https://github.com/pueo-labs/primr/blob/main/clients/primr-operator.md) · [Agent Integration](AGENT_INTEGRATION.md) · [Zero-cost](ZERO_COST.md) |
 | Modes, costs, cost gate | [Run modes](RUN_MODES.md) |
-| Changing Primr source | [AGENTS.md](https://github.com/blisspixel/primr/blob/main/AGENTS.md) · [Contributing](CONTRIBUTING.md) |
+| Changing Primr source | [AGENTS.md](https://github.com/pueo-labs/primr/blob/main/AGENTS.md) · [Contributing](CONTRIBUTING.md) |
 
 The root README is a **front door** only. Operator detail lives in the guides
 below (Diataxis: learning, doing, looking up, understanding).
@@ -68,7 +68,7 @@ below (Diataxis: learning, doing, looking up, understanding).
 | [CHANGELOG](CHANGELOG.md) | Version history | 2026-10-20 |
 | [MIGRATION](MIGRATION.md) | Error-hierarchy migration notes | 2026-02-02 |
 | [EVAL_V1_24_0](EVAL_V1_24_0.md) | Historical decision record: the v1.24.0 cross-provider eval plan | 2026-10-11 |
-| [ROADMAP](https://github.com/blisspixel/primr/blob/main/ROADMAP.md) | Release dependencies, long-range gates, and implementation ledger | 2026-09-02 |
+| [ROADMAP](https://github.com/pueo-labs/primr/blob/main/ROADMAP.md) | Release dependencies, long-range gates, and implementation ledger | 2026-09-02 |
 
 ## Explanation (understanding why)
 
@@ -88,4 +88,4 @@ below (Diataxis: learning, doing, looking up, understanding).
 | Document | Description | Updated |
 |----------|-------------|---------|
 | [CONTRIBUTING](CONTRIBUTING.md) | Dev environment setup and the contribution workflow | 2026-10-20 |
-| [AGENTS.md](https://github.com/blisspixel/primr/blob/main/AGENTS.md) | The development contract: seams, constraints, verification gates (CLAUDE.md imports it) | — |
+| [AGENTS.md](https://github.com/pueo-labs/primr/blob/main/AGENTS.md) | The development contract: seams, constraints, verification gates (CLAUDE.md imports it) | — |

@@ -2,7 +2,7 @@
 
 This file is portable agent guidance in the [agents.md](https://agents.md) format for agents that *operate* primr. Copy it into your own workspace root as `AGENTS.md`: tools that auto-detect `AGENTS.md` (Kiro, OpenAI Codex, Jules, Aider, others) then load it automatically, and Claude Code loads it through a `CLAUDE.md` containing `@AGENTS.md`. Tools without that format (Cursor, Windsurf) can reference or include it from their own rules or skill files.
 
-> **Operating primr vs. building primr.** This guide is for agents that *operate* the primr CLI/MCP to do research. To *change primr's source code*, read the repository root [`AGENTS.md`](https://github.com/blisspixel/primr/blob/main/AGENTS.md), the development contract.
+> **Operating primr vs. building primr.** This guide is for agents that *operate* the primr CLI/MCP to do research. To *change primr's source code*, read the repository root [`AGENTS.md`](https://github.com/pueo-labs/primr/blob/main/AGENTS.md), the development contract.
 
 If you are an AI agent reading this in a primr-aware project: this is how to
 route and operate Primr without making the user learn its internal commands.
@@ -98,7 +98,7 @@ primr doctor
 
 For an explicitly provider-backed request where Primr is not installed:
 
-> "Primr isn't installed. It's a Python CLI from github.com/blisspixel/primr. For this provider-backed run, use `pipx install primr` on Python 3.11+, then run `primr init`. Want me to walk through it?"
+> "Primr isn't installed. It's a Python CLI from github.com/pueo-labs/primr. For this provider-backed run, use `pipx install primr` on Python 3.11+, then run `primr init`. Want me to walk through it?"
 
 Wait for explicit approval before running `pip install`. For Primr Zero, if
 installation is declined or unavailable, proceed with the host-native fallback
@@ -204,13 +204,13 @@ specific run.
 3. **Launch.** MCP: `research_company(company_name=..., company_url=..., mode=..., platform=..., destination=...)` returns `job_id`. CLI: after approval, replace `--dry-run` with `--skip-confirm` in the exact quoted command. Use a prompt only for a foreground human terminal run. Note the `job_id` or output directory.
 4. **Don't block.** Runs take 35-120 minutes. Tell the user the job is running and what file path will hold the report. Do not poll synchronously in a loop.
 5. **Resume on next turn.** When the user comes back ("is the Acme report done?"), check `primr://research/status` or `check_jobs` (MCP), or look for the markdown file at `output/<company>/<Company>_Strategic_Overview_<MM-DD-YYYY>.md` (CLI). If still running, report the stage and `stage_progress_percent`.
-6. **Confirm completion, then hand off.** If using MCP, read `primr://output/artifacts/by_job/{job_id}` first to list the owned job's artifacts without loading report body content. If QA ran, read `primr://output/qa_summary/by_job/{job_id}` for compact score/status/count metadata. Read `primr://output/usage_summary/by_job/{job_id}` when you need cost, timing, approval, or artifact-count metadata without loading the full manifest. Completed measurable jobs report run-scoped `actual_cost_usd`; cancellations and otherwise unmeasurable terminal paths can report null. Never present an estimate or approved ceiling as actual spend. Read `primr://output/source_summary/by_job/{job_id}` when you need citation/source appendix counts, domains, missing citations, or duplicate URL metadata without loading report body content. Read `primr://output/trace_summary/by_job/{job_id}` when you need scrape trace health, tier attempts, latency, block, HTTP status, or validation metadata without loading URLs, raw trace entries, or page content. Read `primr://output/verification_summary/by_job/{job_id}` when you need claim verification trust score, claim counts, status counts, first-party downgrade counts, or source-reference counts without loading raw claims, source URLs, search queries, explanations, or report body content. Read `primr://output/calibration_summary/by_job/{job_id}` when you need label-calibration counts, inference source-copy counts, evidence-review count buckets, judge provenance, or judge-agreement metadata without loading raw claims, source URLs, evidence reviews, rationales, or report body content. MCP resource reads and A2A skill calls are audit-logged without raw URI query values, raw resource bodies, raw message text, raw results, or caller ids. Then read the report path or preview needed for the handoff. Do NOT dump the full report into the conversation - it's ~21k words. Summarize the executive summary, list the section count, and offer downstream actions (see [downstream handoff](https://github.com/blisspixel/primr/blob/main/claude-code/skills/primr/references/downstream-handoff.md)).
+6. **Confirm completion, then hand off.** If using MCP, read `primr://output/artifacts/by_job/{job_id}` first to list the owned job's artifacts without loading report body content. If QA ran, read `primr://output/qa_summary/by_job/{job_id}` for compact score/status/count metadata. Read `primr://output/usage_summary/by_job/{job_id}` when you need cost, timing, approval, or artifact-count metadata without loading the full manifest. Completed measurable jobs report run-scoped `actual_cost_usd`; cancellations and otherwise unmeasurable terminal paths can report null. Never present an estimate or approved ceiling as actual spend. Read `primr://output/source_summary/by_job/{job_id}` when you need citation/source appendix counts, domains, missing citations, or duplicate URL metadata without loading report body content. Read `primr://output/trace_summary/by_job/{job_id}` when you need scrape trace health, tier attempts, latency, block, HTTP status, or validation metadata without loading URLs, raw trace entries, or page content. Read `primr://output/verification_summary/by_job/{job_id}` when you need claim verification trust score, claim counts, status counts, first-party downgrade counts, or source-reference counts without loading raw claims, source URLs, search queries, explanations, or report body content. Read `primr://output/calibration_summary/by_job/{job_id}` when you need label-calibration counts, inference source-copy counts, evidence-review count buckets, judge provenance, or judge-agreement metadata without loading raw claims, source URLs, evidence reviews, rationales, or report body content. MCP resource reads and A2A skill calls are audit-logged without raw URI query values, raw resource bodies, raw message text, raw results, or caller ids. Then read the report path or preview needed for the handoff. Do NOT dump the full report into the conversation - it's ~21k words. Summarize the executive summary, list the section count, and offer downstream actions (see [downstream handoff](https://github.com/pueo-labs/primr/blob/main/claude-code/skills/primr/references/downstream-handoff.md)).
 
 ## Mode, tier, platform, strategy
 
 primr exposes four orthogonal levers. Default is `full` mode, recon-driven platform selection, default `--grok-tier`, and the built-in AI Strategy module unless `--no-ai-strategy` is passed.
 
-For the full decision matrix - when to pick each, cost and time per combination, multi-platform behavior - see [modes and strategies](https://github.com/blisspixel/primr/blob/main/claude-code/skills/primr/references/modes-and-strategies.md). One-liner heuristics:
+For the full decision matrix - when to pick each, cost and time per combination, multi-platform behavior - see [modes and strategies](https://github.com/pueo-labs/primr/blob/main/claude-code/skills/primr/references/modes-and-strategies.md). One-liner heuristics:
 
 - **Mode**: `full` for almost everything. `scrape` if external research isn't needed. `deep` if the site is blocked. `premium` only when the user asks for board-grade depth.
 - **Platform**: omit unless the user requests an ecosystem emphasis. Use `--platform azure`, `--platform aws`, `--platform gcp`, or `--platform private` for one strategy. `--platform ms` is the explicit `azure private` shorthand and produces two artifacts, so re-estimate it accordingly. The flag affects the AI strategy module, not the core report.
@@ -230,7 +230,7 @@ If `OPENROUTER_API_KEY` is present and active, prefer OpenRouter by default (`PR
 
 primr discovers any YAML file dropped into `<install>/prompts/strategies/` (or the user's override path). Author one when the user wants a recurring deliverable that doesn't fit the built-ins (e.g., "FinOps assessment for retail clients", "M&A integration playbook").
 
-For the schema and a worked example, see [custom strategy YAML](https://github.com/blisspixel/primr/blob/main/claude-code/skills/primr/references/custom-strategy-yaml.md). Keep custom strategies in version control; do not edit a built-in YAML in place.
+For the schema and a worked example, see [custom strategy YAML](https://github.com/pueo-labs/primr/blob/main/claude-code/skills/primr/references/custom-strategy-yaml.md). Keep custom strategies in version control; do not edit a built-in YAML in place.
 
 ## Async monitoring
 
@@ -266,7 +266,7 @@ When the user asks "what did we get": for MCP, prefer `primr://output/artifacts/
 
 primr's outputs are inputs to the rest of the user's toolchain. Do not let a report sit unused. When a run completes, proactively offer the next step the user is likely to need.
 
-For the mapping (Strategic Overview → which next action, AI Strategy module → which next action, hypotheses → which next action), see [downstream handoff](https://github.com/blisspixel/primr/blob/main/claude-code/skills/primr/references/downstream-handoff.md).
+For the mapping (Strategic Overview → which next action, AI Strategy module → which next action, hypotheses → which next action), see [downstream handoff](https://github.com/pueo-labs/primr/blob/main/claude-code/skills/primr/references/downstream-handoff.md).
 
 ## Hypothesis memory
 

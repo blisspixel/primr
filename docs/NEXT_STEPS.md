@@ -14,7 +14,7 @@ Use one source for each kind of information:
 | Question | Source of truth |
 |----------|-----------------|
 | What should be implemented next? | This file |
-| What must unlock before a later release band? | [`ROADMAP.md`](https://github.com/blisspixel/primr/blob/main/ROADMAP.md) |
+| What must unlock before a later release band? | [`ROADMAP.md`](https://github.com/pueo-labs/primr/blob/main/ROADMAP.md) |
 | Why is a workstream designed this way? | [`docs/design/`](design/README.md) |
 | What has already shipped? | [`CHANGELOG.md`](CHANGELOG.md) |
 | What must the product remain? | [Company Analyst Product Contract](design/company-analyst-product-contract.md) |

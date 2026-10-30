@@ -199,8 +199,8 @@ If using private DNS zones, ensure the Foundry project can resolve the Container
 
 ## Reference
 
-- OpenAPI spec: [`deploy/azure/openapi.yaml`](https://github.com/blisspixel/primr/blob/main/deploy/azure/openapi.yaml)
-- Bicep templates: [`deploy/azure/bicep/`](https://github.com/blisspixel/primr/tree/main/deploy/azure/bicep)
-- Deploy script: [`deploy/azure/deploy.sh`](https://github.com/blisspixel/primr/blob/main/deploy/azure/deploy.sh)
+- OpenAPI spec: [`deploy/azure/openapi.yaml`](https://github.com/pueo-labs/primr/blob/main/deploy/azure/openapi.yaml)
+- Bicep templates: [`deploy/azure/bicep/`](https://github.com/pueo-labs/primr/tree/main/deploy/azure/bicep)
+- Deploy script: [`deploy/azure/deploy.sh`](https://github.com/pueo-labs/primr/blob/main/deploy/azure/deploy.sh)
 - [Azure Quickstart](AZURE_QUICKSTART.md) - Deploy Primr to Azure
 - [Copilot Studio Guide](COPILOT_STUDIO_GUIDE.md) - Alternative: connect via Power Platform

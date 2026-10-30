@@ -44,7 +44,7 @@ tiers like Phi-4, Nova, Gemma, DeepSeek). They lag the model vendors' own APIs
 by weeks, so use them for cost/consolidation and first-party APIs for the newest
 models. End-to-end infrastructure-as-code with deploy/verify/clean-up steps
 lives in the repo under
-[`examples/deploy/`](https://github.com/blisspixel/primr/tree/main/examples/deploy):
+[`examples/deploy/`](https://github.com/pueo-labs/primr/tree/main/examples/deploy):
 Azure Foundry (Bicep) and AWS Bedrock (CloudFormation).
 
 ### Validate that keys actually work

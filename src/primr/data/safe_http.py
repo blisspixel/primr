@@ -29,7 +29,7 @@ from primr.utils.security import SafeUrlResolution, resolve_safe_url_for_connect
 
 logger = get_logger("data.safe_http")
 
-_DEFAULT_USER_AGENT = "primr/1.0 (+https://github.com/blisspixel/primr; research fetcher)"
+_DEFAULT_USER_AGENT = "primr/1.0 (+https://github.com/pueo-labs/primr; research fetcher)"
 _DEFAULT_ACCEPT = "text/html,application/xhtml+xml,application/json,*/*"
 _MAX_REDIRECTS = 10
 _REDIRECT_STATUSES = {301, 302, 303, 307, 308}

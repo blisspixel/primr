@@ -2,7 +2,7 @@
 
 Status: ACTIVE decision record. This document defines how Primr chooses
 Python, native code, worker processes, and services. It complements the
-[Engineering Standards](https://github.com/blisspixel/primr/blob/main/ROADMAP.md#engineering-standards--toolchain)
+[Engineering Standards](https://github.com/pueo-labs/primr/blob/main/ROADMAP.md#engineering-standards--toolchain)
 and the [Concurrency Model](../CONCURRENCY.md).
 
 ## Decision

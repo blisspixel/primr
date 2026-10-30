@@ -66,6 +66,35 @@ Source: `docs/images/primr-demo-terminal.html`. Requires Playwright Chromium
 
 4. Copy `.env.example` to `.env` and add your API keys (or run `primr init` to walk through it).
 
+## Repository transfer and publishing
+
+The canonical repository is `https://github.com/pueo-labs/primr`. Existing
+checkouts should update their origin:
+
+```bash
+git remote set-url origin https://github.com/pueo-labs/primr.git
+```
+
+The PyPI package remains `primr`; pip, pipx, uv, and `primr update` continue
+using that package name. Source metadata and README changes appear on PyPI
+with the next separately approved release, not when this repository changes.
+Do not re-upload or retag an existing release to change its metadata.
+
+Before that release, verify the PyPI Trusted Publisher is configured with
+owner `pueo-labs`, repository `primr`, workflow `release.yml`, and environment
+`pypi`, matching `.github/workflows/release.yml`. Keep the environment's
+release protections. Adding a publisher does not publish a release. See
+[PyPI's publisher setup](https://docs.pypi.org/trusted-publishers/adding-a-publisher/).
+
+The documentation destination is `https://pueo-labs.github.io/primr/`.
+Confirm repository Pages settings use GitHub Actions and verify the Docs
+workflow's deployment and canonical URL after merging a documentation change.
+[GitHub does not redirect Pages sites on transfer](https://docs.github.com/en/repositories/creating-and-managing-repositories/transferring-a-repository).
+Keep package documentation links on the repository until any new site is
+verified. Do not recreate the previous repository to host a redirect: doing
+so removes GitHub's existing repository redirects. A legacy Pages redirect,
+if needed, is a separate change to the old owner's Pages site.
+
 ## Development Workflow
 
 ### Dependency maintenance
@@ -242,11 +271,11 @@ uv run pre-commit install
 The canonical development contract - the single seams to use, the
 no-new-giant-file rule, the verify-current-APIs rule, the CLI verb convention,
 and the pre-PR slop check - lives in
-[`AGENTS.md`](https://github.com/blisspixel/primr/blob/main/AGENTS.md) at the
+[`AGENTS.md`](https://github.com/pueo-labs/primr/blob/main/AGENTS.md) at the
 repo root. Tools that read the agents.md format load it natively; Claude Code
 loads it through the one-line `CLAUDE.md` import (`@AGENTS.md`). The guide for
 agents that operate primr is
-[`clients/primr-operator.md`](https://github.com/blisspixel/primr/blob/main/clients/primr-operator.md).
+[`clients/primr-operator.md`](https://github.com/pueo-labs/primr/blob/main/clients/primr-operator.md).
 The essentials:
 
 - Follow PEP 8 guidelines

@@ -201,7 +201,7 @@ establish that the browser itself is free of vulnerabilities.
 
 ## Supported Versions and Vulnerability Reporting
 
-The root [Security Policy](https://github.com/blisspixel/primr/blob/main/SECURITY.md) is the canonical source for supported
+The root [Security Policy](https://github.com/pueo-labs/primr/blob/main/SECURITY.md) is the canonical source for supported
 versions, private vulnerability reporting, response timelines, and disclosure
 scope. This document owns the detailed threat model and security controls.
 
@@ -265,8 +265,8 @@ as a vulnerability fix.
 | Automated tests | The maintained Python matrix and Windows/macOS lanes run on PRs and main. The primary lane enforces combined branch coverage; separate transport and recovery checks retain their own gates. See [contributing](CONTRIBUTING.md). |
 | Static analysis | CodeQL, Ruff, mypy, and Bandit run in CI. A successful scan job does not establish that every finding is resolved; verify findings on the default branch after merging. |
 | Dependency updates | Weekly grouped Python, Actions, and container proposals remain subject to review and the full CI gates. Reapply accepted updates as maintainer-authored commits; do not merge bot branches or add bot coauthor trailers. |
-| Disclosure policy | The [root policy](https://github.com/blisspixel/primr/blob/main/SECURITY.md) publishes supported versions, private reporting, and response expectations directly. |
-| Release delivery | The [release workflow](https://github.com/blisspixel/primr/blob/main/.github/workflows/release.yml) checks main's CI before publication and uses trusted publishing, artifact hashes, SBOMs, and provenance. |
+| Disclosure policy | The [root policy](https://github.com/pueo-labs/primr/blob/main/SECURITY.md) publishes supported versions, private reporting, and response expectations directly. |
+| Release delivery | The [release workflow](https://github.com/pueo-labs/primr/blob/main/.github/workflows/release.yml) checks main's CI before publication and uses trusted publishing, artifact hashes, SBOMs, and provenance. |
 | OpenSSF Best Practices badge | No badge is claimed. A badge is a separate voluntary self-certification, not an automatic consequence of these controls. |
 
 The [OpenSSF passing criteria](https://www.bestpractices.dev/en/criteria/0) were

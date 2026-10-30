@@ -1,7 +1,7 @@
 # Claude Code plugin - primr
 
 This directory is the Claude Code plugin for
-[primr](https://github.com/blisspixel/primr). It bundles the Primr MCP server
+[primr](https://github.com/pueo-labs/primr). It bundles the Primr MCP server
 and three skills into one install:
 
 - **primr** - routes a clean company-and-URL request to Primr Zero by default,
@@ -20,15 +20,21 @@ pip install primr
 primr init
 ```
 
-Then in Claude Code:
+Then clone the repository and load its plugin directory in Claude Code:
 
-```
-/plugin marketplace add blisspixel/primr
-/plugin install primr@blisspixel-primr
+```bash
+git clone https://github.com/pueo-labs/primr.git
+cd primr
+claude --plugin-dir ./claude-code
 ```
 
-That registers the MCP server (`primr mcp`, exposed as `mcp__primr__*` tools)
-and all three skills, loaded on demand from their descriptions.
+The repository does not publish a marketplace catalog, so do not use
+`/plugin marketplace add` with its repository URL. The
+[local plugin option](https://code.claude.com/docs/en/plugins/create#load-a-plugin-from-a-directory-or-zip)
+loads the MCP server (`primr mcp`) and all three skills for that session.
+Pass `--plugin-dir` again for later sessions, using the absolute path to
+`claude-code/` when working outside this checkout. Primr must be installed
+and discoverable on `PATH` for the MCP server to start.
 
 Then ask Claude:
 
@@ -50,7 +56,7 @@ guidance without a personal install. Local `.claude` settings remain ignored.
 
 If you only want the skill - not the MCP server - paste this to Claude Code:
 
-> Fetch `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/SKILL.md` and save it to `~/.claude/skills/primr/SKILL.md`. Then fetch the four files under `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/references/` and save them under `~/.claude/skills/primr/references/`. Then run `pip install primr`. Run `primr init` only if you also want provider-backed runs.
+> Fetch `https://raw.githubusercontent.com/pueo-labs/primr/main/claude-code/skills/primr/SKILL.md` and save it to `~/.claude/skills/primr/SKILL.md`. Then fetch the four files under `https://raw.githubusercontent.com/pueo-labs/primr/main/claude-code/skills/primr/references/` and save them under `~/.claude/skills/primr/references/`. Then run `pip install primr`. Run `primr init` only if you also want provider-backed runs.
 
 The skill works fine without the MCP server - it just falls back to the `primr`
 CLI for everything. It also contains an inline Primr Zero handoff, so a later
@@ -90,7 +96,7 @@ limits still apply. See [`../docs/ZERO_COST.md`](../docs/ZERO_COST.md).
 
 If you can't run primr - no API keys, no Python, locked-down machine - the `company-brief` skill gets you a useful subset of the output using only your agent subscription. Paste this to Claude Code:
 
-> Fetch `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/company-brief/SKILL.md` and save it to `~/.claude/skills/company-brief/SKILL.md`. Then fetch the two files under `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/company-brief/references/` (`report-template.md`, `recon-cheatsheet.md`) and save them under `~/.claude/skills/company-brief/references/`.
+> Fetch `https://raw.githubusercontent.com/pueo-labs/primr/main/claude-code/skills/company-brief/SKILL.md` and save it to `~/.claude/skills/company-brief/SKILL.md`. Then fetch the two files under `https://raw.githubusercontent.com/pueo-labs/primr/main/claude-code/skills/company-brief/references/` (`report-template.md`, `recon-cheatsheet.md`) and save them under `~/.claude/skills/company-brief/references/`.
 
 Then: `"company-brief Acme Corp https://acme.example"`. The same SKILL.md content also works as custom agent instructions in hosts without a skills system (Microsoft 365 Copilot agents, Gemini CLI, etc.) - it's plain markdown with no primr-specific dependencies.
 

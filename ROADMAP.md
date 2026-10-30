@@ -16,7 +16,7 @@ changelog. Future work has no target dates or effort estimates: release bands
 advance only when their exit criteria are satisfied.
 
 For completed work, see the canonical [Changelog](docs/CHANGELOG.md), or check
-[GitHub releases](https://github.com/blisspixel/primr/releases) for the latest.
+[GitHub releases](https://github.com/pueo-labs/primr/releases) for the latest.
 
 > **Before you add a rule or make something agentic, read
 > [`docs/design/agentic-balance.md`](docs/design/agentic-balance.md) - and keep it
@@ -2253,7 +2253,7 @@ cd deploy/aws && ./deploy.sh -d prod destroy
 
 This historical summary is retained for convenience. Canonical release details
 live in [the changelog](docs/CHANGELOG.md) and
-[GitHub releases](https://github.com/blisspixel/primr/releases).
+[GitHub releases](https://github.com/pueo-labs/primr/releases).
 
 | Version | Date | Highlights |
 |---------|------|------------|

@@ -302,7 +302,7 @@ pass the exact written path and disclose that the check was unavailable.
 This handoff is deliberately neutral. Primr does not assume a sales process,
 brand, cloud vendor, or HTML, PDF, slide, or spreadsheet renderer.
 
-See [Per-client install snippets](https://github.com/blisspixel/primr/tree/main/clients)
+See [Per-client install snippets](https://github.com/pueo-labs/primr/tree/main/clients)
 for MCP and guidance placement outside the zero-cost path.
 
 ## Host-native versus host-runner

@@ -48,8 +48,8 @@ def _plugin_manifest() -> bytes:
                 "name": "blisspixel",
                 "url": "https://github.com/blisspixel",
             },
-            "homepage": "https://github.com/blisspixel/primr",
-            "repository": "https://github.com/blisspixel/primr",
+            "homepage": "https://github.com/pueo-labs/primr",
+            "repository": "https://github.com/pueo-labs/primr",
             "license": "Apache-2.0",
             "keywords": ["company-research", "strategic-intelligence", "primr"],
         }

@@ -103,7 +103,7 @@ primr doctor
 
 For an explicitly provider-backed request where Primr is not installed:
 
-> "Primr isn't installed. It's a Python CLI from github.com/blisspixel/primr. For this provider-backed run, use `pipx install primr` on Python 3.12+, then run `primr init`. Want me to walk through it?"
+> "Primr isn't installed. It's a Python CLI from github.com/pueo-labs/primr. For this provider-backed run, use `pipx install primr` on Python 3.12+, then run `primr init`. Want me to walk through it?"
 
 Wait for explicit approval before running `pip install`. For Primr Zero, if
 installation is declined or unavailable, proceed with the host-native fallback
